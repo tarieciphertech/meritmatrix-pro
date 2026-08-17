@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: meritmatrix-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-meritmatrix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meritmatrix}
+      POSTGRES_DB: ${POSTGRES_DB:-meritmatrix}
+    ports:
+      - "5432:5432"
+    volumes:
+      - meritmatrix_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-meritmatrix}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      target: base
+    container_name: meritmatrix-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meritmatrix}:${POSTGRES_PASSWORD:-meritmatrix}@db:5432/${POSTGRES_DB:-meritmatrix}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # frontend:
+  #   Added in Step 6 of the development workflow once the React app exists.
+  #   build:
+  #     context: ./frontend
+  #     target: development
+  #   ports:
+  #     - "5173:5173"
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #   depends_on:
+  #     - backend
+
+volumes:
+  meritmatrix_pg_data:
