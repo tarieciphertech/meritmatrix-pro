@@ -32,7 +32,7 @@ class Staff(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     job_title: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     employment_status: Mapped[str] = mapped_column(
-        Enum(EmploymentStatus),
+        Enum(EmploymentStatus, values_callable=lambda enum_cls: [item.value for item in enum_cls]),
         default=EmploymentStatus.ACTIVE,
         nullable=False
     )
