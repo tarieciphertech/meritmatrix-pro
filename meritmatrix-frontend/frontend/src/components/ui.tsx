@@ -130,8 +130,8 @@ export function Modal({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
-      <div className="fixed inset-0 bg-slate-900/50" onClick={onClose} aria-hidden="true" />
+    <div className="fixed inset-0 z-50 isolate flex items-start justify-center overflow-y-auto p-4 sm:p-8">
+      <div className="fixed inset-0 z-0 bg-slate-900/50" onClick={onClose} aria-hidden="true" />
       <div className="relative z-10 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
