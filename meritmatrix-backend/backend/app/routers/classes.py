@@ -97,11 +97,10 @@ def update_class(
 ):
     """Update a class. Requires membership in the owning school."""
     service = ClassService(db)
-    clazz = service.update_class(class_id, payload)
-    
-    # Verify membership in the class's school
+    # Authorize against the existing class before applying any changes.
+    clazz = service.get_class(class_id)
     _verify_school_membership(db, current_user, clazz.school_id)
-    
+    clazz = service.update_class(class_id, payload)
     db.commit()
     db.refresh(clazz)
     return clazz
