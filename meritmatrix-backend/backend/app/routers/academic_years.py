@@ -116,11 +116,11 @@ def update_academic_year(
 ):
     """Update an academic year. Requires membership in the owning school."""
     service = AcademicYearService(db)
-    academic_year = service.update_academic_year(academic_year_id, payload)
-    
-    # Verify membership in the academic year's school
+    # Authorize against the existing record before applying any changes.
+    academic_year = service.get_academic_year(academic_year_id)
     _verify_school_membership(db, current_user, academic_year.school_id)
-    
+
+    academic_year = service.update_academic_year(academic_year_id, payload)
     db.commit()
     db.refresh(academic_year)
     return academic_year
