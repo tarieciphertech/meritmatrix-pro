@@ -359,3 +359,7 @@ export interface ApiErrorBody {
     request_id?: string;
   };
 }
+
+export interface TermResponse { id: string; academic_year_id: string; name: string; term_number: number; start_date: string; end_date: string; is_current: boolean; is_active: boolean; created_at: string; updated_at: string; }
+export interface SubjectResponse { id: string; school_id: string; name: string; code: string; description?: string | null; is_active: boolean; created_at: string; updated_at: string; }
+export interface ClassSubjectResponse { id: string; class_id: string; subject_id: string; class_name?: string | null; class_code?: string | null; subject_name?: string | null; subject_code?: string | null; created_at: string; updated_at: string; }
