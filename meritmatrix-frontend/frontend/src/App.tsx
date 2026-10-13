@@ -12,6 +12,7 @@ import StudentsPage from './pages/StudentsPage';
 import GuardiansPage from './pages/GuardiansPage';
 import StaffPage from './pages/StaffPage';
 import EnrollmentsPage from './pages/EnrollmentsPage';
+import AcademicSetupPage from './pages/AcademicSetupPage';
 import { Spinner } from './components/ui';
 import type { ReactNode } from 'react';
 
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="/guardians" element={<GuardiansPage />} />
             <Route path="/staff" element={<StaffPage />} />
             <Route path="/enrollments" element={<EnrollmentsPage />} />
+            <Route path="/academic-setup" element={<AcademicSetupPage />} />
           </Route>
 
           {/* Catch-all: redirect to dashboard */}
