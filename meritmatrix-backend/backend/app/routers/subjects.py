@@ -97,11 +97,10 @@ def update_subject(
 ):
     """Update a subject. Requires membership in the owning school."""
     service = SubjectService(db)
-    subject = service.update_subject(subject_id, payload)
-    
-    # Verify membership in the subject's school
+    # Authorize against the existing subject before applying any changes.
+    subject = service.get_subject(subject_id)
     _verify_school_membership(db, current_user, subject.school_id)
-    
+    subject = service.update_subject(subject_id, payload)
     db.commit()
     db.refresh(subject)
     return subject
