@@ -14,6 +14,7 @@ const navItems = [
   { to: '/guardians', label: 'Guardians' },
   { to: '/staff', label: 'Staff' },
   { to: '/enrollments', label: 'Enrollments' },
+  { to: '/academic-setup', label: 'Academic Setup' },
 ];
 
 function navClasses({ isActive }: { isActive: boolean }) {
