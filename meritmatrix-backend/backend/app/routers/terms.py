@@ -150,11 +150,9 @@ def update_term(
 ):
     """Update a term. Requires membership in the owning school."""
     service = TermService(db)
-    term = service.update_term(term_id, payload)
-    
-    # Verify membership
+    # Authorize against the existing term before applying any changes.
     _verify_school_membership_for_term(db, current_user, term_id)
-    
+    term = service.update_term(term_id, payload)
     db.commit()
     db.refresh(term)
     return term
