@@ -93,7 +93,6 @@ export default function AcademicSetupPage() {
   catch(e){setError(e instanceof Error?e.message:'Could not deactivate record');}
  }
  const activeYears=years.filter(x=>x.is_active);
- const title=tabs.find(x=>x.id===tab)?.label||'Academic Setup';
  const rows=tab==='terms'?terms.filter(t=>t.academic_year_id===yearId):terms;
 
  return <div>
