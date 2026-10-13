@@ -35,7 +35,7 @@ class Student(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     nationality: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     admission_date: Mapped[Optional[Date]] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(
-        Enum(StudentStatus),
+        Enum(StudentStatus, values_callable=lambda enum_cls: [item.value for item in enum_cls]),
         default=StudentStatus.ACTIVE,
         nullable=False
     )
