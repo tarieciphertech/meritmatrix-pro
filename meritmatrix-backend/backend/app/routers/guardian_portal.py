@@ -1,11 +1,12 @@
 """Read-only guardian portal endpoints.
 
-Portal access is derived from the guardian_id bound to the authenticated account.
+New phone accounts use their bound guardian_id. Legacy email-linked accounts keep their existing access until migrated.
 No caller-supplied guardian or school ID is trusted for discovery.
 """
 from typing import List
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_active_user
@@ -23,8 +24,12 @@ def list_my_students(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Return only students linked to the guardian bound to the signed-in account."""
-    if not current_user.guardian_id:
+    """Return students linked to the bound guardian, with legacy email fallback."""
+    if current_user.guardian_id:
+        guardian_filter = Guardian.id == current_user.guardian_id
+    elif current_user.email:
+        guardian_filter = func.lower(func.trim(Guardian.email)) == current_user.email.strip().lower()
+    else:
         return []
 
     rows = (
@@ -32,7 +37,7 @@ def list_my_students(
         .join(StudentGuardian, StudentGuardian.student_id == Student.id)
         .join(Guardian, Guardian.id == StudentGuardian.guardian_id)
         .filter(
-            Guardian.id == current_user.guardian_id,
+            guardian_filter,
             Guardian.is_active.is_(True),
             Student.is_active.is_(True),
         )
