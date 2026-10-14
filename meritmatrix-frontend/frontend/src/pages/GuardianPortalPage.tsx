@@ -97,9 +97,8 @@ export default function GuardianPortalPage() {
         <Card className="p-6">
           <h2 className="font-semibold text-slate-900">No linked students yet</h2>
           <p className="mt-2 text-sm text-slate-600">
-            This account does not currently match an active guardian record with linked students.
-            Ask the school office to check that your guardian record has the same email address
-            as your sign-in account and that your student relationship has been assigned.
+            This account does not currently have an active guardian record with linked students.
+            Ask the school office to confirm your guardian account is linked to the correct student.
           </p>
           <button
             type="button"
