@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
 
+interface PortalSchool { id: string; name: string; code: string; country?: string | null; country_code?: string | null; }
+
 interface LinkedStudent {
   student_id: string;
   student_number: string;
@@ -22,6 +24,17 @@ interface LinkedStudent {
     enrollment_date?: string | null;
   } | null;
   subjects?: { name: string; code?: string | null }[];
+  attendance?: {
+    total_marked: number;
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    sick: number;
+    left_early: number;
+    attendance_rate: number | null;
+    recent_records: { date: string; session: string; status: string }[];
+  };
 }
 
 function titleCase(value: string) {
@@ -30,6 +43,8 @@ function titleCase(value: string) {
 
 export default function GuardianPortalPage() {
   const [students, setStudents] = useState<LinkedStudent[]>([]);
+  const [schools, setSchools] = useState<PortalSchool[]>([]);
+  const [schoolId, setSchoolId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +52,15 @@ export default function GuardianPortalPage() {
     setLoading(true);
     setError(null);
     try {
-      const linked = await api.get<LinkedStudent[]>('/api/v1/guardian-portal/students');
+      const availableSchools = await api.get<PortalSchool[]>('/api/v1/guardian-portal/schools');
+      setSchools(availableSchools);
+      const chosenId = availableSchools.some((school) => school.id === schoolId)
+        ? schoolId
+        : availableSchools.length === 1 ? availableSchools[0].id : '';
+      setSchoolId(chosenId);
+      const linked = chosenId
+        ? await api.get<LinkedStudent[]>('/api/v1/guardian-portal/students', { school_id: chosenId })
+        : [];
       setStudents(linked);
     } catch (err) {
       setError(
@@ -48,7 +71,7 @@ export default function GuardianPortalPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [schoolId]);
 
   useEffect(() => {
     void loadStudents();
@@ -58,20 +81,35 @@ export default function GuardianPortalPage() {
     <div>
       <PageHeader
         title="Guardian Portal"
-        subtitle="View the students linked to your guardian account."
+        subtitle="Choose the school to view only students linked to your guardian account."
       />
+
+      {!loading && schools.length > 0 && (
+        <div className="mb-5 max-w-xl rounded-lg border border-slate-200 bg-white p-4">
+          <label htmlFor="guardian-school" className="block text-sm font-medium text-slate-700">School</label>
+          <select id="guardian-school" value={schoolId} onChange={(event) => setSchoolId(event.target.value)}
+            className="mt-2 block w-full rounded-md border border-slate-300 bg-white p-2.5 text-sm">
+            <option value="">Select your school…</option>
+            {schools.map((school) => <option key={school.id} value={school.id}>{school.name} ({school.code})</option>)}
+          </select>
+          <p className="mt-2 text-xs text-slate-500">Only schools with your linked students are listed.</p>
+        </div>
+      )}
 
       {error && <ErrorBanner message={error} />}
 
-      {loading ? (
+      {!loading && schools.length === 0 ? (
+        <Card className="p-6"><h2 className="font-semibold text-slate-900">No school access found</h2><p className="mt-2 text-sm text-slate-600">Ask the school office to confirm that your guardian account is linked to an active student.</p><button type="button" onClick={() => void loadStudents()} className="mt-4 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white">Check again</button></Card>
+      ) : loading ? (
         <Spinner label="Loading linked students…" />
+      ) : !schoolId ? (
+        <Card className="p-6"><p className="text-sm text-slate-600">Select a school to continue to its guardian portal.</p></Card>
       ) : students.length === 0 ? (
         <Card className="p-6">
           <h2 className="font-semibold text-slate-900">No linked students yet</h2>
           <p className="mt-2 text-sm text-slate-600">
-            This account does not currently match an active guardian record with linked students.
-            Ask the school office to check that your guardian record has the same email address
-            as your sign-in account and that your student relationship has been assigned.
+            This account does not currently have an active guardian record with linked students.
+            Ask the school office to confirm your guardian account is linked to the correct student.
           </p>
           <button
             type="button"
@@ -151,18 +189,55 @@ export default function GuardianPortalPage() {
                 )}
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900">Attendance overview</h3>
+                  <span className="text-sm font-medium text-slate-700">
+                    {student.attendance?.attendance_rate == null
+                      ? 'No attendance recorded'
+                      : `${student.attendance.attendance_rate}% present`}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                  {[
+                    ['Present', student.attendance?.present ?? 0],
+                    ['Absent', student.attendance?.absent ?? 0],
+                    ['Late', student.attendance?.late ?? 0],
+                    ['Excused', student.attendance?.excused ?? 0],
+                    ['Sick', student.attendance?.sick ?? 0],
+                    ['Left early', student.attendance?.left_early ?? 0],
+                  ].map(([label, count]) => (
+                    <div key={label} className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">{label}</p>
+                      <p className="mt-1 text-lg font-semibold text-slate-900">{count}</p>
+                    </div>
+                  ))}
+                </div>
+                {student.attendance?.recent_records && student.attendance.recent_records.length > 0 ? (
+                  <div className="mt-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent attendance</h4>
+                    <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200">
+                      {student.attendance.recent_records.map((record) => (
+                        <li key={record.date + '-' + record.session} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                          <span className="text-slate-700">{record.date} · {titleCase(record.session)}</span>
+                          <span className="font-medium text-slate-900">{titleCase(record.status)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">No attendance entries have been saved for this student yet.</p>
+                )}
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
                 <div className="rounded-lg border border-slate-200 p-3">
                   <h3 className="text-sm font-semibold text-slate-900">Academic results</h3>
-                  <p className="mt-1 text-xs text-slate-500">Results will appear when assessment records are available to guardians.</p>
+                  <p className="mt-1 text-xs text-slate-500">Assessment and report-card records are not available in the current school data model yet.</p>
                 </div>
                 <div className="rounded-lg border border-slate-200 p-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Attendance</h3>
-                  <p className="mt-1 text-xs text-slate-500">Attendance records are not yet exposed in the guardian portal.</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Fees and reports</h3>
-                  <p className="mt-1 text-xs text-slate-500">Fee balances and report cards will appear once those records are available.</p>
+                  <h3 className="text-sm font-semibold text-slate-900">Fees and balances</h3>
+                  <p className="mt-1 text-xs text-slate-500">Fee ledgers and payment balances are not available in the current school data model yet.</p>
                 </div>
               </div>
             </Card>
