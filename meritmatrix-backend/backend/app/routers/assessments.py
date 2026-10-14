@@ -13,16 +13,19 @@ from app.models.assessment import Assessment, AssessmentMark
 from app.models.class_subject import ClassSubject
 from app.models.clazz import Class
 from app.models.enrollment import Enrollment, EnrollmentStatus
+from app.models.grading_band import GradingBand
 from app.models.student import Student
 from app.models.subject import Subject
 from app.models.term import Term
 from app.models.user import User
 from app.schemas.assessment import AssessmentCreate, AssessmentResponse, AssessmentUpdate, MarkBatch, MarkResponse
+from app.schemas.grading_band import GradingBandResponse, GradingScaleReplace
 from app.services.user_school_service import UserSchoolService
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
 results_router = APIRouter(prefix="/api/v1/results", tags=["academic-results"])
+grading_router = APIRouter(prefix="/api/v1/grading-scales", tags=["grading-scales"])
 
 
 def _school_access(db: Session, user: User, school_id: uuid.UUID) -> None:
@@ -68,6 +71,37 @@ def _mark_response(mark: AssessmentMark):
         "student_name": " ".join(x for x in [student.first_name, student.middle_name, student.last_name] if x),
         "created_at": mark.created_at, "updated_at": mark.updated_at,
     }
+
+
+@grading_router.get("", response_model=list[GradingBandResponse])
+def list_grading_bands(
+    school_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("assessments.read")),
+):
+    _school_access(db, current_user, school_id)
+    return db.query(GradingBand).filter(GradingBand.school_id == school_id).order_by(GradingBand.display_order, GradingBand.min_percentage.desc()).all()
+
+
+@grading_router.put("", response_model=list[GradingBandResponse])
+def replace_grading_bands(
+    payload: GradingScaleReplace,
+    school_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("assessments.update")),
+):
+    _school_access(db, current_user, school_id)
+    labels = [band.grade_label.strip().casefold() for band in payload.bands]
+    if len(set(labels)) != len(labels):
+        raise ConflictError("Each grade label must be unique within a school.", code="DUPLICATE_GRADE_LABEL")
+    ordered = sorted(payload.bands, key=lambda band: (band.min_percentage, band.max_percentage))
+    for previous, current in zip(ordered, ordered[1:]):
+        if current.min_percentage <= previous.max_percentage:
+            raise ConflictError("Grading bands must not overlap.", code="OVERLAPPING_GRADE_BANDS")
+    db.query(GradingBand).filter(GradingBand.school_id == school_id).delete(synchronize_session=False)
+    db.add_all([GradingBand(school_id=school_id, **band.model_dump()) for band in payload.bands])
+    db.commit()
+    return db.query(GradingBand).filter(GradingBand.school_id == school_id).order_by(GradingBand.display_order, GradingBand.min_percentage.desc()).all()
 
 
 @router.get("", response_model=list[AssessmentResponse])
@@ -306,8 +340,12 @@ def list_results(
         item["weight_total"] += assessment.weight_percent
         item["marks_recorded"] += 1
         item["assessments_count"] += 1
+    grading_bands = db.query(GradingBand).filter(GradingBand.school_id == school_id, GradingBand.is_active.is_(True)).all()
     result = []
     for item in grouped.values():
         item["weighted_percentage"] = round(item.pop("weighted_sum") / item.pop("weight_total"), 2) if item["weight_total"] else None
+        band = next((b for b in grading_bands if item["weighted_percentage"] is not None and b.min_percentage <= item["weighted_percentage"] <= b.max_percentage), None)
+        item["grade_label"] = band.grade_label if band else None
+        item["grade_comment"] = band.comment if band else None
         result.append(item)
     return result
