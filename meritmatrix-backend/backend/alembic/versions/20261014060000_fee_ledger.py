@@ -20,7 +20,7 @@ def upgrade() -> None:
         sa.Column("academic_year_id", app.models.base.GUID(), nullable=False),
         sa.Column("term_id", app.models.base.GUID(), nullable=True),
         sa.Column("description", sa.String(length=160), nullable=False),
-        sa.Column("amount", sa.Float(), nullable=False),
+        sa.Column("amount", sa.Numeric(12, 2), nullable=False),
         sa.Column("due_date", sa.Date(), nullable=True),
         sa.Column("is_void", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("notes", sa.Text(), nullable=True),
