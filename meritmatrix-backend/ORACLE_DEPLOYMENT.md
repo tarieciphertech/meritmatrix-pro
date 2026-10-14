@@ -31,7 +31,7 @@ Take a PostgreSQL backup using the backup procedure already used for this Oracle
 
 ```bash
 cd meritmatrix-backend
-DB_BACKUP_CONFIRMED=1 ./deploy-oracle.sh
+DB_BACKUP_CONFIRMED=1 bash ./deploy-oracle.sh
 ```
 
 The script validates required settings, builds the production image, applies Alembic migrations, starts the API, and checks `http://127.0.0.1:8000/health`. It deliberately refuses to run unless the backup confirmation variable is set.
