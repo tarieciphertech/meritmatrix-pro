@@ -34,7 +34,7 @@ class AttendanceRegisterCreate(BaseModel):
 
 
 class AttendanceRecordResponse(BaseModel):
-    id: uuid.UUID
+    id: Optional[uuid.UUID] = None
     school_id: uuid.UUID
     enrollment_id: uuid.UUID
     attendance_date: date
