@@ -1,5 +1,6 @@
 """School-scoped assessments and enrollment marks."""
-from datetime import date\nfrom typing import Optional
+from datetime import date
+from typing import Optional
 
 from sqlalchemy import Boolean, Date, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
