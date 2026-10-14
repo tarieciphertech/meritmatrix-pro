@@ -18,6 +18,7 @@ from app.models.attendance_record import AttendanceRecord
 from app.models.class_subject import ClassSubject
 from app.models.clazz import Class
 from app.models.enrollment import Enrollment
+from app.models.fee import FeeCharge, FeePayment
 from app.models.guardian import Guardian
 from app.models.student import Student
 from app.models.student_guardian import StudentGuardian
@@ -191,6 +192,38 @@ def list_my_students(
             for mark, assessment, subject, term, _enrollment in academic_rows
         ]
 
+        fee_charges = (
+            db.query(FeeCharge)
+            .filter(FeeCharge.student_id == student.id, FeeCharge.school_id == student.school_id, FeeCharge.is_void.is_(False))
+            .order_by(FeeCharge.due_date.asc(), FeeCharge.created_at.desc())
+            .all()
+        )
+        charge_ids = [charge.id for charge in fee_charges]
+        fee_payments = (
+            db.query(FeePayment)
+            .filter(FeePayment.student_id == student.id, FeePayment.school_id == student.school_id)
+            .order_by(FeePayment.payment_date.desc(), FeePayment.created_at.desc())
+            .all()
+        )
+        charges_total = round(sum(float(charge.amount) for charge in fee_charges), 2)
+        payments_total = round(sum(float(payment.amount) for payment in fee_payments), 2)
+        fee_transactions = [
+            {
+                "kind": "charge", "date": charge.due_date.isoformat() if charge.due_date else charge.created_at.date().isoformat(),
+                "description": charge.description, "amount": charge.amount, "reference": None,
+            }
+            for charge in fee_charges
+        ] + [
+            {
+                "kind": "payment", "date": payment.payment_date.isoformat(),
+                "description": payment.charge.description, "amount": payment.amount,
+                "reference": payment.reference,
+            }
+            for payment in fee_payments
+        ]
+        fee_transactions.sort(key=lambda item: item["date"], reverse=True)
+        school_record = db.query(School).filter(School.id == student.school_id).first()
+
         result.append({
             "student_id": str(student.id),
             "student_number": student.student_number,
@@ -208,6 +241,14 @@ def list_my_students(
             "current_enrollment": current_enrollment,
             "subjects": subjects,
             "academic_results": academic_results,
+            "fee_summary": {
+                "currency": school_record.currency if school_record and school_record.currency else None,
+                "charges_total": charges_total,
+                "payments_total": payments_total,
+                "balance": round(charges_total - payments_total, 2),
+                "charges_count": len(fee_charges),
+            },
+            "fee_transactions": fee_transactions[:10],
             "attendance": {
                 "total_marked": attendance_total,
                 **attendance_counts,
