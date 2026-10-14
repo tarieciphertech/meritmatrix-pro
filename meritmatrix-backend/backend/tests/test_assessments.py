@@ -47,3 +47,18 @@ def test_mark_schema_rejects_negative_scores():
 def test_marks_batch_rejects_empty_submissions():
     with pytest.raises(ValidationError):
         MarkBatch(marks=[])
+
+
+def test_grading_scale_rejects_overlapping_ranges(client, make_user, auth_headers, seeded_rbac):
+    make_user(email="grading-admin@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    headers = auth_headers("grading-admin@example.com", "StrongPass123")
+    response = client.put(
+        f"/api/v1/grading-scales?school_id={uuid4()}",
+        headers=headers,
+        json={"bands": [
+            {"grade_label": "A", "min_percentage": 0, "max_percentage": 50},
+            {"grade_label": "B", "min_percentage": 50, "max_percentage": 100},
+        ]},
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "OVERLAPPING_GRADE_BANDS"
