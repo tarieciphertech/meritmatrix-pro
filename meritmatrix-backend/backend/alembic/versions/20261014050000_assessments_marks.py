@@ -2,6 +2,8 @@
 from alembic import op
 import sqlalchemy as sa
 import app.models.base
+import uuid
+from datetime import datetime, timezone
 
 revision = "assessments_marks"
 down_revision = "attendance_records"
@@ -53,6 +55,43 @@ def upgrade() -> None:
     )
     op.create_index("ix_assessment_marks_assessment_id", "assessment_marks", ["assessment_id"])
     op.create_index("ix_assessment_marks_enrollment_id", "assessment_marks", ["enrollment_id"])
+
+    # Add RBAC entries for existing installations as well as fresh seeds.
+    bind = op.get_bind()
+    permissions = sa.Table("permissions", sa.MetaData(), autoload_with=bind)
+    roles = sa.Table("roles", sa.MetaData(), autoload_with=bind)
+    role_permissions = sa.Table("role_permissions", sa.MetaData(), autoload_with=bind)
+    now = datetime.now(timezone.utc)
+    descriptions = {
+        "assessments.read": "View assessments and academic results",
+        "assessments.create": "Create assessments and record marks",
+        "assessments.update": "Update assessments and publish results",
+    }
+    ids = {}
+    for name, description in descriptions.items():
+        row = bind.execute(sa.select(permissions.c.id).where(permissions.c.name == name)).first()
+        if row:
+            ids[name] = row[0]
+        else:
+            permission_id = uuid.uuid4()
+            bind.execute(permissions.insert().values(
+                id=permission_id, name=name, description=description,
+                created_at=now, updated_at=now,
+            ))
+            ids[name] = permission_id
+    for role_name in ("SUPER_ADMIN", "SCHOOL_ADMIN", "TEACHER"):
+        role = bind.execute(sa.select(roles.c.id).where(roles.c.name == role_name)).first()
+        if not role:
+            continue
+        for permission_id in ids.values():
+            existing = bind.execute(sa.select(role_permissions.c.role_id).where(
+                role_permissions.c.role_id == role[0],
+                role_permissions.c.permission_id == permission_id,
+            )).first()
+            if not existing:
+                bind.execute(role_permissions.insert().values(
+                    role_id=role[0], permission_id=permission_id,
+                ))
 
 
 def downgrade() -> None:
