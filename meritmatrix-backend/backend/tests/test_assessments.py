@@ -62,3 +62,16 @@ def test_grading_scale_rejects_overlapping_ranges(client, make_user, auth_header
     )
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "OVERLAPPING_GRADE_BANDS"
+
+
+def test_teacher_role_has_required_assessment_and_attendance_permissions(seeded_rbac, db_session):
+    from app.models.role import Role
+
+    teacher = db_session.query(Role).filter(Role.name == "TEACHER").one()
+    names = {permission.name for permission in teacher.permissions}
+    assert {
+        "schools.read", "academic_years.read", "terms.read", "classes.read",
+        "subjects.read", "class_subjects.read", "students.read", "enrollments.read",
+        "attendance.read", "attendance.create", "assessments.read",
+        "assessments.create", "assessments.update",
+    }.issubset(names)
