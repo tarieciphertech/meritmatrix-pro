@@ -1,5 +1,5 @@
 """School-scoped assessments and enrollment marks."""
-from typing import Optional
+from datetime import date\nfrom typing import Optional
 
 from sqlalchemy import Boolean, Date, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -19,7 +19,7 @@ class Assessment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     term_id: Mapped[str] = mapped_column(GUID(), ForeignKey("terms.id", ondelete="CASCADE"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     assessment_type: Mapped[str] = mapped_column(String(40), nullable=False, default="test")
-    assessment_date: Mapped[Optional[Date]] = mapped_column(Date, nullable=True)
+    assessment_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     max_score: Mapped[float] = mapped_column(Float, nullable=False)
     weight_percent: Mapped[float] = mapped_column(Float, nullable=False, default=100.0)
     is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
