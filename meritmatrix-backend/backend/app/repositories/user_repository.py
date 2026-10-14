@@ -20,6 +20,11 @@ class UserRepository:
         stmt = select(User).where(User.email == normalized)
         return self.db.execute(stmt).scalar_one_or_none()
 
+    def get_by_phone(self, phone: str) -> Optional[User]:
+        normalized = phone.strip()
+        stmt = select(User).where(User.phone == normalized)
+        return self.db.execute(stmt).scalar_one_or_none()
+
     def get_by_username(self, username: str) -> Optional[User]:
         stmt = select(User).where(User.username == username)
         return self.db.execute(stmt).scalar_one_or_none()
