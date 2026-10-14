@@ -1,6 +1,7 @@
 """Fee charge and payment schemas."""
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -11,7 +12,7 @@ class FeeChargeCreate(BaseModel):
     academic_year_id: uuid.UUID
     term_id: Optional[uuid.UUID] = None
     description: str = Field(min_length=1, max_length=160)
-    amount: float = Field(gt=0, le=1_000_000_000)
+    amount: Decimal = Field(gt=Decimal('0'), max_digits=12, decimal_places=2)
     due_date: Optional[date] = None
     notes: Optional[str] = Field(default=None, max_length=4000)
 
