@@ -19,6 +19,7 @@ import EnrollmentsPage from './pages/EnrollmentsPage';
 import AcademicSetupPage from './pages/AcademicSetupPage';
 import AssessmentsPage from './pages/AssessmentsPage';
 import FeesPage from './pages/FeesPage';
+import ReportCardsPage from './pages/ReportCardsPage';
 import { Spinner } from './components/ui';
 import type { ReactNode } from 'react';
 
@@ -32,6 +33,6 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 export default function App() {
   return <AuthProvider><SchoolProvider><Routes><Route path="/login" element={<LoginPage />} /><Route path="/activate-guardian" element={<GuardianActivationPage />} /><Route element={<RequireAuth><AppLayout /></RequireAuth>}>
-    <Route path="/" element={<DashboardPage />} /><Route path="/schools" element={<SchoolsPage />} /><Route path="/school-configuration" element={<SchoolConfigurationPage />} /><Route path="/school-calendar" element={<SchoolCalendarPage />} /><Route path="/teaching-assignments" element={<TeachingAssignmentsPage />} /><Route path="/attendance" element={<AttendancePage />} /><Route path="/students" element={<StudentsPage />} /><Route path="/guardians" element={<GuardiansPage />} /><Route path="/guardian-portal" element={<GuardianPortalPage />} /><Route path="/staff" element={<StaffPage />} /><Route path="/enrollments" element={<EnrollmentsPage />} /><Route path="/academic-setup" element={<AcademicSetupPage />} /><Route path="/assessments" element={<AssessmentsPage />} /><Route path="/fees" element={<FeesPage />} />
+    <Route path="/" element={<DashboardPage />} /><Route path="/schools" element={<SchoolsPage />} /><Route path="/school-configuration" element={<SchoolConfigurationPage />} /><Route path="/school-calendar" element={<SchoolCalendarPage />} /><Route path="/teaching-assignments" element={<TeachingAssignmentsPage />} /><Route path="/attendance" element={<AttendancePage />} /><Route path="/students" element={<StudentsPage />} /><Route path="/guardians" element={<GuardiansPage />} /><Route path="/guardian-portal" element={<GuardianPortalPage />} /><Route path="/staff" element={<StaffPage />} /><Route path="/enrollments" element={<EnrollmentsPage />} /><Route path="/academic-setup" element={<AcademicSetupPage />} /><Route path="/assessments" element={<AssessmentsPage />} /><Route path="/fees" element={<FeesPage />} /><Route path="/report-cards" element={<ReportCardsPage />} />
   </Route><Route path="*" element={<Navigate to="/" replace />} /></Routes></SchoolProvider></AuthProvider>;
 }
