@@ -86,6 +86,8 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
     "enrollments.read": "View enrollments",
     "enrollments.create": "Create enrollments",
     "enrollments.update": "Update enrollments",
+    "attendance.read": "View class attendance registers",
+    "attendance.create": "Record and update attendance registers",
     # System
     "system.admin": "Full platform administrative access (implies all other permissions)",
 }
@@ -119,6 +121,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "student_guardians.read", "student_guardians.create", "student_guardians.delete",
         "staff.read", "staff.create", "staff.update", "staff.delete",
         "enrollments.read", "enrollments.create", "enrollments.update",
+        "attendance.read", "attendance.create",
     ],
     "TEACHER": ["users.read"],
     "PARENT": ["users.read"],
