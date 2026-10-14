@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import get_current_active_user
 from app.database import get_db
 from app.models.academic_year import AcademicYear
+from app.models.attendance_record import AttendanceRecord
 from app.models.class_subject import ClassSubject
 from app.models.clazz import Class
 from app.models.enrollment import Enrollment
@@ -134,6 +135,26 @@ def list_my_students(
                 )
             ]
 
+        attendance_query = (
+            db.query(AttendanceRecord)
+            .join(Enrollment, Enrollment.id == AttendanceRecord.enrollment_id)
+            .filter(
+                Enrollment.student_id == student.id,
+                AttendanceRecord.school_id == student.school_id,
+            )
+        )
+        attendance_counts = {
+            status: attendance_query.filter(AttendanceRecord.status == status).count()
+            for status in ("present", "absent", "late", "excused", "sick", "left_early")
+        }
+        attendance_total = sum(attendance_counts.values())
+        recent_attendance = (
+            attendance_query.order_by(
+                AttendanceRecord.attendance_date.desc(),
+                AttendanceRecord.session.asc(),
+            ).limit(10).all()
+        )
+
         result.append({
             "student_id": str(student.id),
             "student_number": student.student_number,
@@ -150,5 +171,20 @@ def list_my_students(
             "receives_notifications": relationship.receives_notifications,
             "current_enrollment": current_enrollment,
             "subjects": subjects,
+            "attendance": {
+                "total_marked": attendance_total,
+                **attendance_counts,
+                "attendance_rate": round(
+                    100 * attendance_counts["present"] / attendance_total, 1
+                ) if attendance_total else None,
+                "recent_records": [
+                    {
+                        "date": record.attendance_date.isoformat(),
+                        "session": record.session,
+                        "status": record.status,
+                    }
+                    for record in recent_attendance
+                ],
+            },
         })
     return result
