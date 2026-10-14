@@ -1,5 +1,6 @@
 """School-scoped fee charges, receipts and outstanding balances."""
 import uuid
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -29,15 +30,15 @@ def _school_access(db: Session, user: User, school_id: uuid.UUID) -> None:
 
 def _charge_response(charge: FeeCharge):
     student = charge.student
-    paid = sum(float(p.amount) for p in charge.payments)
+    paid = sum((Decimal(str(p.amount)) for p in charge.payments), Decimal('0.00'))
     return {
         "id": charge.id, "school_id": charge.school_id, "student_id": charge.student_id,
         "student_number": student.student_number,
         "student_name": " ".join(x for x in [student.first_name, student.middle_name, student.last_name] if x),
         "academic_year_id": charge.academic_year_id, "academic_year_name": charge.academic_year.name,
         "term_id": charge.term_id, "term_name": charge.term.name if charge.term else None,
-        "description": charge.description, "amount": charge.amount, "amount_paid": round(paid, 2),
-        "balance": round(charge.amount - paid, 2), "due_date": charge.due_date,
+        "description": charge.description, "amount": float(charge.amount), "amount_paid": round(float(paid), 2),
+        "balance": round(float(charge.amount - paid), 2), "due_date": charge.due_date,
         "is_void": charge.is_void, "notes": charge.notes, "created_at": charge.created_at,
     }
 
@@ -115,11 +116,12 @@ def create_payment(
     current_user: User = Depends(require_permission("fees.create")),
 ):
     _school_access(db, current_user, school_id)
-    charge = db.query(FeeCharge).filter(FeeCharge.id == payload.charge_id, FeeCharge.school_id == school_id, FeeCharge.is_void.is_(False)).first()
+    charge = db.query(FeeCharge).filter(FeeCharge.id == payload.charge_id, FeeCharge.school_id == school_id, FeeCharge.is_void.is_(False)).with_for_update().first()
     if not charge:
         raise NotFoundError("Outstanding fee charge not found in this school.", code="FEE_CHARGE_NOT_FOUND")
-    paid = sum(float(p.amount) for p in charge.payments)
-    if payload.amount > round(charge.amount - paid, 2) + 0.0001:
+    paid = sum((Decimal(str(p.amount)) for p in charge.payments), Decimal('0.00'))
+    remaining = Decimal(str(charge.amount)) - paid
+    if payload.amount > remaining:
         raise ConflictError("Payment cannot exceed the remaining balance on this charge.", code="PAYMENT_EXCEEDS_BALANCE")
     payment = FeePayment(
         school_id=school_id, student_id=charge.student_id, recorded_by_user_id=current_user.id,
