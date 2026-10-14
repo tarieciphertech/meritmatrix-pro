@@ -1,4 +1,4 @@
-"""Read-only guardian portal endpoints.
+""""Read-only guardian portal endpoints.
 
 New phone accounts use their bound guardian_id. Legacy email-linked accounts keep their existing access until migrated.
 No caller-supplied guardian or school ID is trusted for discovery.
@@ -80,7 +80,7 @@ def list_my_students(
             }
             subjects = [
                 {"name": subject.name, "code": subject.code}
-                for (subject,) in (
+                for subject in (
                     db.query(Subject)
                     .join(ClassSubject, ClassSubject.subject_id == Subject.id)
                     .filter(
