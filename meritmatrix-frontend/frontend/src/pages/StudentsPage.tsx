@@ -7,6 +7,7 @@ import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { StudentCreate, StudentResponse, StudentStatus, StudentUpdate } from '../types';
 import { STUDENT_STATUSES } from '../types';
+import StudentGuardiansModal from './StudentGuardiansModal';
 import {
   Badge,
   Button,
@@ -63,6 +64,7 @@ export default function StudentsPage() {
   const [form, setForm] = useState<StudentCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [guardianStudent, setGuardianStudent] = useState<StudentResponse | null>(null);
 
   const load = useCallback(async () => {
     if (!selectedSchool) {
@@ -138,6 +140,7 @@ export default function StudentsPage() {
       payload.last_name = form.last_name;
       payload.status = form.status ?? 'active';
 
+      let newlyCreatedStudent: StudentResponse | null = null;
       if (editingStudent) {
         const { student_number: _sn, ...rest } = payload;
         await api.patch<StudentResponse>(
@@ -145,7 +148,7 @@ export default function StudentsPage() {
           rest as StudentUpdate,
         );
       } else {
-        await api.post<StudentResponse>(
+        newlyCreatedStudent = await api.post<StudentResponse>(
           '/api/v1/students',
           payload,
           { school_id: selectedSchool.id },
@@ -153,6 +156,7 @@ export default function StudentsPage() {
       }
       setModalOpen(false);
       await load();
+      if (newlyCreatedStudent) setGuardianStudent(newlyCreatedStudent);
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Failed to save student');
     } finally {
@@ -215,6 +219,9 @@ export default function StudentsPage() {
                 <Td>{s.admission_date ?? '—'}</Td>
                 <Td>
                   <div className="flex items-center gap-2">
+                    <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => setGuardianStudent(s)}>
+                      Guardians
+                    </Button>
                     <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(s)}>
                       Edit
                     </Button>
@@ -389,6 +396,12 @@ export default function StudentsPage() {
           </div>
         </form>
       </Modal>
+
+      <StudentGuardiansModal
+        student={guardianStudent}
+        schoolId={selectedSchool.id}
+        onClose={() => setGuardianStudent(null)}
+      />
     </div>
   );
 }
