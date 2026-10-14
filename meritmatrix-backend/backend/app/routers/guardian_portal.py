@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import get_current_active_user
 from app.database import get_db
 from app.models.academic_year import AcademicYear
+from app.models.assessment import Assessment, AssessmentMark
 from app.models.attendance_record import AttendanceRecord
 from app.models.class_subject import ClassSubject
 from app.models.clazz import Class
@@ -22,6 +23,7 @@ from app.models.student import Student
 from app.models.student_guardian import StudentGuardian
 from app.models.school import School
 from app.models.subject import Subject
+from app.models.term import Term
 from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/guardian-portal", tags=["guardian-portal"])
@@ -155,6 +157,40 @@ def list_my_students(
             ).limit(10).all()
         )
 
+        academic_rows = (
+            db.query(AssessmentMark, Assessment, Subject, Term, Enrollment)
+            .join(Assessment, Assessment.id == AssessmentMark.assessment_id)
+            .join(Enrollment, Enrollment.id == AssessmentMark.enrollment_id)
+            .join(ClassSubject, ClassSubject.id == Assessment.class_subject_id)
+            .join(Subject, Subject.id == ClassSubject.subject_id)
+            .join(Term, Term.id == Assessment.term_id)
+            .filter(
+                Enrollment.student_id == student.id,
+                Assessment.school_id == student.school_id,
+                Assessment.is_published.is_(True),
+                Subject.school_id == student.school_id,
+                Subject.is_active.is_(True),
+                Term.is_active.is_(True),
+            )
+            .order_by(Term.term_number.asc(), Subject.name.asc(), Assessment.assessment_date.asc())
+            .all()
+        )
+        academic_results = [
+            {
+                "assessment_title": assessment.title,
+                "assessment_type": assessment.assessment_type,
+                "subject_name": subject.name,
+                "term_name": term.name,
+                "score": mark.score,
+                "max_score": assessment.max_score,
+                "percentage": round(100 * mark.score / assessment.max_score, 2),
+                "weight_percent": assessment.weight_percent,
+                "remarks": mark.remarks,
+                "date": assessment.assessment_date.isoformat() if assessment.assessment_date else None,
+            }
+            for mark, assessment, subject, term, _enrollment in academic_rows
+        ]
+
         result.append({
             "student_id": str(student.id),
             "student_number": student.student_number,
@@ -171,6 +207,7 @@ def list_my_students(
             "receives_notifications": relationship.receives_notifications,
             "current_enrollment": current_enrollment,
             "subjects": subjects,
+            "academic_results": academic_results,
             "attendance": {
                 "total_marked": attendance_total,
                 **attendance_counts,
