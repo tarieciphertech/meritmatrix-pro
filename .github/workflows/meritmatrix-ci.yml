@@ -1,0 +1,51 @@
+name: MeritMatrix CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, feature/guardian-phone-login]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: meritmatrix-backend/backend
+    env:
+      ENVIRONMENT: test
+      DATABASE_URL: sqlite:///./test_meritmatrix.db
+      SECRET_KEY: test-secret-key-for-ci-only
+      JWT_SECRET: test-jwt-secret-for-ci-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: meritmatrix-backend/backend/requirements.txt
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - name: Check migration graph
+        run: alembic heads
+      - name: Run backend tests
+        run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: meritmatrix-frontend/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: meritmatrix-frontend/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
