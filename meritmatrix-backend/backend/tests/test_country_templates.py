@@ -15,10 +15,26 @@ def test_zimbabwe_template_contains_expected_levels():
     assert {"ECD_A", "ECD_B", "GRADE_1", "GRADE_7", "FORM_1", "FORM_4", "FORM_5", "FORM_6"} <= codes
 
 
-def test_botswana_template_is_explicitly_draft():
+def test_botswana_template_uses_seven_three_two_default_pathway():
     template = get_country_template("BW")
-    assert template["status"] == "draft_requires_authority_review"
-    assert any(level.get("requires_review") for level in template["levels"])
+    assert template["template_version"] == 2
+    assert template["status"] == "starter_requires_authority_review"
+    levels = template["levels"]
+    codes = [level["code"] for level in levels]
+    assert "STANDARD_A" not in codes
+    assert "STANDARD_B" not in codes
+    assert "FORM_6" not in codes
+    assert sum(level["stage"] == "primary" for level in levels) == 7
+    assert sum(level["stage"] == "secondary" for level in levels) == 3
+    assert sum(level["stage"] == "advanced_secondary" for level in levels) == 2
+    assert [level["name"] for level in levels if level["stage"] == "secondary"] == [
+        "Form 1", "Form 2", "Form 3"
+    ]
+    assert [level["name"] for level in levels if level["stage"] == "advanced_secondary"] == [
+        "Form 4", "Form 5"
+    ]
+    assert any("10-year basic/universal education cycle" in note for note in template["notes"])
+    assert any("Form 6" in note for note in template["notes"])
 
 
 def test_calendar_event_types_are_distinct():

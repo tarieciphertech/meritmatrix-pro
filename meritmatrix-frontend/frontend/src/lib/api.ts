@@ -91,7 +91,7 @@ async function parseError(res: Response): Promise<ApiError> {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
   auth?: boolean; // default true; set false for public endpoints (login)
@@ -158,6 +158,8 @@ export const api = {
     apiRequest<T>(path, { method: 'GET', query }),
   post: <T>(path: string, body?: unknown, query?: RequestOptions['query']) =>
     apiRequest<T>(path, { method: 'POST', body, query }),
+  put: <T>(path: string, body?: unknown, query?: RequestOptions['query']) =>
+    apiRequest<T>(path, { method: 'PUT', body, query }),
   patch: <T>(path: string, body?: unknown) =>
     apiRequest<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string) => apiRequest<T>(path, { method: 'DELETE' }),

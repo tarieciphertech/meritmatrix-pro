@@ -1,8 +1,7 @@
 """Versioned starter education templates by country.
 
-These are configuration defaults, not legal assertions. Botswana's exact
-level labels and examination pathways remain marked for administrative
-verification before being activated for production school setup.
+Templates are configurable defaults, not automatic changes to existing school
+records. Country-specific rules and dates must be reviewed before production use.
 """
 from copy import deepcopy
 
@@ -43,31 +42,35 @@ COUNTRY_TEMPLATES = {
     "BW": {
         "country_code": "BW",
         "country_name": "Botswana",
-        "template_version": 1,
-        "status": "draft_requires_authority_review",
+        "template_version": 2,
+        "status": "starter_requires_authority_review",
         "timezone": "Africa/Gaborone",
         "currency": "BWP",
-        "institution_types": ["primary", "secondary", "combined", "tertiary"],
+        "institution_types": ["early_childhood", "primary", "secondary", "combined", "tertiary"],
         "levels": [
-            {"code": "KINDERGARTEN", "name": "Kindergarten / Early Childhood", "stage": "early_childhood", "sequence": 10},
-            {"code": "STANDARD_A", "name": "Standard A", "stage": "primary", "sequence": 20, "requires_review": True},
-            {"code": "STANDARD_B", "name": "Standard B", "stage": "primary", "sequence": 30, "requires_review": True},
+            {"code": "PRE_PRIMARY", "name": "Pre-primary / Early Childhood (optional)", "stage": "early_childhood", "sequence": 10},
             *[
-                {"code": f"STANDARD_{n}", "name": f"Standard {n}", "stage": "primary", "sequence": 100 + n * 10, "requires_review": True}
+                {"code": f"STANDARD_{n}", "name": f"Standard {n}", "stage": "primary", "sequence": 100 + n * 10}
                 for n in range(1, 8)
             ],
             *[
-                {"code": f"FORM_{n}", "name": f"Form {n}", "stage": "secondary", "sequence": 200 + n * 10, "requires_review": True}
-                for n in range(1, 6)
+                {"code": f"FORM_{n}", "name": f"Form {n}", "stage": "secondary", "sequence": 200 + n * 10}
+                for n in range(1, 4)
+            ],
+            *[
+                {"code": f"FORM_{n}", "name": f"Form {n}", "stage": "advanced_secondary", "sequence": 230 + n * 10}
+                for n in range(4, 6)
             ],
         ],
         "calendar_event_types": [
             "public_holiday", "school_holiday", "exam_period", "school_closure"
         ],
         "notes": [
-            "Draft template only: verify official level names and examination pathways before production activation.",
-            "Do not infer that every institution offers every listed level.",
-            "Calendar dates must be approved for each academic year; public holidays, school holidays, examinations, and school-specific closures are separate event types."
+            "The default school pathway is 7 years of primary (Standard 1–7), 3 years of junior secondary (Forms 1–3), and 2 years of senior secondary (Forms 4–5).",
+            "Forms 1–3 complete the 10-year basic/universal education cycle; the full 7-3-2 pathway spans 12 school years.",
+            "Pre-primary is optional and separate from the 7-3-2 sequence. Tertiary and vocational structures must be configured separately.",
+            "Do not infer that every institution offers every listed level. Allow school-specific extensions, such as Form 6 where applicable, without making them the national default.",
+            "Verify current official level labels and examination pathways before production activation. Calendar dates must be approved for each academic year."
         ],
     },
 }
