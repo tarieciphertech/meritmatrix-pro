@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest, ApiError } from '../lib/api';
-import type { TokenResponse } from '../types';
 import { Button, Field, Input } from '../components/ui';
 
 interface ActivationResult { message: string }
