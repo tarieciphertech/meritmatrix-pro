@@ -74,11 +74,12 @@ def upgrade() -> None:
             ids[name] = row[0]
         else:
             permission_id = uuid.uuid4()
+            stored_id = permission_id if bind.dialect.name == "postgresql" else str(permission_id)
             bind.execute(permissions.insert().values(
-                id=permission_id, name=name, description=description,
+                id=stored_id, name=name, description=description,
                 created_at=now, updated_at=now,
             ))
-            ids[name] = permission_id
+            ids[name] = stored_id
     for role_name in ("SUPER_ADMIN", "SCHOOL_ADMIN", "TEACHER"):
         role = bind.execute(sa.select(roles.c.id).where(roles.c.name == role_name)).first()
         if not role:
