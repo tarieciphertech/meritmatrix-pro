@@ -11,9 +11,14 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_active_user
 from app.database import get_db
+from app.models.academic_year import AcademicYear
+from app.models.class_subject import ClassSubject
+from app.models.clazz import Class
+from app.models.enrollment import Enrollment
 from app.models.guardian import Guardian
 from app.models.student import Student
 from app.models.student_guardian import StudentGuardian
+from app.models.subject import Subject
 from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/guardian-portal", tags=["guardian-portal"])
@@ -24,7 +29,7 @@ def list_my_students(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Return students linked to the bound guardian, with legacy email fallback."""
+    """Return linked students and the academic structure currently recorded for each."""
     if current_user.guardian_id:
         guardian_filter = Guardian.id == current_user.guardian_id
     elif current_user.email:
@@ -45,8 +50,50 @@ def list_my_students(
         .all()
     )
 
-    return [
-        {
+    result = []
+    for student, relationship, guardian in rows:
+        enrollments = (
+            db.query(Enrollment, Class, AcademicYear)
+            .join(Class, Class.id == Enrollment.class_id)
+            .join(AcademicYear, AcademicYear.id == Enrollment.academic_year_id)
+            .filter(
+                Enrollment.student_id == student.id,
+                Enrollment.status == "active",
+                Class.school_id == student.school_id,
+                AcademicYear.school_id == student.school_id,
+            )
+            .order_by(AcademicYear.is_current.desc(), AcademicYear.start_date.desc())
+            .all()
+        )
+
+        current_enrollment = None
+        subjects = []
+        if enrollments:
+            enrollment, clazz, academic_year = enrollments[0]
+            current_enrollment = {
+                "class_name": clazz.name,
+                "class_code": clazz.code,
+                "academic_year": academic_year.name,
+                "academic_year_is_current": academic_year.is_current,
+                "enrollment_date": enrollment.enrollment_date.isoformat()
+                if enrollment.enrollment_date else None,
+            }
+            subjects = [
+                {"name": subject.name, "code": subject.code}
+                for (subject,) in (
+                    db.query(Subject)
+                    .join(ClassSubject, ClassSubject.subject_id == Subject.id)
+                    .filter(
+                        ClassSubject.class_id == clazz.id,
+                        Subject.school_id == student.school_id,
+                        Subject.is_active.is_(True),
+                    )
+                    .order_by(Subject.name.asc())
+                    .all()
+                )
+            ]
+
+        result.append({
             "student_id": str(student.id),
             "student_number": student.student_number,
             "first_name": student.first_name,
@@ -60,6 +107,7 @@ def list_my_students(
             else relationship.relationship_type,
             "is_primary": relationship.is_primary,
             "receives_notifications": relationship.receives_notifications,
-        }
-        for student, relationship, guardian in rows
-    ]
+            "current_enrollment": current_enrollment,
+            "subjects": subjects,
+        })
+    return result
