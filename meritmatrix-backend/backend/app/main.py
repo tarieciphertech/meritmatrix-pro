@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.logging_config import configure_logging
 from app.routers import (
-    academic_years, auth, calendar_events, class_subjects, classes,
+    academic_years, attendance, auth, calendar_events, class_subjects, classes,
     country_configurations, enrollments, guardian_accounts, guardian_portal,
     guardians, health, schools, staff, student_guardians, students, subjects,
     teaching_assignments, terms, users,
@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
     app.include_router(academic_years.router)
     app.include_router(terms.router)
     app.include_router(calendar_events.router)
+    app.include_router(attendance.router)
     app.include_router(classes.router)
     app.include_router(subjects.router)
     app.include_router(class_subjects.router)
