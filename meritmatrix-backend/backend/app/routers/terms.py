@@ -53,29 +53,20 @@ def _verify_school_membership_for_academic_year(
 def _verify_school_membership_for_term(
     db: Session, current_user: User, term_id: uuid.UUID
 ) -> uuid.UUID:
-    """Verify user has access to the school that owns the term. Returns academic_year_id."""
-    # SUPER_ADMIN bypasses all membership checks
-    if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
-        # Still need to return academic_year_id for downstream use
-        term = db.query(db.binds.get("terms")).filter_by(id=term_id).first()
-        if term:
-            return term.academic_year_id
-        from app.utils.errors import NotFoundError
-        raise NotFoundError("Term not found.", code="TERM_NOT_FOUND")
-    
-    # Get the term to find its academic year and school
+    """Verify school access for a term and return its academic year ID."""
     from app.repositories.term_repository import TermRepository
-    term_repo = TermRepository(db)
-    term = term_repo.get_by_id(term_id)
+
+    term = TermRepository(db).get_by_id(term_id)
     if term is None:
         from app.utils.errors import NotFoundError
         raise NotFoundError("Term not found.", code="TERM_NOT_FOUND")
-    
-    # Check membership via academic year's school
-    _verify_school_membership_for_academic_year(db, current_user, term.academic_year_id)
-    
-    return term.academic_year_id
 
+    if SYSTEM_ADMIN_PERMISSION not in _permission_names(current_user):
+        _verify_school_membership_for_academic_year(
+            db, current_user, term.academic_year_id
+        )
+
+    return term.academic_year_id
 
 @router.get("", response_model=List[TermResponse])
 def list_terms(
