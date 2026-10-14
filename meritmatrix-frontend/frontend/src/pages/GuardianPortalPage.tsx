@@ -24,6 +24,7 @@ interface LinkedStudent {
     enrollment_date?: string | null;
   } | null;
   subjects?: { name: string; code?: string | null }[];
+  academic_results?: { assessment_title: string; assessment_type: string; subject_name: string; term_name: string; score: number; max_score: number; percentage: number; weight_percent: number; remarks?: string | null; date?: string | null }[];
   attendance?: {
     total_marked: number;
     present: number;
@@ -230,17 +231,41 @@ export default function GuardianPortalPage() {
                 )}
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Academic results</h3>
-                  <p className="mt-1 text-xs text-slate-500">Assessment and report-card records are not available in the current school data model yet.</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Fees and balances</h3>
-                  <p className="mt-1 text-xs text-slate-500">Fee ledgers and payment balances are not available in the current school data model yet.</p>
-                </div>
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <h3 className="text-sm font-semibold text-slate-900">Published academic results</h3>
+                {student.academic_results && student.academic_results.length > 0 ? (
+                  <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <thead className="bg-slate-50"><tr>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">Subject / assessment</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">Term</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500">Result</th>
+                      </tr></thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {student.academic_results.map((result, index) => (
+                          <tr key={result.assessment_title + result.subject_name + result.term_name + index}>
+                            <td className="px-3 py-2">
+                              <p className="font-medium text-slate-800">{result.subject_name}</p>
+                              <p className="text-xs text-slate-500">{result.assessment_title} · {titleCase(result.assessment_type)}</p>
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">{result.term_name}</td>
+                            <td className="px-3 py-2 text-right">
+                              <p className="font-semibold text-slate-900">{result.score} / {result.max_score}</p>
+                              <p className="text-xs text-slate-500">{result.percentage}%</p>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-500">No published results are available yet. Results appear here after the school publishes assessments.</p>
+                )}
               </div>
-            </Card>
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <h3 className="text-sm font-semibold text-slate-900">Fees and balances</h3>
+                <p className="mt-1 text-xs text-slate-500">Fee statements and payments are not yet configured for this school.</p>
+              </div>            </Card>
           ))}
         </div>
       )}
