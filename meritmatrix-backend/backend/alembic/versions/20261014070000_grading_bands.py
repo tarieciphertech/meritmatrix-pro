@@ -29,6 +29,32 @@ def upgrade() -> None:
     )
     op.create_index("ix_grading_bands_school_id", "grading_bands", ["school_id"])
 
+    # Existing teacher roles need the read permissions required by the
+    # attendance register, assessment roster, and report-card screens.
+    bind = op.get_bind()
+    permissions = sa.Table("permissions", sa.MetaData(), autoload_with=bind)
+    roles = sa.Table("roles", sa.MetaData(), autoload_with=bind)
+    role_permissions = sa.Table("role_permissions", sa.MetaData(), autoload_with=bind)
+    teacher = bind.execute(sa.select(roles.c.id).where(roles.c.name == "TEACHER")).first()
+    if teacher:
+        required = (
+            "academic_years.read", "terms.read", "classes.read", "subjects.read",
+            "class_subjects.read", "students.read", "enrollments.read",
+            "attendance.read", "attendance.create",
+        )
+        for permission_name in required:
+            permission = bind.execute(sa.select(permissions.c.id).where(permissions.c.name == permission_name)).first()
+            if not permission:
+                continue
+            exists = bind.execute(sa.select(role_permissions.c.role_id).where(
+                role_permissions.c.role_id == teacher[0],
+                role_permissions.c.permission_id == permission[0],
+            )).first()
+            if not exists:
+                bind.execute(role_permissions.insert().values(
+                    role_id=teacher[0], permission_id=permission[0],
+                ))
+
 
 def downgrade() -> None:
     op.drop_index("ix_grading_bands_school_id", table_name="grading_bands")
