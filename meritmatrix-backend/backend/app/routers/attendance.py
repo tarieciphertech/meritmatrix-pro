@@ -111,7 +111,7 @@ def attendance_roster(
             student = enrollment.student
             clazz = enrollment.class_
             results.append({
-                "id": uuid.uuid4(), "school_id": school_id, "enrollment_id": enrollment.id,
+                "id": None, "school_id": school_id, "enrollment_id": enrollment.id,
                 "attendance_date": attendance_date, "session": session, "status": "unmarked",
                 "notes": None, "recorded_by_user_id": None,
                 "created_at": enrollment.created_at, "updated_at": enrollment.updated_at,
