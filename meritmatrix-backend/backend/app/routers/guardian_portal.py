@@ -83,12 +83,12 @@ def list_my_students(
         .all()
     )
 
-    allowed_school_ids = {student.school_id for student, _relationship, _guardian in rows}
+    allowed_school_ids = {str(student.school_id) for student, _relationship, _guardian in rows}
     if school_id is not None:
-        if school_id not in allowed_school_ids:
+        if str(school_id) not in allowed_school_ids:
             from app.utils.errors import ForbiddenError
             raise ForbiddenError("You do not have linked students at this school.", code="GUARDIAN_SCHOOL_ACCESS_DENIED")
-        rows = [(student, relationship, guardian) for student, relationship, guardian in rows if student.school_id == school_id]
+        rows = [(student, relationship, guardian) for student, relationship, guardian in rows if str(student.school_id) == str(school_id)]
 
     result = []
     for student, relationship, guardian in rows:
