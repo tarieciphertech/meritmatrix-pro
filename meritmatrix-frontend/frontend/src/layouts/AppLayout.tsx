@@ -10,6 +10,8 @@ const navItems = [
   { to: '/schools', label: 'Schools' },
   { to: '/school-configuration', label: 'School Configuration' },
   { to: '/school-calendar', label: 'School Calendar' },
+  { to: '/teaching-assignments', label: 'Teaching Assignments' },
+  { to: '/attendance', label: 'Attendance' },
   { to: '/students', label: 'Students' },
   { to: '/guardians', label: 'Guardians' },
   { to: '/guardian-portal', label: 'Guardian Portal' },
