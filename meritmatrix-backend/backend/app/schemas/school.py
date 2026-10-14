@@ -1,9 +1,12 @@
 """Pydantic schemas for schools."""
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+CountryCode = Literal["ZW", "BW"]
+InstitutionType = Literal["early_childhood", "primary", "secondary", "combined", "tertiary"]
 
 
 class SchoolCreate(BaseModel):
@@ -13,12 +16,20 @@ class SchoolCreate(BaseModel):
     address: Optional[str] = None
     city: Optional[str] = Field(default=None, max_length=100)
     country: Optional[str] = Field(default=None, max_length=100)
+    country_code: Optional[CountryCode] = None
+    institution_type: Optional[InstitutionType] = None
+    education_template_version: Optional[int] = Field(default=None, ge=1)
     phone: Optional[str] = Field(default=None, max_length=50)
     email: Optional[EmailStr] = None
     website: Optional[str] = Field(default=None, max_length=255)
     logo_url: Optional[str] = Field(default=None, max_length=500)
     timezone: Optional[str] = Field(default=None, max_length=100)
     currency: Optional[str] = Field(default=None, max_length=10)
+
+    @field_validator("country_code")
+    @classmethod
+    def normalize_country_code(cls, value):
+        return value.upper() if value else value
 
 
 class SchoolUpdate(BaseModel):
@@ -28,6 +39,9 @@ class SchoolUpdate(BaseModel):
     address: Optional[str] = None
     city: Optional[str] = Field(default=None, max_length=100)
     country: Optional[str] = Field(default=None, max_length=100)
+    country_code: Optional[CountryCode] = None
+    institution_type: Optional[InstitutionType] = None
+    education_template_version: Optional[int] = Field(default=None, ge=1)
     phone: Optional[str] = Field(default=None, max_length=50)
     email: Optional[EmailStr] = None
     website: Optional[str] = Field(default=None, max_length=255)
@@ -35,6 +49,11 @@ class SchoolUpdate(BaseModel):
     timezone: Optional[str] = Field(default=None, max_length=100)
     currency: Optional[str] = Field(default=None, max_length=10)
     is_active: Optional[bool] = None
+
+    @field_validator("country_code")
+    @classmethod
+    def normalize_country_code(cls, value):
+        return value.upper() if value else value
 
 
 class SchoolResponse(BaseModel):
@@ -47,6 +66,9 @@ class SchoolResponse(BaseModel):
     address: Optional[str] = None
     city: Optional[str] = None
     country: Optional[str] = None
+    country_code: Optional[str] = None
+    institution_type: Optional[str] = None
+    education_template_version: Optional[int] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     website: Optional[str] = None
