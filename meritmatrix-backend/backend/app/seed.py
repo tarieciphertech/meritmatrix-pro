@@ -130,7 +130,12 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "assessments.read", "assessments.create", "assessments.update",
         "fees.read", "fees.create",
     ],
-    "TEACHER": ["users.read", "assessments.read", "assessments.create", "assessments.update"],
+    "TEACHER": [
+        "users.read", "academic_years.read", "terms.read", "classes.read",
+        "subjects.read", "class_subjects.read", "students.read", "enrollments.read",
+        "attendance.read", "attendance.create", "assessments.read",
+        "assessments.create", "assessments.update",
+    ],
     "PARENT": ["users.read"],
     "STUDENT": ["users.read"],
 }
