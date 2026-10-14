@@ -11,7 +11,8 @@ type Assessment = {
   subject_name: string; subject_code: string; term_name: string;
 };
 type RosterRow = { enrollment_id: string; student_id: string; student_number: string; student_name: string; score: number | null; remarks: string | null };
-type ResultRow = { student_id: string; student_number: string; student_name: string; subject_name: string; term_name: string; weighted_percentage: number | null; marks_recorded: number; assessments_count: number };
+type ResultRow = { student_id: string; student_number: string; student_name: string; subject_name: string; term_name: string; weighted_percentage: number | null; grade_label?: string | null; grade_comment?: string | null; marks_recorded: number; assessments_count: number };
+type GradeBand = { id?: string; grade_label: string; min_percentage: number; max_percentage: number; comment: string; display_order: number; is_active: boolean };
 
 export default function AssessmentsPage() {
   const { selectedSchool } = useSchool();
@@ -25,6 +26,7 @@ export default function AssessmentsPage() {
   const [assessmentId, setAssessmentId] = useState('');
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
+  const [gradeBands, setGradeBands] = useState<GradeBand[]>([]);
   const [title, setTitle] = useState('');
   const [type, setType] = useState('test');
   const [date, setDate] = useState('');
@@ -39,10 +41,12 @@ export default function AssessmentsPage() {
     if (!selectedSchool) { setClasses([]); setTerms([]); setClassSubjects([]); return; }
     setLoading(true); setError(null);
     try {
-      const [classRows, yearRows] = await Promise.all([
+      const [classRows, yearRows, bandRows] = await Promise.all([
         api.get<ClassResponse[]>('/api/v1/classes', { school_id: selectedSchool.id }),
         api.get<AcademicYearResponse[]>('/api/v1/academic-years', { school_id: selectedSchool.id }),
+        api.get<GradeBand[]>('/api/v1/grading-scales', { school_id: selectedSchool.id }),
       ]);
+      setGradeBands(bandRows.map(b => ({ ...b, comment: b.comment ?? '' })));
       setClasses(classRows.filter(x => x.is_active));
       const termGroups = await Promise.all(yearRows.map(y => api.get<TermResponse[]>('/api/v1/terms', { academic_year_id: y.id }).catch(() => [] as TermResponse[])));
       const allTerms = termGroups.flat().filter(t => t.is_active);
@@ -87,6 +91,31 @@ export default function AssessmentsPage() {
     } catch (e) { setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not load marks.'); }
   }, [selectedSchool, classId, termId, assessmentId]);
   useEffect(() => { void loadRosterAndResults(); }, [loadRosterAndResults]);
+
+  function updateBand(index: number, field: keyof GradeBand, value: string | number | boolean) {
+    setGradeBands(current => current.map((band, i) => i !== index ? band : { ...band, [field]: value }));
+  }
+
+  async function saveGradingScale() {
+    if (!selectedSchool) return;
+    setSaving(true); setError(null); setNotice('');
+    try {
+      const saved = await api.put<GradeBand[]>('/api/v1/grading-scales', {
+        bands: gradeBands.map((band, index) => ({
+          grade_label: band.grade_label.trim(),
+          min_percentage: Number(band.min_percentage),
+          max_percentage: Number(band.max_percentage),
+          comment: band.comment.trim() || null,
+          display_order: index,
+          is_active: band.is_active,
+        })),
+      }, { school_id: selectedSchool.id });
+      setGradeBands(saved.map(b => ({ ...b, comment: b.comment ?? '' })));
+      setNotice('School grading scale saved. Grades are now calculated for matching published results.');
+      await loadRosterAndResults();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not save grading scale.'); }
+    finally { setSaving(false); }
+  }
 
   async function createAssessment() {
     if (!selectedSchool || !classSubjectId || !termId || !title.trim()) { setError('Choose a class subject and term, and enter an assessment title.'); return; }
@@ -176,8 +205,22 @@ export default function AssessmentsPage() {
       </Card>
 
       <Card className="p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="font-semibold text-slate-900">School grading scale</h2><p className="mt-1 text-sm text-slate-500">Set grade labels and percentage ranges for this school. Ranges must not overlap.</p></div>
+          <div className="flex gap-2"><Button variant="secondary" onClick={() => setGradeBands(current => [...current, { grade_label: '', min_percentage: 0, max_percentage: 0, comment: '', display_order: current.length, is_active: true }])}>Add band</Button><Button onClick={() => void saveGradingScale()} disabled={saving || gradeBands.length===0}>{saving ? 'Saving…' : 'Save grading scale'}</Button></div>
+        </div>
+        {gradeBands.length===0 ? <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-500">No grade bands configured. Add the ranges approved by this school or its education authority.</p> : <div className="mt-3 space-y-2">{gradeBands.map((band,index)=><div key={band.id ?? 'new-'+index} className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="text-xs font-medium text-slate-600">Grade label<input value={band.grade_label} onChange={e=>updateBand(index,'grade_label',e.target.value)} placeholder="A, B, Merit…" className="mt-1 block w-full rounded-md border border-slate-300 p-2 text-sm"/></label>
+          <label className="text-xs font-medium text-slate-600">Minimum %<input type="number" min="0" max="100" step="0.1" value={band.min_percentage} onChange={e=>updateBand(index,'min_percentage',Number(e.target.value))} className="mt-1 block w-full rounded-md border border-slate-300 p-2 text-sm"/></label>
+          <label className="text-xs font-medium text-slate-600">Maximum %<input type="number" min="0" max="100" step="0.1" value={band.max_percentage} onChange={e=>updateBand(index,'max_percentage',Number(e.target.value))} className="mt-1 block w-full rounded-md border border-slate-300 p-2 text-sm"/></label>
+          <label className="text-xs font-medium text-slate-600">Comment<input value={band.comment} onChange={e=>updateBand(index,'comment',e.target.value)} placeholder="Excellent, Good…" className="mt-1 block w-full rounded-md border border-slate-300 p-2 text-sm"/></label>
+          <div className="flex items-end justify-between gap-2"><label className="flex items-center gap-2 pb-2 text-sm text-slate-600"><input type="checkbox" checked={band.is_active} onChange={e=>updateBand(index,'is_active',e.target.checked)}/>Active</label><Button variant="secondary" onClick={()=>setGradeBands(current=>current.filter((_,i)=>i!==index))}>Remove</Button></div>
+        </div>)}</div>}
+      </Card>
+
+      <Card className="p-4">
         <h2 className="font-semibold text-slate-900">Published results summary</h2>
-        {results.length === 0 ? <p className="mt-3 text-sm text-slate-500">No published marks for this class and term yet.</p> : <div className="mt-3 overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr><th className="px-3 py-2 text-left font-semibold text-slate-600">Student</th><th className="px-3 py-2 text-left font-semibold text-slate-600">Subject</th><th className="px-3 py-2 text-left font-semibold text-slate-600">Term</th><th className="px-3 py-2 text-right font-semibold text-slate-600">Weighted average</th><th className="px-3 py-2 text-right font-semibold text-slate-600">Marks</th></tr></thead><tbody className="divide-y divide-slate-100">{results.map((row, i) => <tr key={row.student_id + row.subject_name + row.term_name + i}><td className="px-3 py-2"><p className="font-medium text-slate-900">{row.student_name}</p><p className="text-xs text-slate-500">{row.student_number}</p></td><td className="px-3 py-2">{row.subject_name}</td><td className="px-3 py-2">{row.term_name}</td><td className="px-3 py-2 text-right font-semibold">{row.weighted_percentage == null ? '—' : row.weighted_percentage + '%'}</td><td className="px-3 py-2 text-right">{row.marks_recorded}/{row.assessments_count}</td></tr>)}</tbody></table></div>}
+        {results.length === 0 ? <p className="mt-3 text-sm text-slate-500">No published marks for this class and term yet.</p> : <div className="mt-3 overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr><th className="px-3 py-2 text-left font-semibold text-slate-600">Student</th><th className="px-3 py-2 text-left font-semibold text-slate-600">Subject</th><th className="px-3 py-2 text-left font-semibold text-slate-600">Term</th><th className="px-3 py-2 text-right font-semibold text-slate-600">Weighted average</th><th className="px-3 py-2 text-right font-semibold text-slate-600">Grade</th><th className="px-3 py-2 text-right font-semibold text-slate-600">Marks</th></tr></thead><tbody className="divide-y divide-slate-100">{results.map((row, i) => <tr key={row.student_id + row.subject_name + row.term_name + i}><td className="px-3 py-2"><p className="font-medium text-slate-900">{row.student_name}</p><p className="text-xs text-slate-500">{row.student_number}</p></td><td className="px-3 py-2">{row.subject_name}</td><td className="px-3 py-2">{row.term_name}</td><td className="px-3 py-2 text-right font-semibold">{row.weighted_percentage == null ? '—' : row.weighted_percentage + '%'}</td><td className="px-3 py-2 text-right">{row.grade_label ?? '—'}</td><td className="px-3 py-2 text-right">{row.marks_recorded}/{row.assessments_count}</td></tr>)}</tbody></table></div>}
       </Card>
     </>}
   </div>;
