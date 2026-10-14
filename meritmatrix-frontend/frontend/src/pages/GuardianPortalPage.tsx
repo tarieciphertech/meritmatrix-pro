@@ -24,6 +24,17 @@ interface LinkedStudent {
     enrollment_date?: string | null;
   } | null;
   subjects?: { name: string; code?: string | null }[];
+  attendance?: {
+    total_marked: number;
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    sick: number;
+    left_early: number;
+    attendance_rate: number | null;
+    recent_records: { date: string; session: string; status: string }[];
+  };
 }
 
 function titleCase(value: string) {
@@ -178,18 +189,55 @@ export default function GuardianPortalPage() {
                 )}
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900">Attendance overview</h3>
+                  <span className="text-sm font-medium text-slate-700">
+                    {student.attendance?.attendance_rate == null
+                      ? 'No attendance recorded'
+                      : `${student.attendance.attendance_rate}% present`}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                  {[
+                    ['Present', student.attendance?.present ?? 0],
+                    ['Absent', student.attendance?.absent ?? 0],
+                    ['Late', student.attendance?.late ?? 0],
+                    ['Excused', student.attendance?.excused ?? 0],
+                    ['Sick', student.attendance?.sick ?? 0],
+                    ['Left early', student.attendance?.left_early ?? 0],
+                  ].map(([label, count]) => (
+                    <div key={label} className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">{label}</p>
+                      <p className="mt-1 text-lg font-semibold text-slate-900">{count}</p>
+                    </div>
+                  ))}
+                </div>
+                {student.attendance?.recent_records && student.attendance.recent_records.length > 0 ? (
+                  <div className="mt-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent attendance</h4>
+                    <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200">
+                      {student.attendance.recent_records.map((record) => (
+                        <li key={record.date + '-' + record.session} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                          <span className="text-slate-700">{record.date} · {titleCase(record.session)}</span>
+                          <span className="font-medium text-slate-900">{titleCase(record.status)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">No attendance entries have been saved for this student yet.</p>
+                )}
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
                 <div className="rounded-lg border border-slate-200 p-3">
                   <h3 className="text-sm font-semibold text-slate-900">Academic results</h3>
-                  <p className="mt-1 text-xs text-slate-500">Results will appear when assessment records are available to guardians.</p>
+                  <p className="mt-1 text-xs text-slate-500">Assessment and report-card records are not available in the current school data model yet.</p>
                 </div>
                 <div className="rounded-lg border border-slate-200 p-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Attendance</h3>
-                  <p className="mt-1 text-xs text-slate-500">Attendance records are not yet exposed in the guardian portal.</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Fees and reports</h3>
-                  <p className="mt-1 text-xs text-slate-500">Fee balances and report cards will appear once those records are available.</p>
+                  <h3 className="text-sm font-semibold text-slate-900">Fees and balances</h3>
+                  <p className="mt-1 text-xs text-slate-500">Fee ledgers and payment balances are not available in the current school data model yet.</p>
                 </div>
               </div>
             </Card>
