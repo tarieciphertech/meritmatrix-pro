@@ -47,7 +47,7 @@ class Enrollment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     enrollment_date: Mapped[Optional[date]] = mapped_column(FlexibleDate(), nullable=True)
     withdrawal_date: Mapped[Optional[date]] = mapped_column(FlexibleDate(), nullable=True)
     status: Mapped[str] = mapped_column(
-        Enum(EnrollmentStatus),
+        Enum(EnrollmentStatus, values_callable=lambda enum_cls: [item.value for item in enum_cls]),
         default=EnrollmentStatus.ACTIVE,
         nullable=False
     )
