@@ -52,13 +52,17 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Load schools whenever a user is authenticated.
+  // Guardian users select only from linked schools inside the guardian portal.
+  // The global school list is reserved for staff/admin users.
   useEffect(() => {
-    if (user) {
+    const isGuardian = (user?.roles ?? []).some((role) => role.name === 'GUARDIAN');
+    if (user && !isGuardian) {
       void refresh();
     } else {
       setSchools([]);
-      setSelectedSchoolId(null);
+      if (!user) {
+        setSelectedSchoolId(null);
+      }
     }
   }, [user, refresh]);
 
