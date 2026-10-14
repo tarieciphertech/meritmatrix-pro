@@ -147,6 +147,50 @@ def update_assessment(
     return _assessment_row(db, assessment.id)
 
 
+@router.get("/{assessment_id}/roster", response_model=list[dict])
+def assessment_roster(
+    assessment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("assessments.read")),
+):
+    """Return the assessment's active class roster with any saved mark filled in."""
+    assessment = db.query(Assessment).filter(Assessment.id == assessment_id).first()
+    if not assessment:
+        raise NotFoundError("Assessment not found.", code="ASSESSMENT_NOT_FOUND")
+    _school_access(db, current_user, assessment.school_id)
+    class_subject = db.query(ClassSubject).filter(ClassSubject.id == assessment.class_subject_id).first()
+    enrollments = (
+        db.query(Enrollment)
+        .join(AcademicYear, AcademicYear.id == Enrollment.academic_year_id)
+        .join(Student, Student.id == Enrollment.student_id)
+        .filter(
+            Enrollment.class_id == class_subject.class_id,
+            Enrollment.academic_year_id == assessment.term.academic_year_id,
+            Enrollment.status == EnrollmentStatus.ACTIVE,
+            AcademicYear.school_id == assessment.school_id,
+            Student.school_id == assessment.school_id,
+            Student.is_active.is_(True),
+        )
+        .order_by(Student.last_name, Student.first_name)
+        .all()
+    )
+    marks = {
+        str(mark.enrollment_id): mark
+        for mark in db.query(AssessmentMark).filter(AssessmentMark.assessment_id == assessment_id).all()
+    }
+    return [
+        {
+            "enrollment_id": enrollment.id,
+            "student_id": enrollment.student.id,
+            "student_number": enrollment.student.student_number,
+            "student_name": " ".join(x for x in [enrollment.student.first_name, enrollment.student.middle_name, enrollment.student.last_name] if x),
+            "score": marks[str(enrollment.id)].score if str(enrollment.id) in marks else None,
+            "remarks": marks[str(enrollment.id)].remarks if str(enrollment.id) in marks else None,
+        }
+        for enrollment in enrollments
+    ]
+
+
 @router.get("/{assessment_id}/marks", response_model=list[MarkResponse])
 def list_marks(
     assessment_id: uuid.UUID,
