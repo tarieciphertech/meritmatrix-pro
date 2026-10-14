@@ -50,7 +50,7 @@ export default function StudentGuardiansModal({
         api.get<GuardianResponse[]>('/api/v1/guardians', { school_id: schoolId, limit: 200 }),
         api.get<StudentGuardianResponse[]>(`/api/v1/student-guardians/student/${student.id}`),
       ]);
-      setGuardians(guardianList.filter((guardian) => guardian.is_active));
+      setGuardians(guardianList);
       setRelationships(relationshipList);
       setGuardianId((current) => {
         if (current && guardianList.some((guardian) => guardian.id === current && guardian.is_active)) {
@@ -116,7 +116,7 @@ export default function StudentGuardiansModal({
   if (!student) return null;
 
   const availableGuardians = guardians.filter(
-    (guardian) => !relationships.some((relationship) => relationship.guardian_id === guardian.id),
+    (guardian) => guardian.is_active && !relationships.some((relationship) => relationship.guardian_id === guardian.id),
   );
 
   return (
