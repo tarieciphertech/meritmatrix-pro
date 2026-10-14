@@ -45,7 +45,29 @@ export default function GuardiansPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!selectedSchool) {
+    async function handleCreateAccount(guardian: GuardianResponse) {
+    const confirmed = window.confirm(
+      `Before generating a login code, confirm you have verified ${guardian.first_name} ${guardian.last_name}'s identity in person. The code will be shown once and expires in 24 hours.`,
+    );
+    if (!confirmed) return;
+    setError(null);
+    try {
+      const result = await api.post<{
+        guardian_name: string;
+        phone: string;
+        activation_code: string;
+        expires_at: string;
+        instructions: string;
+      }>(`/api/v1/guardian-accounts/${guardian.id}/create`);
+      window.alert(
+        `Guardian account prepared for ${result.guardian_name}\nPhone: ${result.phone}\n\nONE-TIME ACTIVATION CODE (expires ${new Date(result.expires_at).toLocaleString()}):\n${result.activation_code}\n\nGive this code directly to the verified guardian. They must open /activate-guardian on MeritMatrix Pro and choose their own password. Do not reuse or publish this code.`,
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to create guardian account');
+    }
+  }
+
+  if (!selectedSchool) {
       setGuardians([]);
       return;
     }
@@ -189,6 +211,14 @@ export default function GuardiansPage() {
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(g)}>
                       Edit
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="!px-2 !py-1 text-xs"
+                      onClick={() => void handleCreateAccount(g)}
+                      disabled={!g.is_active}
+                    >
+                      Create Login
                     </Button>
                     <Button
                       variant="danger"
