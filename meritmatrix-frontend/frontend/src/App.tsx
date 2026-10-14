@@ -10,6 +10,7 @@ import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
 import StudentsPage from './pages/StudentsPage';
 import GuardiansPage from './pages/GuardiansPage';
+import GuardianPortalPage from './pages/GuardianPortalPage';
 import StaffPage from './pages/StaffPage';
 import EnrollmentsPage from './pages/EnrollmentsPage';
 import AcademicSetupPage from './pages/AcademicSetupPage';
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="/schools" element={<SchoolsPage />} />
             <Route path="/students" element={<StudentsPage />} />
             <Route path="/guardians" element={<GuardiansPage />} />
+            <Route path="/guardian-portal" element={<GuardianPortalPage />} />
             <Route path="/staff" element={<StaffPage />} />
             <Route path="/enrollments" element={<EnrollmentsPage />} />
             <Route path="/academic-setup" element={<AcademicSetupPage />} />
