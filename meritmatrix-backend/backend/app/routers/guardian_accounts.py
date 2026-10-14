@@ -68,31 +68,62 @@ def create_guardian_account(
     _verify_school_access(db, admin, guardian)
 
     users = UserRepository(db)
-    if db.execute(select(User).where(User.guardian_id == guardian.id)).scalar_one_or_none():
-        raise ConflictError("This guardian already has a login account.", code="GUARDIAN_ACCOUNT_EXISTS")
+    user = db.execute(select(User).where(User.guardian_id == guardian.id)).scalar_one_or_none()
+    if user is not None and user.is_active:
+        raise ConflictError("This guardian already has an active login account.", code="GUARDIAN_ACCOUNT_EXISTS")
 
     phone = _phone(guardian.phone)
     existing = users.get_by_phone(phone)
-    if existing is not None:
+    if existing is not None and (user is None or existing.id != user.id):
         raise ConflictError("This phone number is already attached to another account.", code="PHONE_ALREADY_REGISTERED")
 
-    # Random placeholder password; the account stays disabled until the guardian
-    # redeems the one-time code and chooses a password.
-    placeholder = secrets.token_urlsafe(48)
-    user = User(
-        email=None, phone=phone, guardian_id=guardian.id,
-        password_hash=hash_password(placeholder),
-        first_name=guardian.first_name, last_name=guardian.last_name,
-        is_active=False, is_verified=False,
-    )
+    if user is not None:
+        # Do not use a fresh activation code to re-enable an account that was
+        # previously activated and later disabled by an administrator.
+        prior_activation = db.execute(
+            select(GuardianActivation).where(
+                GuardianActivation.user_id == user.id,
+                GuardianActivation.used_at.is_not(None),
+            )
+        ).scalar_one_or_none()
+        if prior_activation is not None:
+            raise ConflictError(
+                "This guardian account was previously activated and is now disabled. Ask an administrator to review it.",
+                code="GUARDIAN_ACCOUNT_DISABLED",
+            )
+        user.phone = phone
+        user.first_name = guardian.first_name
+        user.last_name = guardian.last_name
+    else:
+        # Random placeholder password; account stays disabled until activation.
+        placeholder = "Aa1!" + secrets.token_urlsafe(48)
+        user = User(
+            email=None, phone=phone, guardian_id=guardian.id,
+            password_hash=hash_password(placeholder),
+            first_name=guardian.first_name, last_name=guardian.last_name,
+            is_active=False, is_verified=False,
+        )
+        db.add(user)
+        db.flush()
+
     role = db.execute(select(Role).where(Role.name == "GUARDIAN")).scalar_one_or_none()
     if role is None:
         role = Role(name="GUARDIAN", description="Guardian portal access")
         db.add(role)
         db.flush()
-    user.roles.append(role)
-    db.add(user)
-    db.flush()
+    if role not in user.roles:
+        user.roles.append(role)
+
+    # Reissuing a code invalidates any older outstanding code for this user.
+    now = datetime.now(timezone.utc)
+    old_activations = db.execute(
+        select(GuardianActivation).where(
+            GuardianActivation.user_id == user.id,
+            GuardianActivation.used_at.is_(None),
+        )
+    ).scalars().all()
+    for old_activation in old_activations:
+        old_activation.used_at = now
 
     raw_code = secrets.token_urlsafe(24)
     expires = datetime.now(timezone.utc) + timedelta(hours=24)
