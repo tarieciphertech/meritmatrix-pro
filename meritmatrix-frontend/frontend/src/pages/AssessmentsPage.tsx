@@ -16,7 +16,6 @@ type ResultRow = { student_id: string; student_number: string; student_name: str
 export default function AssessmentsPage() {
   const { selectedSchool } = useSchool();
   const [classes, setClasses] = useState<ClassResponse[]>([]);
-  const [years, setYears] = useState<AcademicYearResponse[]>([]);
   const [terms, setTerms] = useState<TermResponse[]>([]);
   const [classSubjects, setClassSubjects] = useState<ClassSubjectResponse[]>([]);
   const [classId, setClassId] = useState('');
@@ -37,7 +36,7 @@ export default function AssessmentsPage() {
   const [notice, setNotice] = useState('');
 
   const loadSetup = useCallback(async () => {
-    if (!selectedSchool) { setClasses([]); setYears([]); setTerms([]); setClassSubjects([]); return; }
+    if (!selectedSchool) { setClasses([]); setTerms([]); setClassSubjects([]); return; }
     setLoading(true); setError(null);
     try {
       const [classRows, yearRows] = await Promise.all([
@@ -45,7 +44,6 @@ export default function AssessmentsPage() {
         api.get<AcademicYearResponse[]>('/api/v1/academic-years', { school_id: selectedSchool.id }),
       ]);
       setClasses(classRows.filter(x => x.is_active));
-      setYears(yearRows);
       const termGroups = await Promise.all(yearRows.map(y => api.get<TermResponse[]>('/api/v1/terms', { academic_year_id: y.id }).catch(() => [] as TermResponse[])));
       const allTerms = termGroups.flat().filter(t => t.is_active);
       setTerms(allTerms);
