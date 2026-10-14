@@ -24,6 +24,7 @@ from app.models.user_school import UserSchool  # noqa: F401
 # Milestone 4: People & Enrollment
 from app.models.student import Student, StudentStatus  # noqa: F401
 from app.models.guardian import Guardian  # noqa: F401
+from app.models.guardian_activation import GuardianActivation  # noqa: F401
 from app.models.student_guardian import StudentGuardian, RelationshipType  # noqa: F401
 from app.models.staff import Staff, EmploymentStatus  # noqa: F401
 from app.models.enrollment import Enrollment, EnrollmentStatus  # noqa: F401
@@ -48,6 +49,7 @@ __all__ = [
     "Student",
     "StudentStatus",
     "Guardian",
+    "GuardianActivation",
     "StudentGuardian",
     "RelationshipType",
     "Staff",
