@@ -1,9 +1,5 @@
 """
 MeritMatrix Pro 2.0 — FastAPI application entrypoint.
-
-Milestone 1: app bootstrap, configuration, database connectivity, health
-check, logging, and centralized error handling.
-Milestone 2: users, roles, permissions, authentication, and RBAC.
 """
 import logging
 
@@ -15,6 +11,7 @@ from app.logging_config import configure_logging
 from app.routers import (
     academic_years,
     auth,
+    calendar_events,
     class_subjects,
     classes,
     country_configurations,
@@ -34,7 +31,6 @@ from app.routers import (
 from app.utils.errors import register_exception_handlers
 
 settings = get_settings()
-
 configure_logging()
 logger = logging.getLogger("meritmatrix.main")
 
@@ -48,7 +44,6 @@ def create_app() -> FastAPI:
         docs_url=f"{settings.API_V1_PREFIX}/docs",
         redoc_url=f"{settings.API_V1_PREFIX}/redoc",
     )
-
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
@@ -56,27 +51,18 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
     register_exception_handlers(app)
-
-    # Health and authentication
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(users.router)
-
-    # Country templates are read-only reference data; applying one to a
-    # school will be handled by a separately authorized setup workflow.
     app.include_router(country_configurations.router)
-
-    # Schools & academic structure
     app.include_router(schools.router)
     app.include_router(academic_years.router)
     app.include_router(terms.router)
+    app.include_router(calendar_events.router)
     app.include_router(classes.router)
     app.include_router(subjects.router)
     app.include_router(class_subjects.router)
-
-    # People & enrollment
     app.include_router(students.router)
     app.include_router(guardians.router)
     app.include_router(guardian_portal.router)
@@ -87,11 +73,7 @@ def create_app() -> FastAPI:
 
     @app.get("/", tags=["root"])
     def root():
-        return {
-            "app": settings.APP_NAME,
-            "status": "running",
-            "docs": f"{settings.API_V1_PREFIX}/docs",
-        }
+        return {"app": settings.APP_NAME, "status": "running", "docs": f"{settings.API_V1_PREFIX}/docs"}
 
     return app
 
