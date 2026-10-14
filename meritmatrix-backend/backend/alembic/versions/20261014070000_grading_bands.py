@@ -38,7 +38,7 @@ def upgrade() -> None:
     teacher = bind.execute(sa.select(roles.c.id).where(roles.c.name == "TEACHER")).first()
     if teacher:
         required = (
-            "academic_years.read", "terms.read", "classes.read", "subjects.read",
+            "schools.read", "academic_years.read", "terms.read", "classes.read", "subjects.read",
             "class_subjects.read", "students.read", "enrollments.read",
             "attendance.read", "attendance.create",
         )
