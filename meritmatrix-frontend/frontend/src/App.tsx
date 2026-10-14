@@ -36,6 +36,11 @@ function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
+  const isGuardian = (user.roles ?? []).some((role) => role.name === 'GUARDIAN');
+  if (isGuardian && location.pathname !== '/guardian-portal') {
+    return <Navigate to="/guardian-portal" replace />;
+  }
+
   return <>{children}</>;
 }
 
