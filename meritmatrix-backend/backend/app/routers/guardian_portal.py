@@ -198,7 +198,6 @@ def list_my_students(
             .order_by(FeeCharge.due_date.asc(), FeeCharge.created_at.desc())
             .all()
         )
-        charge_ids = [charge.id for charge in fee_charges]
         fee_payments = (
             db.query(FeePayment)
             .filter(FeePayment.student_id == student.id, FeePayment.school_id == student.school_id)
