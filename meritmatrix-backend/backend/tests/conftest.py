@@ -42,7 +42,11 @@ def _reset_database():
     """
     inspector = inspect(engine)
     table_names = inspector.get_table_names()
-    if table_names:
+    if not table_names:
+        # A brand-new SQLite file has no tables yet; create the schema on
+        # the first test instead of assuming migrations/startup already ran.
+        Base.metadata.create_all(bind=engine)
+    else:
         try:
             with engine.connect() as conn:
                 # PostgreSQL: TRUNCATE is safe and fast

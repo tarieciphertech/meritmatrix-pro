@@ -31,7 +31,7 @@ from app.utils.errors import UnauthorizedError
 
 logger = logging.getLogger("meritmatrix.auth")
 
-GENERIC_LOGIN_ERROR = "Invalid email or password."
+GENERIC_LOGIN_ERROR = "Invalid email/phone or password."
 GENERIC_REFRESH_ERROR = "Invalid or expired refresh token."
 
 
@@ -57,19 +57,27 @@ class AuthService:
     # ------------------------------------------------------------------
     # Login
     # ------------------------------------------------------------------
-    def authenticate_user(self, email: str, password: str) -> User:
-        """Validate credentials. Raises UnauthorizedError with a generic
-        message on any failure so callers can't distinguish 'no such user'
-        from 'wrong password' from 'account inactive'."""
-        user = self.users.get_by_email(email)
+    def authenticate_user(self, identifier: str, password: str) -> User:
+        """Authenticate staff by email and guardians by their normalized phone number."""
+        value = identifier.strip()
+        if "@" in value:
+            user = self.users.get_by_email(value)
+        else:
+            normalized_phone = "".join(ch for ch in value if ch.isdigit() or ch == "+")
+            # Zimbabwe numbers may be entered locally (077...), nationally
+            # (26377...), or internationally (+26377...). Store and compare
+            # them in one canonical form so the same guardian can sign in.
+            if normalized_phone.startswith("00"):
+                normalized_phone = "+" + normalized_phone[2:]
+            if normalized_phone.startswith("0") and len(normalized_phone) == 10:
+                normalized_phone = "+263" + normalized_phone[1:]
+            elif normalized_phone.startswith("263") and len(normalized_phone) == 12:
+                normalized_phone = "+" + normalized_phone
+            user = self.users.get_by_phone(normalized_phone)
 
         if user is None:
-            # Run a real hash verification against a dummy hash anyway, so
-            # the response time for an unknown email is similar to a known
-            # one — this reduces (does not eliminate) timing-based
-            # user-enumeration.
             verify_password(password, DUMMY_PASSWORD_HASH)
-            logger.info("Login failed: unknown email. event=%s", AuditEvent.LOGIN_FAILED)
+            logger.info("Login failed: unknown identifier. event=%s", AuditEvent.LOGIN_FAILED)
             raise UnauthorizedError(GENERIC_LOGIN_ERROR, code="INVALID_CREDENTIALS")
 
         if not user.is_active or not verify_password(password, user.password_hash):

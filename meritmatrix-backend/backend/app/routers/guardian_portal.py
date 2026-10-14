@@ -1,7 +1,6 @@
 """Read-only guardian portal endpoints.
 
-Portal access is derived from the authenticated account's verified login identity:
-only guardian records whose email matches the signed-in user's email are included.
+New phone accounts use their bound guardian_id. Legacy email-linked accounts keep their existing access until migrated.
 No caller-supplied guardian or school ID is trusted for discovery.
 """
 from typing import List
@@ -25,9 +24,12 @@ def list_my_students(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Return only students linked to guardian records matching the signed-in email."""
-    email = (current_user.email or "").strip().lower()
-    if not email:
+    """Return students linked to the bound guardian, with legacy email fallback."""
+    if current_user.guardian_id:
+        guardian_filter = Guardian.id == current_user.guardian_id
+    elif current_user.email:
+        guardian_filter = func.lower(func.trim(Guardian.email)) == current_user.email.strip().lower()
+    else:
         return []
 
     rows = (
@@ -35,7 +37,7 @@ def list_my_students(
         .join(StudentGuardian, StudentGuardian.student_id == Student.id)
         .join(Guardian, Guardian.id == StudentGuardian.guardian_id)
         .filter(
-            func.lower(func.trim(Guardian.email)) == email,
+            guardian_filter,
             Guardian.is_active.is_(True),
             Student.is_active.is_(True),
         )

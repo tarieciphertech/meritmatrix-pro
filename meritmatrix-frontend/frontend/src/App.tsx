@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './lib/auth';
 import { SchoolProvider } from './lib/school-context';
 import AppLayout from './layouts/AppLayout';
 import LoginPage from './pages/LoginPage';
+import GuardianActivationPage from './pages/GuardianActivationPage';
 import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
 import StudentsPage from './pages/StudentsPage';
@@ -35,6 +36,11 @@ function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
+  const isGuardian = (user.roles ?? []).some((role) => role.name === 'GUARDIAN');
+  if (isGuardian && location.pathname !== '/guardian-portal') {
+    return <Navigate to="/guardian-portal" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -44,6 +50,7 @@ export default function App() {
       <SchoolProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/activate-guardian" element={<GuardianActivationPage />} />
 
           <Route
             element={

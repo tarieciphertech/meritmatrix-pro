@@ -32,7 +32,7 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    email: str
+    email: Optional[str] = None
     username: Optional[str] = None
     first_name: str
     last_name: str

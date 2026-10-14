@@ -1,21 +1,26 @@
 """User model — platform identity, independent of any school/domain data."""
 from datetime import datetime
 from typing import List, Optional
+import uuid
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.associations import user_roles
-from app.models.base import TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.base import GUID, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
-    # Emails are normalized (lowercased/trimmed) at the service layer before
-    # ever reaching the database, so the unique constraint is reliable.
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    # Email remains the login identifier for staff/admin accounts. Guardian
+    # accounts may authenticate by phone and therefore have no email address.
+    email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), unique=True, nullable=True, index=True)
+    guardian_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        GUID(), ForeignKey("guardians.id", ondelete="SET NULL"), unique=True, nullable=True, index=True
+    )
     username: Mapped[Optional[str]] = mapped_column(
         String(50), unique=True, nullable=True, index=True
     )
@@ -39,4 +44,4 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     def __repr__(self) -> str:  # pragma: no cover
-        return f"<User {self.email}>"
+        return f"<User {self.email or self.phone}>"

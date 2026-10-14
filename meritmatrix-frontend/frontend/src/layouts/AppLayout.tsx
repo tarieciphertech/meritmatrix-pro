@@ -28,6 +28,7 @@ function navClasses({ isActive }: { isActive: boolean }) {
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
+  const isGuardian = (user?.roles ?? []).some((role) => role.name === 'GUARDIAN');
   const { schools, selectedSchool, selectSchool } = useSchool();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -39,7 +40,7 @@ export default function AppLayout() {
 
   const sidebar = (
     <nav className="space-y-1 px-3 py-4">
-      {navItems.map((item) => (
+      {(isGuardian ? navItems.filter((item) => item.to === '/guardian-portal') : navItems).map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
