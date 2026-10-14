@@ -8,6 +8,7 @@ import GuardianActivationPage from './pages/GuardianActivationPage';
 import DashboardPage from './pages/DashboardPage';
 import SchoolsPage from './pages/SchoolsPage';
 import SchoolConfigurationPage from './pages/SchoolConfigurationPage';
+import SchoolCalendarPage from './pages/SchoolCalendarPage';
 import StudentsPage from './pages/StudentsPage';
 import GuardiansPage from './pages/GuardiansPage';
 import GuardianPortalPage from './pages/GuardianPortalPage';
@@ -35,6 +36,7 @@ export default function App() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/schools" element={<SchoolsPage />} />
       <Route path="/school-configuration" element={<SchoolConfigurationPage />} />
+      <Route path="/school-calendar" element={<SchoolCalendarPage />} />
       <Route path="/students" element={<StudentsPage />} />
       <Route path="/guardians" element={<GuardiansPage />} />
       <Route path="/guardian-portal" element={<GuardianPortalPage />} />
