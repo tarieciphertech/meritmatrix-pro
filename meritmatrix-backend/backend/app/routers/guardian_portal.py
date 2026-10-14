@@ -1,13 +1,11 @@
 """Read-only guardian portal endpoints.
 
-Portal access is derived from the authenticated account's verified login identity:
-only guardian records whose email matches the signed-in user's email are included.
+Portal access is derived from the guardian_id bound to the authenticated account.
 No caller-supplied guardian or school ID is trusted for discovery.
 """
 from typing import List
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_active_user
@@ -25,9 +23,8 @@ def list_my_students(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Return only students linked to guardian records matching the signed-in email."""
-    email = (current_user.email or "").strip().lower()
-    if not email:
+    """Return only students linked to the guardian bound to the signed-in account."""
+    if not current_user.guardian_id:
         return []
 
     rows = (
@@ -35,7 +32,7 @@ def list_my_students(
         .join(StudentGuardian, StudentGuardian.student_id == Student.id)
         .join(Guardian, Guardian.id == StudentGuardian.guardian_id)
         .filter(
-            func.lower(func.trim(Guardian.email)) == email,
+            Guardian.id == current_user.guardian_id,
             Guardian.is_active.is_(True),
             Student.is_active.is_(True),
         )
