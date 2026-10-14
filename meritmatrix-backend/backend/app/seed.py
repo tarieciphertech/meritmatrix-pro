@@ -88,6 +88,11 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
     "enrollments.update": "Update enrollments",
     "attendance.read": "View class attendance registers",
     "attendance.create": "Record and update attendance registers",
+    "assessments.read": "View assessments and academic results",
+    "assessments.create": "Create assessments and record marks",
+    "assessments.update": "Update assessments and publish results",
+    "fees.read": "View fee charges, payments and balances",
+    "fees.create": "Create fee charges and record payments",
     # System
     "system.admin": "Full platform administrative access (implies all other permissions)",
 }
@@ -122,8 +127,15 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "staff.read", "staff.create", "staff.update", "staff.delete",
         "enrollments.read", "enrollments.create", "enrollments.update",
         "attendance.read", "attendance.create",
+        "assessments.read", "assessments.create", "assessments.update",
+        "fees.read", "fees.create",
     ],
-    "TEACHER": ["users.read"],
+    "TEACHER": [
+        "users.read", "schools.read", "academic_years.read", "terms.read", "classes.read",
+        "subjects.read", "class_subjects.read", "students.read", "enrollments.read",
+        "attendance.read", "attendance.create", "assessments.read",
+        "assessments.create", "assessments.update",
+    ],
     "PARENT": ["users.read"],
     "STUDENT": ["users.read"],
 }

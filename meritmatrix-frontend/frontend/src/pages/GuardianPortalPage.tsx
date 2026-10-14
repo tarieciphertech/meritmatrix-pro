@@ -24,6 +24,9 @@ interface LinkedStudent {
     enrollment_date?: string | null;
   } | null;
   subjects?: { name: string; code?: string | null }[];
+  academic_results?: { assessment_title: string; assessment_type: string; subject_name: string; term_name: string; score: number; max_score: number; percentage: number; grade_label?: string | null; weight_percent: number; remarks?: string | null; date?: string | null }[];
+  fee_summary?: { currency?: string | null; charges_total: number; payments_total: number; balance: number; charges_count: number };
+  fee_transactions?: { kind: string; date: string; description: string; amount: number; reference?: string | null }[];
   attendance?: {
     total_marked: number;
     present: number;
@@ -230,17 +233,64 @@ export default function GuardianPortalPage() {
                 )}
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Academic results</h3>
-                  <p className="mt-1 text-xs text-slate-500">Assessment and report-card records are not available in the current school data model yet.</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Fees and balances</h3>
-                  <p className="mt-1 text-xs text-slate-500">Fee ledgers and payment balances are not available in the current school data model yet.</p>
-                </div>
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <h3 className="text-sm font-semibold text-slate-900">Published academic results</h3>
+                {student.academic_results && student.academic_results.length > 0 ? (
+                  <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <thead className="bg-slate-50"><tr>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">Subject / assessment</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">Term</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500">Result</th>
+                      </tr></thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {student.academic_results.map((result, index) => (
+                          <tr key={result.assessment_title + result.subject_name + result.term_name + index}>
+                            <td className="px-3 py-2">
+                              <p className="font-medium text-slate-800">{result.subject_name}</p>
+                              <p className="text-xs text-slate-500">{result.assessment_title} · {titleCase(result.assessment_type)}</p>
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">{result.term_name}</td>
+                            <td className="px-3 py-2 text-right">
+                              <p className="font-semibold text-slate-900">{result.score} / {result.max_score}</p>
+                              <p className="text-xs text-slate-500">{result.percentage}%{result.grade_label ? ' · Grade ' + result.grade_label : ''}</p>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-500">No published results are available yet. Results appear here after the school publishes assessments.</p>
+                )}
               </div>
-            </Card>
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <h3 className="text-sm font-semibold text-slate-900">Fees and payments</h3>
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {[
+                    ['Charges', student.fee_summary?.charges_total ?? 0],
+                    ['Paid', student.fee_summary?.payments_total ?? 0],
+                    ['Balance', student.fee_summary?.balance ?? 0],
+                  ].map(([label, amount]) => (
+                    <div key={label} className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">{label}</p>
+                      <p className="mt-1 text-lg font-semibold text-slate-900">{student.fee_summary?.currency ? student.fee_summary.currency + ' ' : ''}{Number(amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                    </div>
+                  ))}
+                </div>
+                {student.fee_transactions && student.fee_transactions.length > 0 ? (
+                  <ul className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-200">
+                    {student.fee_transactions.map((item, index) => (
+                      <li key={item.kind + item.date + item.description + index} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <div><p className="font-medium text-slate-800">{item.description}</p><p className="text-xs text-slate-500">{item.date} · {titleCase(item.kind)}{item.reference ? ' · ' + item.reference : ''}</p></div>
+                        <span className="whitespace-nowrap font-semibold text-slate-900">{item.kind === 'payment' ? '−' : ''}{student.fee_summary?.currency ? student.fee_summary.currency + ' ' : ''}{item.amount}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">No fee charges or payments have been recorded for this student yet.</p>
+                )}
+              </div>            </Card>
           ))}
         </div>
       )}

@@ -219,14 +219,23 @@ FastAPI's `OAuth2PasswordBearer` security scheme.
 
 | Step | Scope | Status |
 |------|-------|--------|
-| 1 ✅ | Foundation: app bootstrap, DB connectivity, health check, logging, error handling, tests | Complete |
-| 2 ✅ | Users, roles, permissions, authentication, RBAC, refresh-token rotation | Complete |
-| 3 ✅ | Schools, academic years, terms, classes, subjects, multi-tenant isolation | Complete & Hardened |
-| 4 | Students, parents, guardians, staff, enrollment relationships | Not started |
-| 5 | Assessments, marks, grading engine, result calculation | Not started |
-| 6 | React frontend: auth, layout, admin dashboard, core CRUD screens | Not started |
-| 7 | Parent portal, teacher portal, report cards, notifications | Not started |
-| 8 | Production hardening: security/authz/DB/performance/accessibility review | Not started |
+| 1 | Foundation: app bootstrap, DB connectivity, health check, logging, error handling, tests | Implemented |
+| 2 | Users, roles, permissions, authentication, RBAC, refresh-token rotation | Implemented |
+| 3 | Schools, academic years, terms, classes, subjects, multi-tenant isolation | Implemented |
+| 4 | Students, guardians, staff, student relationships, enrollments | Implemented |
+| 5 | Teacher assignments and daily attendance register | Implemented |
+| 6 | Guardian school selection, linked-student portal, attendance and published results | Implemented in repository; live verification pending |
+| 7 | Assessment setup, mark entry, weighted percentage results and publishing | Implemented in repository; CI/migration verification pending |
+| 8 | Fee charges, payment receipts/references and outstanding balances | Implemented in repository; CI/migration verification pending |
+| 9 | Configurable grade bands and printable report cards from published results | Implemented in repository; CI/migration verification pending |
+| 10 | Notifications and full audit trail | Remaining |
+| 11 | Production hardening, deployment/migration execution, security and live smoke tests | Remaining |
+
+The application is not considered production-ready until CI passes for the
+final commit, database migrations have been applied to the production
+PostgreSQL database, production secrets and CORS are verified, and live
+authentication plus school-isolation smoke tests pass. Do not run the
+development seed script against production.
 
 See `docs/database-architecture.md` for schema conventions and the
 planned entity groups.
