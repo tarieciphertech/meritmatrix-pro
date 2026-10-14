@@ -14,6 +14,14 @@ interface LinkedStudent {
   relationship_type: string;
   is_primary: boolean;
   receives_notifications: boolean;
+  current_enrollment?: {
+    class_name: string;
+    class_code?: string | null;
+    academic_year: string;
+    academic_year_is_current: boolean;
+    enrollment_date?: string | null;
+  } | null;
+  subjects?: { name: string; code?: string | null }[];
 }
 
 function titleCase(value: string) {
@@ -110,10 +118,53 @@ export default function GuardianPortalPage() {
                   </dd>
                 </div>
               </dl>
-              <p className="mt-4 text-xs text-slate-500">
-                Academic results, attendance, and reports will appear here as those modules become
-                available to guardian accounts.
-              </p>
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <h3 className="text-sm font-semibold text-slate-900">Current class placement</h3>
+                {student.current_enrollment ? (
+                  <div className="mt-2 rounded-lg bg-slate-50 p-3">
+                    <p className="font-medium text-slate-900">{student.current_enrollment.class_name}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Academic year: {student.current_enrollment.academic_year}
+                      {student.current_enrollment.academic_year_is_current ? ' · Current year' : ''}
+                    </p>
+                    {student.current_enrollment.class_code && (
+                      <p className="mt-1 text-xs text-slate-500">Class code: {student.current_enrollment.class_code}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-500">No active class enrollment is recorded yet.</p>
+                )}
+              </div>
+
+              <div className="mt-4">
+                <h3 className="text-sm font-semibold text-slate-900">Assigned subjects</h3>
+                {student.subjects && student.subjects.length > 0 ? (
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {student.subjects.map((subject) => (
+                      <li key={(subject.code ?? '') + '-' + subject.name} className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-sm text-indigo-800">
+                        {subject.name}{subject.code ? ' (' + subject.code + ')' : ''}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-500">No active subjects are linked to this class yet.</p>
+                )}
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Academic results</h3>
+                  <p className="mt-1 text-xs text-slate-500">Results will appear when assessment records are available to guardians.</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Attendance</h3>
+                  <p className="mt-1 text-xs text-slate-500">Attendance records are not yet exposed in the guardian portal.</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Fees and reports</h3>
+                  <p className="mt-1 text-xs text-slate-500">Fee balances and report cards will appear once those records are available.</p>
+                </div>
+              </div>
             </Card>
           ))}
         </div>
