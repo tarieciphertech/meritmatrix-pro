@@ -8,7 +8,7 @@ from app.routers import (
     academic_years, attendance, auth, calendar_events, class_subjects, classes,
     country_configurations, enrollments, guardian_accounts, guardian_portal,
     guardians, health, schools, staff, student_guardians, students, subjects,
-    teaching_assignments, terms, users,
+    teaching_assignments, terms, users, assessments,
 )
 from app.utils.errors import register_exception_handlers
 
@@ -41,6 +41,8 @@ def create_app() -> FastAPI:
     app.include_router(staff.router)
     app.include_router(enrollments.router)
     app.include_router(teaching_assignments.router)
+    app.include_router(assessments.router)
+    app.include_router(assessments.results_router)
 
     @app.get("/", tags=["root"])
     def root():
