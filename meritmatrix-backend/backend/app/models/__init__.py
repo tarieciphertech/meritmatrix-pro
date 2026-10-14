@@ -23,10 +23,11 @@ from app.models.enrollment import Enrollment, EnrollmentStatus  # noqa: F401
 from app.models.calendar_event import CalendarEvent  # noqa: F401
 from app.models.teaching_assignment import TeachingAssignment  # noqa: F401
 from app.models.attendance_record import AttendanceRecord  # noqa: F401
+from app.models.assessment import Assessment, AssessmentMark  # noqa: F401
 
 __all__ = [
     "User", "Role", "Permission", "RefreshToken", "user_roles", "role_permissions",
     "School", "SchoolSettings", "AcademicYear", "Term", "Class", "Subject", "ClassSubject", "UserSchool",
     "Student", "StudentStatus", "Guardian", "GuardianActivation", "StudentGuardian", "RelationshipType",
-    "Staff", "EmploymentStatus", "Enrollment", "EnrollmentStatus", "CalendarEvent", "TeachingAssignment", "AttendanceRecord",
+    "Staff", "EmploymentStatus", "Enrollment", "EnrollmentStatus", "CalendarEvent", "TeachingAssignment", "AttendanceRecord", "Assessment", "AssessmentMark",
 ]
