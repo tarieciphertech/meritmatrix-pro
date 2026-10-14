@@ -25,7 +25,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     settings = get_settings()
     service = AuthService(db)
 
-    user = service.authenticate_user(payload.email, payload.password)
+    user = service.authenticate_user(payload.identifier or str(payload.email or ''), payload.password)
     access_token, refresh_token = service.issue_token_pair(
         user,
         user_agent=request.headers.get("user-agent"),
