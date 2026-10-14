@@ -64,6 +64,15 @@ class AuthService:
             user = self.users.get_by_email(value)
         else:
             normalized_phone = "".join(ch for ch in value if ch.isdigit() or ch == "+")
+            # Zimbabwe numbers may be entered locally (077...), nationally
+            # (26377...), or internationally (+26377...). Store and compare
+            # them in one canonical form so the same guardian can sign in.
+            if normalized_phone.startswith("00"):
+                normalized_phone = "+" + normalized_phone[2:]
+            if normalized_phone.startswith("0") and len(normalized_phone) == 10:
+                normalized_phone = "+263" + normalized_phone[1:]
+            elif normalized_phone.startswith("263") and len(normalized_phone) == 12:
+                normalized_phone = "+" + normalized_phone
             user = self.users.get_by_phone(normalized_phone)
 
         if user is None:
