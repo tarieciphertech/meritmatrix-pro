@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.logging_config import configure_logging
-from app.routers import academic_years, auth, class_subjects, classes, enrollments, guardian_portal, guardians, health, schools, staff, student_guardians, students, subjects, terms, users
+from app.routers import academic_years, auth, class_subjects, classes, enrollments, guardian_accounts, guardian_portal, guardians, health, schools, staff, student_guardians, students, subjects, terms, users
 from app.utils.errors import register_exception_handlers
 
 settings = get_settings()
@@ -58,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(students.router)
     app.include_router(guardians.router)
     app.include_router(guardian_portal.router)
+    app.include_router(guardian_accounts.router)
     app.include_router(student_guardians.router)
     app.include_router(staff.router)
     app.include_router(enrollments.router)
