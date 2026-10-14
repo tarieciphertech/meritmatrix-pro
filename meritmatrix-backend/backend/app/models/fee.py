@@ -38,7 +38,7 @@ class FeePayment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     student_id: Mapped[str] = mapped_column(GUID(), ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
     charge_id: Mapped[str] = mapped_column(GUID(), ForeignKey("fee_charges.id", ondelete="RESTRICT"), nullable=False, index=True)
     payment_date: Mapped[date] = mapped_column(Date, nullable=False)
-    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     method: Mapped[str] = mapped_column(String(40), nullable=False, default="cash")
     reference: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
