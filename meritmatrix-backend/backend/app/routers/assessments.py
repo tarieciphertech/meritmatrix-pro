@@ -134,6 +134,8 @@ def update_assessment(
         raise NotFoundError("Assessment not found.", code="ASSESSMENT_NOT_FOUND")
     _school_access(db, current_user, assessment.school_id)
     changes = payload.model_dump(exclude_unset=True)
+    if assessment.is_published and changes != {"is_published": False}:
+        raise ConflictError("Published assessments are locked. Unpublish the assessment before changing it.", code="ASSESSMENT_PUBLISHED")
     if "max_score" in changes and changes["max_score"] is not None:
         if db.query(AssessmentMark).filter(AssessmentMark.assessment_id == assessment.id, AssessmentMark.score > changes["max_score"]).first():
             raise ConflictError("Maximum score cannot be reduced below an already-recorded mark.", code="MAX_SCORE_BELOW_EXISTING_MARKS")
