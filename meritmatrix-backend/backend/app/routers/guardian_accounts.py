@@ -4,7 +4,7 @@ import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,7 +16,6 @@ from app.models.guardian_activation import GuardianActivation
 from app.models.role import Role
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
-from app.services.auth_service import AuthService
 from app.services.security import hash_password, verify_password, DUMMY_PASSWORD_HASH, WeakPasswordError
 from app.utils.errors import AppError, ConflictError, NotFoundError, UnauthorizedError
 
@@ -59,7 +58,6 @@ class ActivationComplete(BaseModel):
 @router.post("/{guardian_id}/create", response_model=ActivationResponse, status_code=201)
 def create_guardian_account(
     guardian_id: uuid.UUID,
-    request: Request,
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission("guardians.update")),
 ):
@@ -122,7 +120,7 @@ def activate_guardian_account(
 ):
     token_hash = hashlib.sha256(payload.activation_code.strip().encode("utf-8")).hexdigest()
     activation = db.execute(
-        select(GuardianActivation).where(GuardianActivation.token_hash == token_hash)
+        select(GuardianActivation).where(GuardianActivation.token_hash == token_hash).with_for_update()
     ).scalar_one_or_none()
     now = datetime.now(timezone.utc)
     if activation is None or activation.used_at is not None:
