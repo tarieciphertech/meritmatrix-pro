@@ -10,6 +10,7 @@ import SchoolsPage from './pages/SchoolsPage';
 import SchoolConfigurationPage from './pages/SchoolConfigurationPage';
 import SchoolCalendarPage from './pages/SchoolCalendarPage';
 import TeachingAssignmentsPage from './pages/TeachingAssignmentsPage';
+import AttendancePage from './pages/AttendancePage';
 import StudentsPage from './pages/StudentsPage';
 import GuardiansPage from './pages/GuardiansPage';
 import GuardianPortalPage from './pages/GuardianPortalPage';
@@ -29,6 +30,6 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 export default function App() {
   return <AuthProvider><SchoolProvider><Routes><Route path="/login" element={<LoginPage />} /><Route path="/activate-guardian" element={<GuardianActivationPage />} /><Route element={<RequireAuth><AppLayout /></RequireAuth>}>
-    <Route path="/" element={<DashboardPage />} /><Route path="/schools" element={<SchoolsPage />} /><Route path="/school-configuration" element={<SchoolConfigurationPage />} /><Route path="/school-calendar" element={<SchoolCalendarPage />} /><Route path="/teaching-assignments" element={<TeachingAssignmentsPage />} /><Route path="/students" element={<StudentsPage />} /><Route path="/guardians" element={<GuardiansPage />} /><Route path="/guardian-portal" element={<GuardianPortalPage />} /><Route path="/staff" element={<StaffPage />} /><Route path="/enrollments" element={<EnrollmentsPage />} /><Route path="/academic-setup" element={<AcademicSetupPage />} />
+    <Route path="/" element={<DashboardPage />} /><Route path="/schools" element={<SchoolsPage />} /><Route path="/school-configuration" element={<SchoolConfigurationPage />} /><Route path="/school-calendar" element={<SchoolCalendarPage />} /><Route path="/teaching-assignments" element={<TeachingAssignmentsPage />} /><Route path="/attendance" element={<AttendancePage />} /><Route path="/students" element={<StudentsPage />} /><Route path="/guardians" element={<GuardiansPage />} /><Route path="/guardian-portal" element={<GuardianPortalPage />} /><Route path="/staff" element={<StaffPage />} /><Route path="/enrollments" element={<EnrollmentsPage />} /><Route path="/academic-setup" element={<AcademicSetupPage />} />
   </Route><Route path="*" element={<Navigate to="/" replace />} /></Routes></SchoolProvider></AuthProvider>;
 }
