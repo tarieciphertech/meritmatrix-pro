@@ -26,6 +26,8 @@ class GradingScaleReplace(BaseModel):
 
 
 class GradingBandResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: uuid.UUID
     school_id: uuid.UUID
     grade_label: str
