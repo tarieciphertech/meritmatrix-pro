@@ -131,7 +131,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "fees.read", "fees.create",
     ],
     "TEACHER": [
-        "users.read", "academic_years.read", "terms.read", "classes.read",
+        "users.read", "schools.read", "academic_years.read", "terms.read", "classes.read",
         "subjects.read", "class_subjects.read", "students.read", "enrollments.read",
         "attendance.read", "attendance.create", "assessments.read",
         "assessments.create", "assessments.update",
