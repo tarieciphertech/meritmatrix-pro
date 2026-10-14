@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
 
+interface PortalSchool { id: string; name: string; code: string; country?: string | null; country_code?: string | null; }
+
 interface LinkedStudent {
   student_id: string;
   student_number: string;
@@ -30,6 +32,8 @@ function titleCase(value: string) {
 
 export default function GuardianPortalPage() {
   const [students, setStudents] = useState<LinkedStudent[]>([]);
+  const [schools, setSchools] = useState<PortalSchool[]>([]);
+  const [schoolId, setSchoolId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +41,15 @@ export default function GuardianPortalPage() {
     setLoading(true);
     setError(null);
     try {
-      const linked = await api.get<LinkedStudent[]>('/api/v1/guardian-portal/students');
+      const availableSchools = await api.get<PortalSchool[]>('/api/v1/guardian-portal/schools');
+      setSchools(availableSchools);
+      const chosenId = availableSchools.some((school) => school.id === schoolId)
+        ? schoolId
+        : availableSchools.length === 1 ? availableSchools[0].id : '';
+      setSchoolId(chosenId);
+      const linked = chosenId
+        ? await api.get<LinkedStudent[]>('/api/v1/guardian-portal/students', { school_id: chosenId })
+        : [];
       setStudents(linked);
     } catch (err) {
       setError(
@@ -48,7 +60,7 @@ export default function GuardianPortalPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [schoolId]);
 
   useEffect(() => {
     void loadStudents();
@@ -58,13 +70,29 @@ export default function GuardianPortalPage() {
     <div>
       <PageHeader
         title="Guardian Portal"
-        subtitle="View the students linked to your guardian account."
+        subtitle="Choose the school to view only students linked to your guardian account."
       />
+
+      {!loading && schools.length > 0 && (
+        <div className="mb-5 max-w-xl rounded-lg border border-slate-200 bg-white p-4">
+          <label htmlFor="guardian-school" className="block text-sm font-medium text-slate-700">School</label>
+          <select id="guardian-school" value={schoolId} onChange={(event) => setSchoolId(event.target.value)}
+            className="mt-2 block w-full rounded-md border border-slate-300 bg-white p-2.5 text-sm">
+            <option value="">Select your school…</option>
+            {schools.map((school) => <option key={school.id} value={school.id}>{school.name} ({school.code})</option>)}
+          </select>
+          <p className="mt-2 text-xs text-slate-500">Only schools with your linked students are listed.</p>
+        </div>
+      )}
 
       {error && <ErrorBanner message={error} />}
 
-      {loading ? (
+      {!loading && schools.length === 0 ? (
+        <Card className="p-6"><h2 className="font-semibold text-slate-900">No school access found</h2><p className="mt-2 text-sm text-slate-600">Ask the school office to confirm that your guardian account is linked to an active student.</p><button type="button" onClick={() => void loadStudents()} className="mt-4 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white">Check again</button></Card>
+      ) : loading ? (
         <Spinner label="Loading linked students…" />
+      ) : !schoolId ? (
+        <Card className="p-6"><p className="text-sm text-slate-600">Select a school to continue to its guardian portal.</p></Card>
       ) : students.length === 0 ? (
         <Card className="p-6">
           <h2 className="font-semibold text-slate-900">No linked students yet</h2>
