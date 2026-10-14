@@ -25,6 +25,8 @@ interface LinkedStudent {
   } | null;
   subjects?: { name: string; code?: string | null }[];
   academic_results?: { assessment_title: string; assessment_type: string; subject_name: string; term_name: string; score: number; max_score: number; percentage: number; weight_percent: number; remarks?: string | null; date?: string | null }[];
+  fee_summary?: { currency?: string | null; charges_total: number; payments_total: number; balance: number; charges_count: number };
+  fee_transactions?: { kind: string; date: string; description: string; amount: number; reference?: string | null }[];
   attendance?: {
     total_marked: number;
     present: number;
@@ -262,9 +264,32 @@ export default function GuardianPortalPage() {
                   <p className="mt-2 text-sm text-slate-500">No published results are available yet. Results appear here after the school publishes assessments.</p>
                 )}
               </div>
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <h3 className="text-sm font-semibold text-slate-900">Fees and balances</h3>
-                <p className="mt-1 text-xs text-slate-500">Fee statements and payments are not yet configured for this school.</p>
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <h3 className="text-sm font-semibold text-slate-900">Fees and payments</h3>
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {[
+                    ['Charges', student.fee_summary?.charges_total ?? 0],
+                    ['Paid', student.fee_summary?.payments_total ?? 0],
+                    ['Balance', student.fee_summary?.balance ?? 0],
+                  ].map(([label, amount]) => (
+                    <div key={label} className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">{label}</p>
+                      <p className="mt-1 text-lg font-semibold text-slate-900">{student.fee_summary?.currency ? student.fee_summary.currency + ' ' : ''}{Number(amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                    </div>
+                  ))}
+                </div>
+                {student.fee_transactions && student.fee_transactions.length > 0 ? (
+                  <ul className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-200">
+                    {student.fee_transactions.map((item, index) => (
+                      <li key={item.kind + item.date + item.description + index} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <div><p className="font-medium text-slate-800">{item.description}</p><p className="text-xs text-slate-500">{item.date} · {titleCase(item.kind)}{item.reference ? ' · ' + item.reference : ''}</p></div>
+                        <span className="whitespace-nowrap font-semibold text-slate-900">{item.kind === 'payment' ? '−' : ''}{student.fee_summary?.currency ? student.fee_summary.currency + ' ' : ''}{item.amount}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">No fee charges or payments have been recorded for this student yet.</p>
+                )}
               </div>            </Card>
           ))}
         </div>
