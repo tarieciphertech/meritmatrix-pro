@@ -29,7 +29,7 @@ class StudentGuardian(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         GUID(), ForeignKey("guardians.id", ondelete="CASCADE"), nullable=False, index=True
     )
     relationship_type: Mapped[str] = mapped_column(
-        Enum(RelationshipType),
+        Enum(RelationshipType, values_callable=lambda enum_cls: [item.value for item in enum_cls]),
         default=RelationshipType.GUARDIAN,
         nullable=False
     )
