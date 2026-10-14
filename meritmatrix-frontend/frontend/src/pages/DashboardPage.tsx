@@ -27,6 +27,7 @@ const MAX_COUNT_FETCH = 200; // backend max limit per request
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const isTeacher = (user?.roles ?? []).some((role) => role.name === 'TEACHER');
   const { schools, selectedSchool, error: schoolError } = useSchool();
   const [counts, setCounts] = useState<Counts>({
     students: null,
@@ -76,7 +77,7 @@ export default function DashboardPage() {
     { label: 'Guardians', value: counts.guardians, to: '/guardians' },
     { label: 'Staff', value: counts.staff, to: '/staff' },
     { label: 'Enrollments', value: counts.enrollments, to: '/enrollments' },
-  ];
+  ].filter((card) => !isTeacher || ['Students', 'Enrollments'].includes(card.label));
 
   return (
     <div>
