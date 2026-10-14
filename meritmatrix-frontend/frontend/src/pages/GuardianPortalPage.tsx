@@ -24,7 +24,7 @@ interface LinkedStudent {
     enrollment_date?: string | null;
   } | null;
   subjects?: { name: string; code?: string | null }[];
-  academic_results?: { assessment_title: string; assessment_type: string; subject_name: string; term_name: string; score: number; max_score: number; percentage: number; weight_percent: number; remarks?: string | null; date?: string | null }[];
+  academic_results?: { assessment_title: string; assessment_type: string; subject_name: string; term_name: string; score: number; max_score: number; percentage: number; grade_label?: string | null; weight_percent: number; remarks?: string | null; date?: string | null }[];
   fee_summary?: { currency?: string | null; charges_total: number; payments_total: number; balance: number; charges_count: number };
   fee_transactions?: { kind: string; date: string; description: string; amount: number; reference?: string | null }[];
   attendance?: {
@@ -253,7 +253,7 @@ export default function GuardianPortalPage() {
                             <td className="px-3 py-2 text-slate-600">{result.term_name}</td>
                             <td className="px-3 py-2 text-right">
                               <p className="font-semibold text-slate-900">{result.score} / {result.max_score}</p>
-                              <p className="text-xs text-slate-500">{result.percentage}%</p>
+                              <p className="text-xs text-slate-500">{result.percentage}%{result.grade_label ? ' · Grade ' + result.grade_label : ''}</p>
                             </td>
                           </tr>
                         ))}
