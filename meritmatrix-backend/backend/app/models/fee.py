@@ -1,8 +1,9 @@
 """School-scoped fee charges and allocated payments."""
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, ForeignKey, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -17,7 +18,7 @@ class FeeCharge(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     academic_year_id: Mapped[str] = mapped_column(GUID(), ForeignKey("academic_years.id", ondelete="RESTRICT"), nullable=False, index=True)
     term_id: Mapped[Optional[str]] = mapped_column(GUID(), ForeignKey("terms.id", ondelete="SET NULL"), nullable=True, index=True)
     description: Mapped[str] = mapped_column(String(160), nullable=False)
-    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     is_void: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
