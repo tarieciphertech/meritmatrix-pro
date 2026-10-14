@@ -45,7 +45,26 @@ export default function GuardiansPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    async function handleCreateAccount(guardian: GuardianResponse) {
+    if (!selectedSchool) {
+      setGuardians([]);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const list = await api.get<GuardianResponse[]>('/api/v1/guardians', {
+        school_id: selectedSchool.id,
+        limit: 200,
+      });
+      setGuardians(list);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load guardians');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedSchool]);
+
+  async function handleCreateAccount(guardian: GuardianResponse) {
     const confirmed = window.confirm(
       `Before generating a login code, confirm you have verified ${guardian.first_name} ${guardian.last_name}'s identity in person. The code will be shown once and expires in 24 hours.`,
     );
@@ -66,25 +85,6 @@ export default function GuardiansPage() {
       setError(err instanceof ApiError ? err.message : 'Failed to create guardian account');
     }
   }
-
-  if (!selectedSchool) {
-      setGuardians([]);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const list = await api.get<GuardianResponse[]>('/api/v1/guardians', {
-        school_id: selectedSchool.id,
-        limit: 200,
-      });
-      setGuardians(list);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load guardians');
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedSchool]);
 
   useEffect(() => {
     void load();
