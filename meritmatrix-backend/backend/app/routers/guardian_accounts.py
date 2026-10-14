@@ -26,6 +26,16 @@ def _phone(value: str) -> str:
     value = "".join(ch for ch in value.strip() if ch.isdigit() or ch == "+")
     if not value or value == "+" or value.count("+") > 1 or ("+" in value and not value.startswith("+")):
         raise AppError("Enter a valid phone number.", code="INVALID_PHONE", status_code=422)
+    # Canonicalize common Zimbabwe formats to E.164. Other country codes are
+    # preserved rather than guessed.
+    if value.startswith("00"):
+        value = "+" + value[2:]
+    if value.startswith("0") and len(value) == 10:
+        value = "+263" + value[1:]
+    elif value.startswith("263") and len(value) == 12:
+        value = "+" + value
+    if len("".join(ch for ch in value if ch.isdigit())) < 7:
+        raise AppError("Enter a valid phone number.", code="INVALID_PHONE", status_code=422)
     return value
 
 
