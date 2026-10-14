@@ -1,9 +1,5 @@
 """
-ORM model package.
-
-Every model module must be imported here so that:
-  1. Base.metadata is fully populated for Alembic autogenerate.
-  2. The test suite's Base.metadata.create_all(...) creates every table.
+ORM model package. Import every model so Alembic and metadata-based tests see all tables.
 """
 from app.models.associations import role_permissions, user_roles  # noqa: F401
 from app.models.permission import Permission  # noqa: F401
@@ -25,10 +21,11 @@ from app.models.student_guardian import StudentGuardian, RelationshipType  # noq
 from app.models.staff import Staff, EmploymentStatus  # noqa: F401
 from app.models.enrollment import Enrollment, EnrollmentStatus  # noqa: F401
 from app.models.calendar_event import CalendarEvent  # noqa: F401
+from app.models.teaching_assignment import TeachingAssignment  # noqa: F401
 
 __all__ = [
     "User", "Role", "Permission", "RefreshToken", "user_roles", "role_permissions",
     "School", "SchoolSettings", "AcademicYear", "Term", "Class", "Subject", "ClassSubject", "UserSchool",
     "Student", "StudentStatus", "Guardian", "GuardianActivation", "StudentGuardian", "RelationshipType",
-    "Staff", "EmploymentStatus", "Enrollment", "EnrollmentStatus", "CalendarEvent",
+    "Staff", "EmploymentStatus", "Enrollment", "EnrollmentStatus", "CalendarEvent", "TeachingAssignment",
 ]
