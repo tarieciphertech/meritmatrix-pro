@@ -4,8 +4,6 @@ MeritMatrix Pro 2.0 — FastAPI application entrypoint.
 Milestone 1: app bootstrap, configuration, database connectivity, health
 check, logging, and centralized error handling.
 Milestone 2: users, roles, permissions, authentication, and RBAC.
-Domain routers (students, classes, assessments, etc.) are added in
-later milestones.
 """
 import logging
 
@@ -14,7 +12,25 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.logging_config import configure_logging
-from app.routers import academic_years, auth, class_subjects, classes, enrollments, guardian_accounts, guardian_portal, guardians, health, schools, staff, student_guardians, students, subjects, terms, users
+from app.routers import (
+    academic_years,
+    auth,
+    class_subjects,
+    classes,
+    country_configurations,
+    enrollments,
+    guardian_accounts,
+    guardian_portal,
+    guardians,
+    health,
+    schools,
+    staff,
+    student_guardians,
+    students,
+    subjects,
+    terms,
+    users,
+)
 from app.utils.errors import register_exception_handlers
 
 settings = get_settings()
@@ -43,18 +59,24 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
 
-    # Root-level health check (unversioned, for load balancers / uptime probes)
+    # Health and authentication
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(users.router)
-    # Milestone 3: Schools & Academic Structure
+
+    # Country templates are read-only reference data; applying one to a
+    # school will be handled by a separately authorized setup workflow.
+    app.include_router(country_configurations.router)
+
+    # Schools & academic structure
     app.include_router(schools.router)
     app.include_router(academic_years.router)
     app.include_router(terms.router)
     app.include_router(classes.router)
     app.include_router(subjects.router)
     app.include_router(class_subjects.router)
-    # Milestone 4: People & Enrollment
+
+    # People & enrollment
     app.include_router(students.router)
     app.include_router(guardians.router)
     app.include_router(guardian_portal.router)
