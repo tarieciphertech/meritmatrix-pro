@@ -227,8 +227,9 @@ FastAPI's `OAuth2PasswordBearer` security scheme.
 | 6 | Guardian school selection, linked-student portal, attendance and published results | Implemented in repository; live verification pending |
 | 7 | Assessment setup, mark entry, weighted percentage results and publishing | Implemented in repository; CI/migration verification pending |
 | 8 | Fee charges, payment receipts/references and outstanding balances | Implemented in repository; CI/migration verification pending |
-| 9 | Configurable grade bands, formal printable report cards, notifications, audit trail | Remaining |
-| 10 | Production hardening, deployment/migration execution, security and live smoke tests | Remaining |
+| 9 | Configurable grade bands and printable report cards from published results | Implemented in repository; CI/migration verification pending |
+| 10 | Notifications and full audit trail | Remaining |
+| 11 | Production hardening, deployment/migration execution, security and live smoke tests | Remaining |
 
 The application is not considered production-ready until CI passes for the
 final commit, database migrations have been applied to the production
