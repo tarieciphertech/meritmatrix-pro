@@ -19,6 +19,7 @@ from app.models.class_subject import ClassSubject
 from app.models.clazz import Class
 from app.models.enrollment import Enrollment
 from app.models.fee import FeeCharge, FeePayment
+from app.models.grading_band import GradingBand
 from app.models.guardian import Guardian
 from app.models.student import Student
 from app.models.student_guardian import StudentGuardian
@@ -176,6 +177,10 @@ def list_my_students(
             .order_by(Term.term_number.asc(), Subject.name.asc(), Assessment.assessment_date.asc())
             .all()
         )
+        grading_bands = db.query(GradingBand).filter(
+            GradingBand.school_id == student.school_id,
+            GradingBand.is_active.is_(True),
+        ).all()
         academic_results = [
             {
                 "assessment_title": assessment.title,
@@ -185,6 +190,10 @@ def list_my_students(
                 "score": mark.score,
                 "max_score": assessment.max_score,
                 "percentage": round(100 * mark.score / assessment.max_score, 2),
+                "grade_label": next((
+                    band.grade_label for band in grading_bands
+                    if band.min_percentage <= round(100 * mark.score / assessment.max_score, 2) <= band.max_percentage
+                ), None),
                 "weight_percent": assessment.weight_percent,
                 "remarks": mark.remarks,
                 "date": assessment.assessment_date.isoformat() if assessment.assessment_date else None,
