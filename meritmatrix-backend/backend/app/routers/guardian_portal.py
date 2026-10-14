@@ -44,7 +44,7 @@ def list_my_schools(
         .join(Guardian, Guardian.school_id == School.id)
         .join(StudentGuardian, StudentGuardian.guardian_id == Guardian.id)
         .join(Student, Student.id == StudentGuardian.student_id)
-        .filter(guardian_filter, Guardian.is_active.is_(True), Student.is_active.is_(True), School.is_active.is_(True))
+        .filter(guardian_filter, Guardian.is_active.is_(True), Student.is_active.is_(True), Student.school_id == Guardian.school_id, School.is_active.is_(True))
         .distinct()
         .order_by(School.name.asc())
         .all()
@@ -78,6 +78,7 @@ def list_my_students(
             guardian_filter,
             Guardian.is_active.is_(True),
             Student.is_active.is_(True),
+            Student.school_id == Guardian.school_id,
         )
         .order_by(Student.last_name.asc(), Student.first_name.asc())
         .all()
