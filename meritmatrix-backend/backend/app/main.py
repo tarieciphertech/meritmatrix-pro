@@ -43,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(teaching_assignments.router)
     app.include_router(assessments.router)
     app.include_router(assessments.results_router)
+    app.include_router(assessments.grading_router)
     app.include_router(fees.router)
 
     @app.get("/", tags=["root"])
