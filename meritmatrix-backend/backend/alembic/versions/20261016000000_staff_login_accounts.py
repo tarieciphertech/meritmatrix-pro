@@ -4,7 +4,7 @@ import sqlalchemy as sa
 import app.models.base
 
 revision = "staff_login_accounts"
-down_revision = "attendance_records"
+down_revision = "grading_bands"
 branch_labels = None
 depends_on = None
 
