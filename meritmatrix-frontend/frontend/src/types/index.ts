@@ -1,9 +1,9 @@
 // TypeScript types mirroring the backend Pydantic schemas.
 
 export interface LoginRequest { email: string; password: string; }
-export interface TokenResponse { access_token: string; refresh_token: string; token_type: string; expires_in: number; }
+export interface TokenResponse { access_token: string; refresh_token: string; token_type: string; expires_in: number; must_change_password?: boolean; }
 export interface RoleResponse { id: string; name: string; description?: string | null; }
-export interface UserResponse { id: string; email?: string | null; username?: string | null; first_name: string; last_name: string; is_active: boolean; is_verified: boolean; last_login_at?: string | null; created_at: string; roles: RoleResponse[]; }
+export interface UserResponse { id: string; email?: string | null; username?: string | null; first_name: string; last_name: string; is_active: boolean; is_verified: boolean; must_change_password?: boolean; last_login_at?: string | null; created_at: string; roles: RoleResponse[]; }
 
 export type CountryCode = 'ZW' | 'BW';
 export type InstitutionType = 'early_childhood' | 'primary' | 'secondary' | 'combined' | 'tertiary';
