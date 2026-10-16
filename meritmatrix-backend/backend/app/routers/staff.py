@@ -161,6 +161,7 @@ def create_staff_account(
         last_name=staff.last_name,
         is_active=True,
         is_verified=False,
+        must_change_password=True,
     )
     user.roles.append(role)
     db.add(user)
