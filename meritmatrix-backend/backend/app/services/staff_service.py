@@ -6,6 +6,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.staff import Staff, EmploymentStatus
+from app.models.user import User
 from app.repositories.staff_repository import StaffRepository
 from app.schemas.staff import StaffCreate, StaffUpdate
 from app.utils.errors import AppError, ConflictError, ForbiddenError, NotFoundError
@@ -124,6 +125,11 @@ class StaffService:
         """Archive (soft delete) a staff member."""
         staff = self.get_staff_for_school(staff_id, school_id)
         staff.is_active = False
+        # Revoke login access immediately when a staff member is archived.
+        if staff.user_id:
+            user = self.db.query(User).filter(User.id == staff.user_id).first()
+            if user is not None:
+                user.is_active = False
         # Also update employment status
         if staff.employment_status == EmploymentStatus.ACTIVE:
             staff.employment_status = EmploymentStatus.TERMINATED
