@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_permission, _permission_names, SYSTEM_ADMIN_PERMISSION
 from app.database import get_db
-from app.models.role import Role
 from app.models.staff import EmploymentStatus
 from app.models.user import User
 from app.models.user_school import UserSchool
@@ -16,7 +15,7 @@ from app.schemas.staff_account import StaffLoginAccountCreate, StaffLoginAccount
 from app.services.security import WeakPasswordError, hash_password
 from app.services.staff_service import StaffService
 from app.services.user_school_service import UserSchoolService
-from app.utils.errors import AppError, ConflictError, ForbiddenError, NotFoundError
+from app.utils.errors import AppError, ConflictError, ForbiddenError
 
 router = APIRouter(prefix="/api/v1/staff", tags=["staff accounts"])
 
@@ -77,5 +76,5 @@ def create_staff_login_account(
         email=email,
         role="TEACHER",
         school_id=str(staff.school_id),
-        message="Login account created. Give the staff member their temporary password securely and ask them to change it after signing in.",
+        message="Login account created. Share the initial password privately; do not reuse an administrator password.",
     )
