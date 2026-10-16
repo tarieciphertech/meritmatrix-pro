@@ -5,6 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import assigned_student_ids, require_student_assignment
 from app.auth.dependencies import (
     get_current_active_user,
     require_permission,
@@ -44,7 +45,11 @@ def list_students(
     _verify_school_membership(db, current_user, school_id)
     
     service = StudentService(db)
-    return service.get_students_by_school(school_id, limit=limit, offset=offset)
+    students = service.get_students_by_school(school_id, limit=limit, offset=offset)
+    allowed_student_ids = assigned_student_ids(db, current_user, school_id)
+    if allowed_student_ids is not None:
+        students = [student for student in students if student.id in allowed_student_ids]
+    return students
 
 
 @router.post("", response_model=StudentResponse, status_code=201)
@@ -76,7 +81,8 @@ def read_student(
     
     # Verify membership in the student's school
     _verify_school_membership(db, current_user, student.school_id)
-    
+    require_student_assignment(db, current_user, student.school_id, student.id)
+
     return student
 
 
@@ -93,6 +99,7 @@ def update_student(
     
     # Verify membership
     _verify_school_membership(db, current_user, student.school_id)
+    require_student_assignment(db, current_user, student.school_id, student.id)
     
     # Update with school_id from the existing student (prevents school change)
     student = service.update_student(student_id, student.school_id, payload)
@@ -113,6 +120,7 @@ def archive_student(
     
     # Verify membership
     _verify_school_membership(db, current_user, student.school_id)
+    require_student_assignment(db, current_user, student.school_id, student.id)
     
     service.archive_student(student_id, student.school_id)
     db.commit()
