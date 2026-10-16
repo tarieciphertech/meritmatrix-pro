@@ -68,15 +68,10 @@ def test_unknown_email_and_wrong_password_return_identical_error_body(client, ma
     assert unknown_resp.json() == wrong_pw_resp.json()
 
 
-def test_staff_first_login_requires_password_change_and_blocks_school_api(client, make_user, auth_headers):
+def test_staff_first_login_requires_password_change_and_blocks_school_api(client, make_user, db_session):
     user = make_user(email="newteacher@example.com", password="TempPass123", role_name="TEACHER")
     user.must_change_password = True
-    # Persist the onboarding flag through the fixture's database session.
-    from app.database import SessionLocal
-    with SessionLocal() as db:
-        stored = db.query(type(user)).filter_by(id=user.id).first()
-        stored.must_change_password = True
-        db.commit()
+    db_session.commit()
 
     response = client.post(
         "/api/v1/auth/login",
@@ -98,13 +93,10 @@ def test_staff_first_login_requires_password_change_and_blocks_school_api(client
     assert blocked.json()["error"]["code"] == "PASSWORD_CHANGE_REQUIRED"
 
 
-def test_password_change_clears_onboarding_gate(client, make_user):
+def test_password_change_clears_onboarding_gate(client, make_user, db_session):
     user = make_user(email="teacherchange@example.com", password="TempPass123", role_name="TEACHER")
-    from app.database import SessionLocal
-    with SessionLocal() as db:
-        stored = db.query(type(user)).filter_by(id=user.id).first()
-        stored.must_change_password = True
-        db.commit()
+    user.must_change_password = True
+    db_session.commit()
 
     login = client.post(
         "/api/v1/auth/login",
@@ -127,7 +119,7 @@ def test_password_change_clears_onboarding_gate(client, make_user):
     assert me.json()["must_change_password"] is False
 
 
-def test_password_change_rejects_incorrect_current_password(client, make_user):
+def test_password_change_rejects_incorrect_current_password(client, make_user, db_session):
     user = make_user(email="teacherwrongcurrent@example.com", password="TempPass123", role_name="TEACHER")
     from app.database import SessionLocal
     with SessionLocal() as db:
