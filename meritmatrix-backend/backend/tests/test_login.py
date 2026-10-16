@@ -121,11 +121,8 @@ def test_password_change_clears_onboarding_gate(client, make_user, db_session):
 
 def test_password_change_rejects_incorrect_current_password(client, make_user, db_session):
     user = make_user(email="teacherwrongcurrent@example.com", password="TempPass123", role_name="TEACHER")
-    from app.database import SessionLocal
-    with SessionLocal() as db:
-        stored = db.query(type(user)).filter_by(id=user.id).first()
-        stored.must_change_password = True
-        db.commit()
+    user.must_change_password = True
+    db_session.commit()
 
     login = client.post(
         "/api/v1/auth/login",
