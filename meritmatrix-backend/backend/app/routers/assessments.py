@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
+from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission\nfrom app.auth.assignment_access import assigned_class_subject_ids, require_class_subject_assignment
 from app.database import get_db
 from app.models.academic_year import AcademicYear
 from app.models.assessment import Assessment, AssessmentMark
