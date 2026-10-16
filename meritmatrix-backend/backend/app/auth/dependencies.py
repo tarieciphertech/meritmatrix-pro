@@ -28,6 +28,10 @@ from app.utils.errors import ForbiddenError, UnauthorizedError
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 SYSTEM_ADMIN_PERMISSION = "system.admin"
+PASSWORD_CHANGE_ALLOWED_PATHS = {
+    "/api/v1/auth/me",
+    "/api/v1/auth/change-password",
+}
 
 
 def get_current_user(
@@ -40,9 +44,23 @@ def get_current_user(
     return service.get_current_user(token)
 
 
-def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+def get_current_active_user(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> User:
     if not current_user.is_active:
         raise UnauthorizedError("This account is inactive.", code="ACCOUNT_INACTIVE")
+    # The initial session is intentionally limited to reading its own account
+    # and changing its password. Do not let a new staff account reach school
+    # data until the initial password has been replaced.
+    if (
+        current_user.must_change_password
+        and request.url.path not in PASSWORD_CHANGE_ALLOWED_PATHS
+    ):
+        raise ForbiddenError(
+            "Change your temporary password before continuing.",
+            code="PASSWORD_CHANGE_REQUIRED",
+        )
     return current_user
 
 
@@ -97,14 +115,10 @@ def require_school_membership(school_id_param: str = "school_id") -> Callable[..
     This checks that the authenticated user has an explicit membership in the
     target school, enforcing multi-tenant isolation.
 
-    SUPER_ADMIN users (those with system.admin permission) are exempt from
-    this check and can access any school.
+    SUPER_ADMIN users (those with system.admin permission) are exempt from this
+    check and can access any school.
 
     The school_id is extracted from the request query parameters or path parameters.
-
-    Args:
-        school_id_param: The name of the parameter containing the school UUID.
-                        Defaults to "school_id".
     """
 
     def dependency(
@@ -112,20 +126,14 @@ def require_school_membership(school_id_param: str = "school_id") -> Callable[..
         current_user: User = Depends(get_current_active_user),
         db: Session = Depends(get_db),
     ) -> User:
-        # SUPER_ADMIN can access any school
         if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
             return current_user
 
-        # Extract school_id from path or query parameters
         school_id_str = None
-
-        # Check path params first
         for key, value in request.path_params.items():
             if key == school_id_param:
                 school_id_str = value
                 break
-
-        # Check query params if not found in path
         if school_id_str is None:
             school_id_str = request.query_params.get(school_id_param)
 
@@ -134,23 +142,17 @@ def require_school_membership(school_id_param: str = "school_id") -> Callable[..
                 f"School ID parameter '{school_id_param}' is required.",
                 code="SCHOOL_ID_REQUIRED",
             )
-
         try:
             school_id = uuid.UUID(school_id_str)
         except (ValueError, AttributeError):
-            raise ForbiddenError(
-                "Invalid school ID format.",
-                code="INVALID_SCHOOL_ID",
-            )
+            raise ForbiddenError("Invalid school ID format.", code="INVALID_SCHOOL_ID")
 
-        # Check membership
         service = UserSchoolService(db)
         if not service.is_user_member_of_school(current_user.id, school_id):
             raise ForbiddenError(
                 "You do not have access to this school.",
                 code="SCHOOL_ACCESS_DENIED",
             )
-
         return current_user
 
     return dependency
