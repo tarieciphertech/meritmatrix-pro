@@ -38,6 +38,7 @@ class UserResponse(BaseModel):
     last_name: str
     is_active: bool
     is_verified: bool
+    must_change_password: bool = False
     last_login_at: Optional[datetime] = None
     created_at: datetime
     roles: List[RoleResponse] = []
