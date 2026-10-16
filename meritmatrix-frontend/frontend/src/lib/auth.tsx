@@ -1,15 +1,6 @@
-// Authentication context: login, logout, current user, and session bootstrap.
-// Tokens live in localStorage (see lib/api.ts); the current user is fetched
-// from GET /api/v1/auth/me on app start when tokens are present.
-
+// Authentication context: login, password onboarding, logout, current user, and session bootstrap.
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
+  createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode,
 } from 'react';
 import { api, apiRequest, ApiError, clearTokens, getStoredTokens, storeTokens } from './api';
 import type { TokenResponse, UserResponse } from '../types';
@@ -18,6 +9,7 @@ interface AuthContextValue {
   user: UserResponse | null;
   initializing: boolean;
   login: (identifier: string, password: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
   hasRole: (roleName: string) => boolean;
 }
@@ -32,10 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     async function bootstrap() {
       const tokens = getStoredTokens();
-      if (!tokens) {
-        setInitializing(false);
-        return;
-      }
+      if (!tokens) { setInitializing(false); return; }
       try {
         const me = await api.get<UserResponse>('/api/v1/auth/me');
         if (!cancelled) setUser(me);
@@ -51,10 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (identifier: string, password: string) => {
-    const tokens = await apiRequest<TokenResponse>(
-      '/api/v1/auth/login',
-      { method: 'POST', body: { identifier, password }, auth: false },
-    );
+    const tokens = await apiRequest<TokenResponse>('/api/v1/auth/login', {
+      method: 'POST', body: { identifier, password }, auth: false,
+    });
+    storeTokens(tokens);
+    const me = await api.get<UserResponse>('/api/v1/auth/me');
+    setUser(me);
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    const tokens = await apiRequest<TokenResponse>('/api/v1/auth/change-password', {
+      method: 'POST',
+      body: { current_password: currentPassword, new_password: newPassword },
+    });
     storeTokens(tokens);
     const me = await api.get<UserResponse>('/api/v1/auth/me');
     setUser(me);
@@ -65,13 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (tokens) {
       try {
         await apiRequest<void>('/api/v1/auth/logout', {
-          method: 'POST',
-          body: { refresh_token: tokens.refresh_token },
+          method: 'POST', body: { refresh_token: tokens.refresh_token },
         });
       } catch (err) {
-        if (err instanceof ApiError && err.status !== 401) {
-          console.warn('Logout revocation failed:', err.message);
-        }
+        if (err instanceof ApiError && err.status !== 401) console.warn('Logout revocation failed:', err.message);
       }
     }
     clearTokens();
@@ -79,15 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const hasRole = useCallback(
-    (roleName: string) => (user?.roles ?? []).some((r) => r.name === roleName),
+    (roleName: string) => (user?.roles ?? []).some((role) => role.name === roleName),
     [user],
   );
-
   const value = useMemo(
-    () => ({ user, initializing, login, logout, hasRole }),
-    [user, initializing, login, logout, hasRole],
+    () => ({ user, initializing, login, changePassword, logout, hasRole }),
+    [user, initializing, login, changePassword, logout, hasRole],
   );
-
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
