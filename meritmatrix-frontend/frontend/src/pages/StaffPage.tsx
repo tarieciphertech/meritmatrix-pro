@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
-import type { EmploymentStatus, StaffCreate, StaffResponse, StaffUpdate } from '../types';
+import type { EmploymentStatus, StaffAccountResponse, StaffCreate, StaffResponse, StaffUpdate } from '../types';
 import { EMPLOYMENT_STATUSES } from '../types';
 import {
   Badge,
@@ -163,6 +163,32 @@ export default function StaffPage() {
     }
   }
 
+  async function handleEnableLogin(staff: StaffResponse) {
+    if (!staff.email) {
+      setError('Add an email address to this staff member before enabling login.');
+      return;
+    }
+    const password = window.prompt(
+      `Set an initial password for ${staff.first_name} ${staff.last_name}. Share it privately with the staff member.`,
+    );
+    if (password === null) return;
+    if (password.length < 8 || password.length > 128 || !/[A-Za-z]/.test(password) || !/[0-9!@#$%^&*(),.?":{}|<>_+-]/.test(password)) {
+      setError('Use a password of 8–128 characters containing letters and at least one number or symbol.');
+      return;
+    }
+    setError(null);
+    try {
+      const account = await api.post<StaffAccountResponse>(
+        `/api/v1/staff/${staff.id}/account`,
+        { password },
+      );
+      window.alert(`Login enabled for ${account.email}. Role: ${account.role}. Give the initial password to the staff member privately.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to enable staff login');
+    }
+  }
+
   async function handleArchive(staff: StaffResponse) {
     if (!window.confirm(`Archive "${staff.first_name} ${staff.last_name}"?`)) return;
     try {
@@ -223,6 +249,18 @@ export default function StaffPage() {
                     <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(s)}>
                       Edit
                     </Button>
+                    {s.user_id ? (
+                      <Badge tone="green">Login enabled</Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        className="!px-2 !py-1 text-xs"
+                        disabled={!s.email || !s.is_active || s.employment_status !== 'active'}
+                        onClick={() => void handleEnableLogin(s)}
+                      >
+                        Enable login
+                      </Button>
+                    )}
                     <Button
                       variant="danger"
                       className="!px-2 !py-1 text-xs"

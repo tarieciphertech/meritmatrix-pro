@@ -13,7 +13,11 @@ from app.auth.dependencies import (
 )
 from app.database import get_db
 from app.models.user import User
-from app.schemas.staff import StaffCreate, StaffResponse, StaffUpdate
+from app.models.role import Role
+from app.models.user_school import UserSchool
+from app.services.security import WeakPasswordError, hash_password
+from app.utils.errors import ConflictError, AppError
+from app.schemas.staff import StaffAccountCreate, StaffAccountResponse, StaffCreate, StaffResponse, StaffUpdate
 from app.services.staff_service import StaffService
 
 
@@ -116,3 +120,53 @@ def archive_staff(
     
     service.archive_staff(staff_id, staff.school_id)
     db.commit()
+
+@router.post("/{staff_id}/account", response_model=StaffAccountResponse, status_code=201)
+def create_staff_account(
+    staff_id: uuid.UUID,
+    payload: StaffAccountCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("staff.update")),
+):
+    """Provision a login for an active staff member with the least-privilege TEACHER role."""
+    service = StaffService(db)
+    staff = service.get_staff(staff_id)
+    _verify_school_membership(db, current_user, staff.school_id)
+
+    if not staff.is_active or staff.employment_status != "active":
+        raise ConflictError("Only active staff members can be given login access.", code="STAFF_NOT_ACTIVE")
+    if not staff.email or not staff.email.strip():
+        raise ConflictError("Add an email address to this staff member before enabling login.", code="STAFF_EMAIL_REQUIRED")
+    if staff.user_id:
+        raise ConflictError("This staff member already has a login account.", code="STAFF_ACCOUNT_EXISTS")
+
+    email = staff.email.strip().lower()
+    existing_user = db.query(User).filter(User.email == email).first()
+    if existing_user:
+        raise ConflictError("An account already uses this email. Resolve the existing account before linking it.", code="ACCOUNT_EMAIL_EXISTS")
+
+    role = db.query(Role).filter(Role.name == "TEACHER").first()
+    if role is None:
+        raise AppError("The TEACHER role is not configured. Run the application role/permission seed before provisioning staff accounts.", code="TEACHER_ROLE_NOT_CONFIGURED", status_code=409)
+
+    try:
+        password_hash = hash_password(payload.password)
+    except WeakPasswordError as exc:
+        raise AppError(str(exc), code="WEAK_PASSWORD", status_code=422) from exc
+
+    user = User(
+        email=email,
+        password_hash=password_hash,
+        first_name=staff.first_name,
+        last_name=staff.last_name,
+        is_active=True,
+        is_verified=False,
+    )
+    user.roles.append(role)
+    db.add(user)
+    db.flush()
+
+    db.add(UserSchool(user_id=user.id, school_id=staff.school_id, school_role="TEACHER"))
+    staff.user_id = user.id
+    db.commit()
+    return {"user_id": user.id, "email": email, "role": role.name, "school_id": staff.school_id}

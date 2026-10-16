@@ -33,7 +33,7 @@ export interface GuardianCreate { first_name: string; middle_name?: string | nul
 export type GuardianUpdate = Partial<GuardianCreate>;
 export type EmploymentStatus = 'active' | 'on_leave' | 'terminated' | 'retired' | 'contract_ended';
 export const EMPLOYMENT_STATUSES: EmploymentStatus[] = ['active','on_leave','terminated','retired','contract_ended'];
-export interface StaffResponse { id: string; school_id: string; staff_number: string; first_name: string; middle_name?: string | null; last_name: string; email?: string | null; phone?: string | null; job_title?: string | null; employment_status: EmploymentStatus; hire_date?: string | null; termination_date?: string | null; notes?: string | null; is_active: boolean; }
+export interface StaffResponse { id: string; school_id: string; user_id?: string | null; staff_number: string; first_name: string; middle_name?: string | null; last_name: string; email?: string | null; phone?: string | null; job_title?: string | null; employment_status: EmploymentStatus; hire_date?: string | null; termination_date?: string | null; notes?: string | null; is_active: boolean; }
 export interface StaffCreate { staff_number: string; first_name: string; middle_name?: string | null; last_name: string; email?: string | null; phone?: string | null; job_title?: string | null; hire_date?: string | null; notes?: string | null; }
 export type StaffUpdate = Partial<Omit<StaffCreate, 'staff_number'>> & { employment_status?: EmploymentStatus; termination_date?: string | null; };
 export type EnrollmentStatus = 'active' | 'completed' | 'withdrawn' | 'transferred' | 'cancelled';
@@ -49,3 +49,5 @@ export interface ApiErrorBody { error: { code: string; message: string; request_
 export interface TermResponse { id: string; academic_year_id: string; name: string; term_number: number; start_date: string; end_date: string; is_current: boolean; is_active: boolean; created_at: string; updated_at: string; }
 export interface SubjectResponse { id: string; school_id: string; name: string; code: string; description?: string | null; is_active: boolean; created_at: string; updated_at: string; }
 export interface ClassSubjectResponse { id: string; class_id: string; subject_id: string; class_name?: string | null; class_code?: string | null; subject_name?: string | null; subject_code?: string | null; created_at: string; updated_at: string; }
+
+export interface StaffAccountResponse { user_id: string; email: string; role: string; school_id: string; }

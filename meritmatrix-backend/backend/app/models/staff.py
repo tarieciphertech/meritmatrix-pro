@@ -40,6 +40,10 @@ class Staff(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     termination_date: Mapped[Optional[Date]] = mapped_column(Date, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Optional authenticated login identity for this employment record.
+    user_id: Mapped[Optional[str]] = mapped_column(
+        GUID(), ForeignKey("users.id", ondelete="SET NULL"), unique=True, nullable=True, index=True
+    )
 
     # Unique constraint: staff_number is unique within a school
     __table_args__ = (

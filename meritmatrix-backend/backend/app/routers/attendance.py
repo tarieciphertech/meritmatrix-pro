@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
+from app.auth.assignment_access import assigned_class_ids, require_class_assignment
 from app.database import get_db
 from app.models.academic_year import AcademicYear
 from app.models.attendance_record import AttendanceRecord
@@ -54,6 +55,8 @@ def list_attendance(
     current_user: User = Depends(require_permission("attendance.read")),
 ):
     _verify_school_access(db, current_user, school_id)
+    if class_id:
+        require_class_assignment(db, current_user, school_id, class_id, attendance_date)
     query = (
         db.query(AttendanceRecord)
         .join(Enrollment, Enrollment.id == AttendanceRecord.enrollment_id)
@@ -65,6 +68,12 @@ def list_attendance(
     )
     if class_id:
         query = query.filter(Enrollment.class_id == class_id)
+    else:
+        allowed_classes = assigned_class_ids(db, current_user, school_id, attendance_date)
+        if allowed_classes is not None:
+            if not allowed_classes:
+                return []
+            query = query.filter(Enrollment.class_id.in_(allowed_classes))
     rows = query.order_by(Student.last_name, Student.first_name).all()
     return [_record_response(row) for row in rows]
 
@@ -80,6 +89,7 @@ def attendance_roster(
 ):
     """Return active enrollments for a class, including saved attendance where present."""
     _verify_school_access(db, current_user, school_id)
+    require_class_assignment(db, current_user, school_id, class_id, attendance_date)
     clazz = db.query(Class).filter(Class.id == class_id, Class.school_id == school_id, Class.is_active.is_(True)).first()
     if not clazz:
         raise NotFoundError("Class not found in this school.", code="CLASS_NOT_FOUND")
@@ -132,6 +142,7 @@ def save_register(
 ):
     """Save a whole class register atomically; re-submitting updates existing marks."""
     _verify_school_access(db, current_user, school_id)
+    require_class_assignment(db, current_user, school_id, class_id, payload.attendance_date)
     year = db.query(AcademicYear).filter(
         AcademicYear.school_id == school_id, AcademicYear.is_active.is_(True),
         AcademicYear.start_date <= payload.attendance_date, AcademicYear.end_date >= payload.attendance_date

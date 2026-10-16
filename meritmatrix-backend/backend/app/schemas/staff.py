@@ -3,7 +3,7 @@ import uuid
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.staff import EmploymentStatus
 
@@ -48,7 +48,20 @@ class StaffResponse(StaffBase):
 
     id: uuid.UUID
     school_id: uuid.UUID
+    user_id: Optional[uuid.UUID] = None
     staff_number: str
     employment_status: EmploymentStatus
     termination_date: Optional[date] = None
     is_active: bool
+
+class StaffAccountCreate(BaseModel):
+    """Initial password supplied by an authorized school administrator."""
+    password: str = Field(min_length=8, max_length=128)
+
+
+class StaffAccountResponse(BaseModel):
+    """Safe account provisioning response; never includes password material."""
+    user_id: uuid.UUID
+    email: EmailStr
+    role: str
+    school_id: uuid.UUID

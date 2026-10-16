@@ -63,6 +63,14 @@ def list_assignments(
 ):
     _verify_school_access(db, current_user, school_id)
     query = db.query(TeachingAssignment.id).filter(TeachingAssignment.school_id == school_id)
+    # A linked staff login can only see its own assignments, never the whole staff roster.
+    linked_staff = db.query(Staff).filter(
+        Staff.user_id == current_user.id,
+        Staff.school_id == school_id,
+        Staff.is_active.is_(True),
+    ).first()
+    if linked_staff is not None:
+        query = query.filter(TeachingAssignment.staff_id == linked_staff.id)
     if active_only:
         query = query.filter(TeachingAssignment.is_active.is_(True))
     ids = [row[0] for row in query.order_by(TeachingAssignment.start_date.desc()).all()]

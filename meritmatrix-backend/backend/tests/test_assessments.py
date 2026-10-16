@@ -75,3 +75,71 @@ def test_teacher_role_has_required_assessment_and_attendance_permissions(seeded_
         "attendance.read", "attendance.create", "assessments.read",
         "assessments.create", "assessments.update",
     }.issubset(names)
+
+
+
+def test_assignment_access_helper_leaves_non_staff_accounts_on_existing_rbac():
+    from types import SimpleNamespace
+    from app.auth.assignment_access import assigned_class_subject_ids
+    from app.models.staff import Staff
+
+    class Query:
+        def filter(self, *args, **kwargs):
+            return self
+
+        def first(self):
+            return None
+
+    class DB:
+        def query(self, model):
+            assert model is Staff
+            return Query()
+
+    assert assigned_class_subject_ids(DB(), SimpleNamespace(id=uuid4()), uuid4()) is None
+
+
+def test_assignment_access_denies_unassigned_class_subject():
+    from datetime import date
+    from types import SimpleNamespace
+
+    from app.auth.assignment_access import require_class_subject_assignment
+    from app.models.staff import Staff
+    from app.models.teaching_assignment import TeachingAssignment
+    from app.utils.errors import ForbiddenError
+
+    school_id, assigned_subject_id, requested_subject_id = uuid4(), uuid4(), uuid4()
+    staff = SimpleNamespace(id=uuid4(), user_id=uuid4(), school_id=school_id, is_active=True)
+
+    class Query:
+        def __init__(self, first=None, rows=None):
+            self.first_value = first
+            self.rows = rows or []
+
+        def filter(self, *args, **kwargs):
+            return self
+
+        def distinct(self):
+            return self
+
+        def first(self):
+            return self.first_value
+
+        def all(self):
+            return self.rows
+
+    class DB:
+        def query(self, model):
+            if model is Staff:
+                return Query(first=staff)
+            assert model is TeachingAssignment.class_subject_id
+            return Query(rows=[(assigned_subject_id,)])
+
+    with pytest.raises(ForbiddenError) as exc:
+        require_class_subject_assignment(
+            DB(),
+            SimpleNamespace(id=staff.user_id),
+            school_id,
+            requested_subject_id,
+            date.today(),
+        )
+    assert exc.value.code == "CLASS_SUBJECT_ASSIGNMENT_REQUIRED"

@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
+from app.auth.assignment_access import assigned_class_subject_ids, require_class_subject_assignment
 from app.database import get_db
 from app.models.academic_year import AcademicYear
 from app.models.assessment import Assessment, AssessmentMark
@@ -91,6 +92,8 @@ def replace_grading_bands(
     current_user: User = Depends(require_permission("assessments.update")),
 ):
     _school_access(db, current_user, school_id)
+    if assigned_class_subject_ids(db, current_user, school_id) is not None:
+        raise ForbiddenError("Teachers cannot change school-wide grading bands.", code="GRADING_SCALE_ADMIN_ONLY")
     labels = [band.grade_label.strip().casefold() for band in payload.bands]
     if len(set(labels)) != len(labels):
         raise ConflictError("Each grade label must be unique within a school.", code="DUPLICATE_GRADE_LABEL")
@@ -114,7 +117,12 @@ def list_assessments(
     current_user: User = Depends(require_permission("assessments.read")),
 ):
     _school_access(db, current_user, school_id)
+    allowed_class_subjects = assigned_class_subject_ids(db, current_user, school_id)
+    if allowed_class_subjects is not None and not allowed_class_subjects:
+        return []
     query = db.query(Assessment.id).join(ClassSubject, ClassSubject.id == Assessment.class_subject_id).join(Class, Class.id == ClassSubject.class_id).filter(Assessment.school_id == school_id, Class.school_id == school_id)
+    if allowed_class_subjects is not None:
+        query = query.filter(Assessment.class_subject_id.in_(allowed_class_subjects))
     if class_id:
         query = query.filter(Class.id == class_id)
     if term_id:
@@ -143,6 +151,7 @@ def create_assessment(
     term = db.query(Term).join(AcademicYear, AcademicYear.id == Term.academic_year_id).filter(Term.id == payload.term_id, Term.is_active.is_(True), AcademicYear.school_id == school_id, AcademicYear.is_active.is_(True)).first()
     if not pair or not term:
         raise NotFoundError("Choose a class subject and active term from the selected school.", code="ASSESSMENT_TARGET_NOT_FOUND")
+    require_class_subject_assignment(db, current_user, school_id, pair[0].id, payload.assessment_date)
     if payload.assessment_date and not (term.start_date <= payload.assessment_date <= term.end_date):
         raise ConflictError("Assessment date must fall within the selected term.", code="ASSESSMENT_DATE_OUTSIDE_TERM")
     assessment = Assessment(school_id=school_id, **payload.model_dump())
@@ -167,6 +176,7 @@ def update_assessment(
     if not assessment:
         raise NotFoundError("Assessment not found.", code="ASSESSMENT_NOT_FOUND")
     _school_access(db, current_user, assessment.school_id)
+    require_class_subject_assignment(db, current_user, assessment.school_id, assessment.class_subject_id, assessment.assessment_date)
     changes = payload.model_dump(exclude_unset=True)
     if assessment.is_published and changes != {"is_published": False}:
         raise ConflictError("Published assessments are locked. Unpublish the assessment before changing it.", code="ASSESSMENT_PUBLISHED")
@@ -194,6 +204,7 @@ def assessment_roster(
     if not assessment:
         raise NotFoundError("Assessment not found.", code="ASSESSMENT_NOT_FOUND")
     _school_access(db, current_user, assessment.school_id)
+    require_class_subject_assignment(db, current_user, assessment.school_id, assessment.class_subject_id, assessment.assessment_date)
     class_subject = db.query(ClassSubject).filter(ClassSubject.id == assessment.class_subject_id).first()
     enrollments = (
         db.query(Enrollment)
@@ -237,6 +248,7 @@ def list_marks(
     if not assessment:
         raise NotFoundError("Assessment not found.", code="ASSESSMENT_NOT_FOUND")
     _school_access(db, current_user, assessment.school_id)
+    require_class_subject_assignment(db, current_user, assessment.school_id, assessment.class_subject_id, assessment.assessment_date)
     rows = db.query(AssessmentMark).filter(AssessmentMark.assessment_id == assessment_id).join(Enrollment).join(Student).order_by(Student.last_name, Student.first_name).all()
     return [_mark_response(mark) for mark in rows]
 
@@ -252,6 +264,7 @@ def save_marks(
     if not assessment:
         raise NotFoundError("Assessment not found.", code="ASSESSMENT_NOT_FOUND")
     _school_access(db, current_user, assessment.school_id)
+    require_class_subject_assignment(db, current_user, assessment.school_id, assessment.class_subject_id, assessment.assessment_date)
     if assessment.is_published:
         raise ConflictError("Published assessments are locked. Unpublish it before editing marks.", code="ASSESSMENT_PUBLISHED")
     enrollment_ids = [mark.enrollment_id for mark in payload.marks]
@@ -298,6 +311,9 @@ def list_results(
     current_user: User = Depends(require_permission("assessments.read")),
 ):
     _school_access(db, current_user, school_id)
+    allowed_class_subjects = assigned_class_subject_ids(db, current_user, school_id)
+    if allowed_class_subjects is not None and not allowed_class_subjects:
+        return []
     query = (
         db.query(AssessmentMark, Assessment, Enrollment, Student, ClassSubject, Subject, Term)
         .join(Assessment, Assessment.id == AssessmentMark.assessment_id)
@@ -308,6 +324,8 @@ def list_results(
         .join(Term, Term.id == Assessment.term_id)
         .filter(Assessment.school_id == school_id, Student.school_id == school_id)
     )
+    if allowed_class_subjects is not None:
+        query = query.filter(Assessment.class_subject_id.in_(allowed_class_subjects))
     if not include_unpublished:
         query = query.filter(Assessment.is_published.is_(True))
     if class_id:
