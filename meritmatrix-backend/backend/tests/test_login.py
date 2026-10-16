@@ -66,3 +66,84 @@ def test_unknown_email_and_wrong_password_return_identical_error_body(client, ma
 
     assert unknown_resp.status_code == wrong_pw_resp.status_code == 401
     assert unknown_resp.json() == wrong_pw_resp.json()
+
+
+def test_staff_first_login_requires_password_change_and_blocks_school_api(client, make_user, auth_headers):
+    user = make_user(email="newteacher@example.com", password="TempPass123", role_name="TEACHER")
+    user.must_change_password = True
+    # Persist the onboarding flag through the fixture's database session.
+    from app.database import SessionLocal
+    with SessionLocal() as db:
+        stored = db.query(type(user)).filter_by(id=user.id).first()
+        stored.must_change_password = True
+        db.commit()
+
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "newteacher@example.com", "password": "TempPass123"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["must_change_password"] is True
+    headers = {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+    me = client.get("/api/v1/auth/me", headers=headers)
+    assert me.status_code == 200
+    assert me.json()["must_change_password"] is True
+
+    blocked = client.get(
+        "/api/v1/staff?school_id=00000000-0000-0000-0000-000000000000",
+        headers=headers,
+    )
+    assert blocked.status_code == 403
+    assert blocked.json()["error"]["code"] == "PASSWORD_CHANGE_REQUIRED"
+
+
+def test_password_change_clears_onboarding_gate(client, make_user):
+    user = make_user(email="teacherchange@example.com", password="TempPass123", role_name="TEACHER")
+    from app.database import SessionLocal
+    with SessionLocal() as db:
+        stored = db.query(type(user)).filter_by(id=user.id).first()
+        stored.must_change_password = True
+        db.commit()
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "teacherchange@example.com", "password": "TempPass123"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    changed = client.post(
+        "/api/v1/auth/change-password",
+        headers=headers,
+        json={"current_password": "TempPass123", "new_password": "NewStrongPass456"},
+    )
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["must_change_password"] is False
+
+    new_headers = {"Authorization": f"Bearer {changed.json()['access_token']}"}
+    me = client.get("/api/v1/auth/me", headers=new_headers)
+    assert me.status_code == 200
+    assert me.json()["must_change_password"] is False
+
+
+def test_password_change_rejects_incorrect_current_password(client, make_user):
+    user = make_user(email="teacherwrongcurrent@example.com", password="TempPass123", role_name="TEACHER")
+    from app.database import SessionLocal
+    with SessionLocal() as db:
+        stored = db.query(type(user)).filter_by(id=user.id).first()
+        stored.must_change_password = True
+        db.commit()
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "teacherwrongcurrent@example.com", "password": "TempPass123"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    response = client.post(
+        "/api/v1/auth/change-password",
+        headers=headers,
+        json={"current_password": "WrongTemp123", "new_password": "NewStrongPass456"},
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "CURRENT_PASSWORD_INVALID"
