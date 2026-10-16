@@ -194,3 +194,42 @@ def test_school_id_cannot_be_changed(client, make_user, auth_headers, seeded_rba
 
     db_session.refresh(staff)
     assert staff.school_id == school_a.id
+
+def test_create_staff_login_requires_initial_password_change(client, make_user, auth_headers, seeded_rbac, db_session):
+    """Provisioning links a least-privilege teacher login with onboarding enabled."""
+    from app.models.user import User
+
+    school = School(name="Onboarding School", code="ONBOARD1", city="City", country="Country")
+    db_session.add(school)
+    db_session.commit()
+    db_session.refresh(school)
+
+    staff = Staff(
+        school_id=school.id,
+        staff_number="ONBOARD-01",
+        first_name="Taylor",
+        last_name="Teacher",
+        email="taylor.teacher@example.com",
+    )
+    db_session.add(staff)
+    db_session.commit()
+    db_session.refresh(staff)
+
+    make_user(email="onboarding-admin@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    headers = auth_headers("onboarding-admin@example.com", "StrongPass123")
+
+    response = client.post(
+        f"/api/v1/staff/{staff.id}/account",
+        headers=headers,
+        json={"password": "TempPass123"},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["email"] == "taylor.teacher@example.com"
+    assert "password" not in body
+    assert "password_hash" not in body
+
+    db_session.refresh(staff)
+    account = db_session.query(User).filter(User.id == staff.user_id).one()
+    assert account.must_change_password is True
+    assert account.is_active is True
