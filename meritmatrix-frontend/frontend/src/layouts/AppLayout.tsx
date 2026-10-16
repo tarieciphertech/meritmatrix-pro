@@ -16,6 +16,7 @@ const navItems = [
   { to: '/guardians', label: 'Guardians' },
   { to: '/guardian-portal', label: 'Guardian Portal' },
   { to: '/staff', label: 'Staff' },
+  { to: '/staff-accounts', label: 'Staff Login Access' },
   { to: '/enrollments', label: 'Enrollments' },
   { to: '/academic-setup', label: 'Academic Setup' },
   { to: '/assessments', label: 'Assessments & Results' },
