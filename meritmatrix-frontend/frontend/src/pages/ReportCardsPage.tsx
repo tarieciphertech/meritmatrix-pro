@@ -22,7 +22,9 @@ export default function ReportCardsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadSetup = useCallback(async () => {
-    if (!selectedSchool) { setStudents([]); setTerms([]); setRows([]); return; }
+    if (!selectedSchool) { setStudents([]); setTerms([]); setRows([]); setStudentId(''); setTermId(''); return; }
+    // Clear the prior school's report-card data before loading the new school.
+    setStudents([]); setTerms([]); setRows([]); setStudentId(''); setTermId('');
     setLoading(true); setError(null);
     try {
       const [studentRows, years] = await Promise.all([
@@ -35,18 +37,25 @@ export default function ReportCardsPage() {
       const termRows = termGroups.flat().filter(t => t.is_active);
       setTerms(termRows);
       setTermId(current => termRows.some(t => t.id === current) ? current : termRows.find(t => t.is_current)?.id ?? termRows[0]?.id ?? '');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load report-card setup.'); }
+    } catch (e) {
+      setStudents([]); setTerms([]); setRows([]); setStudentId(''); setTermId('');
+      setError(e instanceof Error ? e.message : 'Could not load report-card setup.');
+    }
     finally { setLoading(false); }
   }, [selectedSchool]);
   useEffect(() => { void loadSetup(); }, [loadSetup]);
 
   const loadResults = useCallback(async () => {
     if (!selectedSchool || !studentId || !termId) { setRows([]); return; }
+    setRows([]);
     setLoading(true); setError(null);
     try {
       const result = await api.get<ResultRow[]>('/api/v1/results', { school_id: selectedSchool.id, student_id: studentId, term_id: termId });
       setRows(result);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load published results.'); }
+    } catch (e) {
+      setRows([]);
+      setError(e instanceof Error ? e.message : 'Could not load published results.');
+    }
     finally { setLoading(false); }
   }, [selectedSchool, studentId, termId]);
   useEffect(() => { void loadResults(); }, [loadResults]);
