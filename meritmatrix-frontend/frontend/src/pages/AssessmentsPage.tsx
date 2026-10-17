@@ -109,7 +109,7 @@ export default function AssessmentsPage() {
       setError('Every grading band needs a grade label before the scale can be saved.');
       return;
     }
-    const orderedBands = [...gradeBands].filter(band => band.is_active).sort((a, b) => a.min_percentage - b.min_percentage);
+    const orderedBands = [...gradeBands].sort((a, b) => a.min_percentage - b.min_percentage);
     if (orderedBands.some(band => band.min_percentage > band.max_percentage)) {
       setError('Each grading band minimum must be less than or equal to its maximum.');
       return;
@@ -272,8 +272,6 @@ export default function AssessmentsPage() {
         </div>)}</div>}
 
         </>}
-      </Card>
-
       </Card>
 
       <Card className="p-4">
