@@ -40,6 +40,12 @@ export default function AssessmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  const activeClassIdRef = useRef(classId);
+  const activeTermIdRef = useRef(termId);
+  const activeAssessmentIdRef = useRef(assessmentId);
+  activeClassIdRef.current = classId;
+  activeTermIdRef.current = termId;
+  activeAssessmentIdRef.current = assessmentId;
 
   // Clear all school-scoped academic data immediately on school changes. The
   // request guards below also prevent a slower previous-school request from
@@ -96,9 +102,10 @@ export default function AssessmentsPage() {
       setClassSubjects([]); setClassSubjectId(''); return;
     }
     const requestSchoolId = selectedSchool.id;
+    const requestClassId = classId;
     try {
-      const rows = await api.get<ClassSubjectResponse[]>('/api/v1/class-subjects', { class_id: classId });
-      if (activeSchoolIdRef.current !== requestSchoolId) return;
+      const rows = await api.get<ClassSubjectResponse[]>('/api/v1/class-subjects', { class_id: requestClassId });
+      if (activeSchoolIdRef.current !== requestSchoolId || activeClassIdRef.current !== requestClassId) return;
       setClassSubjects(rows);
       setClassSubjectId(current => rows.some(x => x.id === current) ? current : rows[0]?.id ?? '');
     } catch (e) {
@@ -113,9 +120,11 @@ export default function AssessmentsPage() {
   const loadAssessments = useCallback(async () => {
     if (!selectedSchool || !classId || !termId) { setAssessments([]); setAssessmentId(''); return; }
     const requestSchoolId = selectedSchool.id;
+    const requestClassId = classId;
+    const requestTermId = termId;
     try {
-      const rows = await api.get<Assessment[]>('/api/v1/assessments', { school_id: requestSchoolId, class_id: classId, term_id: termId });
-      if (activeSchoolIdRef.current !== requestSchoolId) return;
+      const rows = await api.get<Assessment[]>('/api/v1/assessments', { school_id: requestSchoolId, class_id: requestClassId, term_id: requestTermId });
+      if (activeSchoolIdRef.current !== requestSchoolId || activeClassIdRef.current !== requestClassId || activeTermIdRef.current !== requestTermId) return;
       setAssessments(rows);
       setAssessmentId(current => rows.some(x => x.id === current) ? current : rows[0]?.id ?? '');
     } catch (e) {
@@ -130,14 +139,17 @@ export default function AssessmentsPage() {
   const loadRosterAndResults = useCallback(async () => {
     if (!selectedSchool || !classId || !termId) { setRoster([]); setResults([]); return; }
     const requestSchoolId = selectedSchool.id;
+    const requestClassId = classId;
+    const requestTermId = termId;
+    const requestAssessmentId = assessmentId;
     try {
-      const resultRows = await api.get<ResultRow[]>('/api/v1/results', { school_id: requestSchoolId, class_id: classId, term_id: termId });
-      if (activeSchoolIdRef.current !== requestSchoolId) return;
+      const resultRows = await api.get<ResultRow[]>('/api/v1/results', { school_id: requestSchoolId, class_id: requestClassId, term_id: requestTermId });
+      if (activeSchoolIdRef.current !== requestSchoolId || activeClassIdRef.current !== requestClassId || activeTermIdRef.current !== requestTermId) return;
       setResults(resultRows);
-      const selectedAssessment = assessments.find(item => item.id === assessmentId && item.school_id === requestSchoolId);
-      if (selectedAssessment) {
+      const selectedAssessment = assessments.find(item => item.id === requestAssessmentId && item.school_id === requestSchoolId);
+      if (selectedAssessment && activeAssessmentIdRef.current === requestAssessmentId) {
         const rosterRows = await api.get<RosterRow[]>('/api/v1/assessments/' + selectedAssessment.id + '/roster');
-        if (activeSchoolIdRef.current !== requestSchoolId) return;
+        if (activeSchoolIdRef.current !== requestSchoolId || activeClassIdRef.current !== requestClassId || activeTermIdRef.current !== requestTermId || activeAssessmentIdRef.current !== requestAssessmentId) return;
         setRoster(rosterRows);
       } else setRoster([]);
     } catch (e) {
