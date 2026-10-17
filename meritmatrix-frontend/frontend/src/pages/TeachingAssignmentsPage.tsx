@@ -6,7 +6,8 @@ import { Button, Card, ErrorBanner, PageHeader, Spinner } from '../components/ui
 
 type Assignment = { id:string; staff_id:string; class_subject_id:string; start_date:string; end_date?:string|null; is_primary:boolean; is_active:boolean; staff_name?:string|null; class_name?:string|null; class_code?:string|null; subject_name?:string|null; subject_code?:string|null };
 type Form = { staff_id:string; class_subject_id:string; start_date:string; end_date:string; is_primary:boolean; notes:string };
-const today = new Date().toISOString().slice(0,10);
+function localToday() { const d = new Date(); return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-'); }
+const today = localToday();
 const initial:Form = {staff_id:'',class_subject_id:'',start_date:today,end_date:'',is_primary:false,notes:''};
 
 export default function TeachingAssignmentsPage() {

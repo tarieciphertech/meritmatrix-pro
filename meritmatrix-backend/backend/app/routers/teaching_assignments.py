@@ -6,6 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import deny_linked_staff_management
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
 from app.database import get_db
 from app.models.calendar_event import CalendarEvent
@@ -86,6 +87,7 @@ def create_assignment(
     current_user: User = Depends(require_permission("class_subjects.create")),
 ):
     _verify_school_access(db, current_user, school_id)
+    deny_linked_staff_management(db, current_user, "create teaching assignments")
     staff = db.query(Staff).filter(Staff.id == payload.staff_id, Staff.school_id == school_id, Staff.is_active.is_(True)).first()
     class_subject = (
         db.query(ClassSubject)
@@ -125,6 +127,8 @@ def update_assignment(
     if not assignment:
         raise NotFoundError("Teaching assignment not found.", code="TEACHING_ASSIGNMENT_NOT_FOUND")
     _verify_school_access(db, current_user, assignment.school_id)
+
+    deny_linked_staff_management(db, current_user, "edit teaching assignments")
     changes = payload.model_dump(exclude_unset=True)
     for field, value in changes.items():
         setattr(assignment, field, value)
@@ -149,6 +153,8 @@ def deactivate_assignment(
     if not assignment:
         raise NotFoundError("Teaching assignment not found.", code="TEACHING_ASSIGNMENT_NOT_FOUND")
     _verify_school_access(db, current_user, assignment.school_id)
+
+    deny_linked_staff_management(db, current_user, "end teaching assignments")
     assignment.is_active = False
     assignment.end_date = assignment.end_date or date.today()
     record_audit_event(

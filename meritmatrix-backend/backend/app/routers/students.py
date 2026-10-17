@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.auth.assignment_access import assigned_student_ids, require_student_assignment
+from app.auth.assignment_access import assigned_student_ids, require_student_assignment, deny_linked_staff_management
 from app.auth.dependencies import (
     get_current_active_user,
     require_permission,
@@ -14,6 +14,7 @@ from app.auth.dependencies import (
 )
 from app.database import get_db
 from app.models.user import User
+from app.models.student import Student
 from app.schemas.student import StudentCreate, StudentResponse, StudentUpdate
 from app.services.student_service import StudentService
 from app.services.audit_service import record_audit_event
@@ -45,12 +46,23 @@ def list_students(
     """List students for a school. Requires membership in that school."""
     _verify_school_membership(db, current_user, school_id)
     
-    service = StudentService(db)
-    students = service.get_students_by_school(school_id, limit=limit, offset=offset)
     allowed_student_ids = assigned_student_ids(db, current_user, school_id)
     if allowed_student_ids is not None:
-        students = [student for student in students if student.id in allowed_student_ids]
-    return students
+        if not allowed_student_ids:
+            return []
+        # Filter before pagination; filtering a school-wide page afterward can
+        # hide assigned students that fall beyond the first page.
+        return (
+            db.query(Student)
+            .filter(Student.school_id == school_id, Student.id.in_(allowed_student_ids))
+            .order_by(Student.created_at, Student.id)
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+    service = StudentService(db)
+    return service.get_students_by_school(school_id, limit=limit, offset=offset)
 
 
 @router.post("", response_model=StudentResponse, status_code=201)
@@ -62,6 +74,8 @@ def create_student(
 ):
     """Create a student for a school. Requires membership in that school."""
     _verify_school_membership(db, current_user, school_id)
+
+    deny_linked_staff_management(db, current_user, "create student profiles")
     
     service = StudentService(db)
     student = service.create_student(school_id, payload)
@@ -105,6 +119,8 @@ def update_student(
     
     # Verify membership
     _verify_school_membership(db, current_user, student.school_id)
+
+    deny_linked_staff_management(db, current_user, "edit student profiles")
     require_student_assignment(db, current_user, student.school_id, student.id)
     
     # Update with school_id from the existing student (prevents school change)
@@ -132,6 +148,8 @@ def archive_student(
     
     # Verify membership
     _verify_school_membership(db, current_user, student.school_id)
+
+    deny_linked_staff_management(db, current_user, "archive student profiles")
     require_student_assignment(db, current_user, student.school_id, student.id)
     
     service.archive_student(student_id, student.school_id)

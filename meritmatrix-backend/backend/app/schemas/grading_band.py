@@ -18,6 +18,8 @@ class GradingBandInput(BaseModel):
     def validate_range(self):
         if self.min_percentage > self.max_percentage:
             raise ValueError("min_percentage must be less than or equal to max_percentage")
+        if self.is_active and self.min_percentage == self.max_percentage:
+            raise ValueError("active grading bands must cover a non-zero percentage range")
         return self
 
 

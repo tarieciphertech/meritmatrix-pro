@@ -181,8 +181,8 @@ export default function AssessmentsPage() {
       return;
     }
     const orderedBands = gradeBands.filter(band => band.is_active).sort((a, b) => a.min_percentage - b.min_percentage);
-    if (orderedBands.some(band => band.min_percentage > band.max_percentage)) {
-      setError('Each active grading band minimum must be less than or equal to its maximum.');
+    if (orderedBands.some(band => band.min_percentage >= band.max_percentage)) {
+      setError('Each active grading band must have a minimum below its maximum.');
       return;
     }
     if (orderedBands.some((band, index) => index > 0 && band.min_percentage <= orderedBands[index - 1].max_percentage)) {
