@@ -39,6 +39,7 @@ class AssessmentResponse(BaseModel):
     max_score: float
     weight_percent: float
     is_published: bool
+    marks_submitted: bool
     instructions: Optional[str]
     class_name: str
     class_code: str
