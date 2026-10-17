@@ -93,3 +93,72 @@ def test_attendance_rejects_date_outside_academic_year(client, make_user, auth_h
         params={"school_id": str(school.id), "class_id": str(clazz.id), "attendance_date": "2027-01-05"},
     )
     assert response.status_code == 409, response.text
+
+def test_linked_teacher_can_only_open_attendance_for_assigned_class(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    """A staff-linked teacher can open assigned registers but not other classes."""
+    from app.models.class_subject import ClassSubject
+    from app.models.staff import Staff
+    from app.models.subject import Subject
+    from app.models.teaching_assignment import TeachingAssignment
+    from app.models.user_school import UserSchool
+
+    school, year, assigned_class, enrollments = _setup_register(db_session)
+    other_class = Class(school_id=school.id, name="Standard 6", code="STD6", level=6)
+    subject = Subject(school_id=school.id, name="Mathematics", code="MATH")
+    db_session.add_all([other_class, subject])
+    db_session.flush()
+    pair = ClassSubject(class_id=assigned_class.id, subject_id=subject.id)
+    db_session.add(pair)
+    teacher = make_user(
+        email="assigned-attendance-teacher@example.com",
+        password="StrongPass123",
+        role_name="TEACHER",
+    )
+    db_session.add(UserSchool(user_id=teacher.id, school_id=school.id))
+    staff = Staff(
+        school_id=school.id,
+        staff_number="T-001",
+        first_name="Tariro",
+        last_name="Teacher",
+        employment_status="active",
+        is_active=True,
+        user_id=teacher.id,
+    )
+    db_session.add(staff)
+    db_session.flush()
+    db_session.add(TeachingAssignment(
+        school_id=school.id,
+        staff_id=staff.id,
+        class_subject_id=pair.id,
+        start_date=date(2026, 1, 1),
+        is_active=True,
+    ))
+    db_session.commit()
+    headers = auth_headers("assigned-attendance-teacher@example.com", "StrongPass123")
+    params = {"school_id": str(school.id), "attendance_date": "2026-03-02"}
+
+    classes = client.get(
+        "/api/v1/classes",
+        headers=headers,
+        params={"school_id": str(school.id), "on_date": "2026-03-02"},
+    )
+    assert classes.status_code == 200, classes.text
+    assert [row["id"] for row in classes.json()] == [str(assigned_class.id)]
+
+    allowed = client.get(
+        "/api/v1/attendance/roster",
+        headers=headers,
+        params={**params, "class_id": str(assigned_class.id)},
+    )
+    assert allowed.status_code == 200, allowed.text
+    assert len(allowed.json()) == 2
+
+    denied = client.get(
+        "/api/v1/attendance/roster",
+        headers=headers,
+        params={**params, "class_id": str(other_class.id)},
+    )
+    assert denied.status_code == 403, denied.text
+    assert denied.json()["error"]["code"] == "TEACHING_ASSIGNMENT_REQUIRED"

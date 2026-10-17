@@ -109,9 +109,13 @@ export default function AssessmentsPage() {
       setError('Every grading band needs a grade label before the scale can be saved.');
       return;
     }
-    const orderedBands = [...gradeBands].sort((a, b) => a.min_percentage - b.min_percentage);
+    if (gradeBands.some(band => band.min_percentage < 0 || band.max_percentage > 100)) {
+      setError('Grading percentages must stay between 0 and 100.');
+      return;
+    }
+    const orderedBands = gradeBands.filter(band => band.is_active).sort((a, b) => a.min_percentage - b.min_percentage);
     if (orderedBands.some(band => band.min_percentage > band.max_percentage)) {
-      setError('Each grading band minimum must be less than or equal to its maximum.');
+      setError('Each active grading band minimum must be less than or equal to its maximum.');
       return;
     }
     if (orderedBands.some((band, index) => index > 0 && band.min_percentage <= orderedBands[index - 1].max_percentage)) {
@@ -147,7 +151,7 @@ export default function AssessmentsPage() {
         weight_percent: Number(weight), is_published: false,
       }, { school_id: selectedSchool.id });
       setTitle(''); setAssessmentId(created.id);
-      setNotice('Assessment created. Enter marks below, then publish when they are ready.');
+      setNotice('Assessment created. Enter marks for every active student, then submit them for administrator verification.');
       await loadAssessments();
       setAssessmentId(created.id);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not create assessment.'); }
@@ -266,7 +270,7 @@ export default function AssessmentsPage() {
 
       <Card className="p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-64 flex-1"><label className="text-sm font-medium text-slate-700">Assessment to mark<select value={assessmentId} onChange={e => setAssessmentId(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 bg-white p-2"><option value="">Choose assessment…</option>{assessments.map(x => <option key={x.id} value={x.id}>{x.subject_name} · {x.title}{x.is_published ? ' (Published)' : ''}</option>)}</select></label></div>
+          <div className="min-w-64 flex-1"><label className="text-sm font-medium text-slate-700">Assessment to mark<select value={assessmentId} onChange={e => setAssessmentId(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 bg-white p-2"><option value="">Choose assessment…</option>{assessments.map(x => <option key={x.id} value={x.id}>{x.subject_name} · {x.title}{x.is_published ? ' (Published)' : x.marks_submitted ? ' (Submitted for verification)' : ' (Draft)'}</option>)}</select></label></div>
           {selectedAssessment && <div className="text-sm text-slate-500">Maximum: {selectedAssessment.max_score} · Weight: {selectedAssessment.weight_percent}%</div>}
         </div>
         {selectedAssessment && <div className="mt-3 flex flex-wrap items-center gap-2">

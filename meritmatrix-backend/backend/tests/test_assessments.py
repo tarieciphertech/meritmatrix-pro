@@ -287,6 +287,28 @@ def test_marks_must_be_submitted_for_review_before_publication(
     assert results.json()[0]["weighted_percentage"] == 90.0
 
 
+def test_inactive_grading_bands_do_not_block_active_scale(client, make_user, auth_headers, seeded_rbac, db_session):
+    from app.models.school import School
+
+    school = School(name="Inactive Bands School", code="GRD001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.commit()
+    make_user(email="inactive-bands-admin@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    headers = auth_headers("inactive-bands-admin@example.com", "StrongPass123")
+
+    response = client.put(
+        f"/api/v1/grading-scales?school_id={school.id}",
+        headers=headers,
+        json={"bands": [
+            {"grade_label": "A", "min_percentage": 80, "max_percentage": 100, "is_active": True},
+            {"grade_label": "Old A", "min_percentage": 85, "max_percentage": 95, "is_active": False},
+            {"grade_label": "B", "min_percentage": 0, "max_percentage": 79, "is_active": True},
+        ]},
+    )
+    assert response.status_code == 200, response.text
+    assert len(response.json()) == 3
+
+
 def test_only_school_administrators_can_manage_school_grading(seeded_rbac, make_user, db_session):
     from app.routers.assessments import _is_school_administrator
 
