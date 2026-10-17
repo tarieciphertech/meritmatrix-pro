@@ -6,6 +6,7 @@ from app.config import get_settings
 from app.logging_config import configure_logging
 from app.routers import (
     academic_years, attendance, auth, audit_logs, calendar_events, class_subjects, classes,
+    notifications,
     country_configurations, enrollments, guardian_accounts, guardian_portal,
     guardians, health, schools, staff, student_guardians, students, subjects,
     teaching_assignments, terms, users, assessments, fees,
@@ -23,6 +24,7 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(health.router)
     app.include_router(audit_logs.router)
+    app.include_router(notifications.router)
     app.include_router(auth.router)
     app.include_router(users.router)
     app.include_router(country_configurations.router)
