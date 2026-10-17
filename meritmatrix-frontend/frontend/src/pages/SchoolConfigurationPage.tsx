@@ -3,8 +3,10 @@ import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { CountryCode, InstitutionType, SchoolResponse } from '../types';
 import { INSTITUTION_TYPES } from '../types';
-import { Button, Card, ErrorBanner, PageHeader, Select, Spinner } from '../components/ui';
+import { Button, Card, ErrorBanner, Field, Input, PageHeader, Select, Spinner } from '../components/ui';
 
+type SchoolProfile = { registration_number: string; address: string; city: string; country: string; phone: string; email: string; website: string; logo_url: string; timezone: string; currency: string };
+const emptyProfile: SchoolProfile = { registration_number: '', address: '', city: '', country: '', phone: '', email: '', website: '', logo_url: '', timezone: '', currency: '' };
 type Level = { code: string; name: string; stage: string; sequence: number; requires_review?: boolean };
 type CountryTemplate = { country_code: CountryCode; country_name: string; template_version: number; status: string; timezone: string; currency: string; institution_types: InstitutionType[]; levels: Level[]; calendar_event_types: string[]; notes: string[] };
 const countryOptions = [{ value: 'ZW', label: 'Zimbabwe' }, { value: 'BW', label: 'Botswana' }];
@@ -13,13 +15,29 @@ export default function SchoolConfigurationPage() {
   const { selectedSchool, refresh } = useSchool();
   const [countryCode, setCountryCode] = useState<CountryCode | ''>('');
   const [institutionType, setInstitutionType] = useState<InstitutionType | ''>('');
+  const [profile, setProfile] = useState<SchoolProfile>(emptyProfile);
   const [template, setTemplate] = useState<CountryTemplate | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState('');
 
-  useEffect(() => { setCountryCode(selectedSchool?.country_code ?? ''); setInstitutionType(selectedSchool?.institution_type ?? ''); }, [selectedSchool?.id, selectedSchool?.country_code, selectedSchool?.institution_type]);
+  useEffect(() => {
+    setCountryCode(selectedSchool?.country_code ?? '');
+    setInstitutionType(selectedSchool?.institution_type ?? '');
+    setProfile({
+      registration_number: selectedSchool?.registration_number ?? '',
+      address: selectedSchool?.address ?? '',
+      city: selectedSchool?.city ?? '',
+      country: selectedSchool?.country ?? '',
+      phone: selectedSchool?.phone ?? '',
+      email: selectedSchool?.email ?? '',
+      website: selectedSchool?.website ?? '',
+      logo_url: selectedSchool?.logo_url ?? '',
+      timezone: selectedSchool?.timezone ?? '',
+      currency: selectedSchool?.currency ?? '',
+    });
+  }, [selectedSchool?.id, selectedSchool?.country_code, selectedSchool?.institution_type, selectedSchool?.registration_number, selectedSchool?.address, selectedSchool?.city, selectedSchool?.country, selectedSchool?.phone, selectedSchool?.email, selectedSchool?.website, selectedSchool?.logo_url, selectedSchool?.timezone, selectedSchool?.currency]);
   useEffect(() => {
     if (!countryCode) { setTemplate(null); return; }
     let cancelled = false; setLoading(true);
@@ -42,9 +60,30 @@ export default function SchoolConfigurationPage() {
     if (!selectedSchool || !countryCode || !institutionType) { setError('Choose a school, country, and institution type before saving.'); return; }
     setSaving(true); setError(null); setSuccess('');
     try {
-      const updated = await api.patch<SchoolResponse>(`/api/v1/schools/${selectedSchool.id}`, { country_code: countryCode, institution_type: institutionType, country: template?.country_name, timezone: template?.timezone, currency: template?.currency, education_template_version: template?.template_version });
+      const updated = await api.patch<SchoolResponse>(`/api/v1/schools/${selectedSchool.id}`, {
+        country_code: countryCode,
+        institution_type: institutionType,
+        registration_number: profile.registration_number.trim() || null,
+        address: profile.address.trim() || null,
+        city: profile.city.trim() || null,
+        country: profile.country.trim() || template?.country_name || null,
+        phone: profile.phone.trim() || null,
+        email: profile.email.trim() || null,
+        website: profile.website.trim() || null,
+        logo_url: profile.logo_url.trim() || null,
+        timezone: profile.timezone.trim() || template?.timezone || null,
+        currency: profile.currency.trim() || template?.currency || null,
+        education_template_version: template?.template_version,
+      });
       await refresh();
-      setCountryCode(updated.country_code ?? countryCode); setInstitutionType(updated.institution_type ?? institutionType);
+      setCountryCode(updated.country_code ?? countryCode);
+      setInstitutionType(updated.institution_type ?? institutionType);
+      setProfile({
+        registration_number: updated.registration_number ?? '',
+        address: updated.address ?? '', city: updated.city ?? '', country: updated.country ?? '',
+        phone: updated.phone ?? '', email: updated.email ?? '', website: updated.website ?? '',
+        logo_url: updated.logo_url ?? '', timezone: updated.timezone ?? '', currency: updated.currency ?? '',
+      });
       setSuccess(`Saved ${updated.country ?? template?.country_name} configuration for ${updated.name}. Existing classes and records were not changed.`);
     } catch (e) { setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not save configuration'); }
     finally { setSaving(false); }
@@ -55,6 +94,23 @@ export default function SchoolConfigurationPage() {
     <PageHeader title="School Configuration" subtitle={`Country, institution type, and education template for ${selectedSchool.name}`} />
     {error && <ErrorBanner message={error} onRetry={() => setError(null)} />}
     {success && <div role="status" className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{success}</div>}
+    <Card className="space-y-4 p-5">
+      <h2 className="text-base font-semibold text-slate-900">School identity and contact details</h2>
+      <p className="text-sm text-slate-600">These details belong only to {selectedSchool.name}. The logo is used on printed report cards.</p>
+      {profile.logo_url && <div className="flex items-center gap-3 rounded-md border border-slate-200 p-3"><img src={profile.logo_url} alt={selectedSchool.name + ' logo preview'} className="h-16 w-16 object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><span className="text-sm text-slate-600">Logo preview</span></div>}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="Registration number"><Input value={profile.registration_number} onChange={(e) => setProfile(v => ({ ...v, registration_number: e.target.value }))} /></Field>
+        <Field label="Phone"><Input value={profile.phone} onChange={(e) => setProfile(v => ({ ...v, phone: e.target.value }))} /></Field>
+        <Field label="School email"><Input type="email" value={profile.email} onChange={(e) => setProfile(v => ({ ...v, email: e.target.value }))} /></Field>
+        <Field label="Website"><Input type="url" value={profile.website} onChange={(e) => setProfile(v => ({ ...v, website: e.target.value }))} placeholder="https://..." /></Field>
+        <Field label="Address"><Input value={profile.address} onChange={(e) => setProfile(v => ({ ...v, address: e.target.value }))} /></Field>
+        <Field label="City / town"><Input value={profile.city} onChange={(e) => setProfile(v => ({ ...v, city: e.target.value }))} /></Field>
+        <Field label="Country"><Input value={profile.country} onChange={(e) => setProfile(v => ({ ...v, country: e.target.value }))} /></Field>
+        <Field label="School logo URL"><Input type="url" value={profile.logo_url} onChange={(e) => setProfile(v => ({ ...v, logo_url: e.target.value }))} placeholder="https://example.com/logo.png" /></Field>
+        <Field label="Timezone"><Input value={profile.timezone} onChange={(e) => setProfile(v => ({ ...v, timezone: e.target.value }))} placeholder="Africa/Gaborone" /></Field>
+        <Field label="Currency"><Input value={profile.currency} onChange={(e) => setProfile(v => ({ ...v, currency: e.target.value }))} placeholder="BWP" /></Field>
+      </div>
+    </Card>
     <Card className="space-y-4 p-5">
       <h2 className="text-base font-semibold text-slate-900">Institution profile</h2>
       <p className="text-sm text-slate-600">Each school has its own country and academic settings. Changing these settings does not overwrite existing classes, enrolments, or records.</p>
