@@ -432,6 +432,13 @@ def test_linked_teacher_only_reads_enrollments_for_assigned_students(
     allowed = client.get(f"/api/v1/enrollments/{assigned_enrollment.id}", headers=headers)
     assert allowed.status_code == 200, allowed.text
 
+    # Employment status must immediately revoke assignment-scoped academic access.
+    staff.employment_status = "terminated"
+    db_session.commit()
+    terminated_access = client.get(f"/api/v1/enrollments/{assigned_enrollment.id}", headers=headers)
+    assert terminated_access.status_code == 403, terminated_access.text
+    assert terminated_access.json()["error"]["code"] == "STUDENT_ASSIGNMENT_REQUIRED"
+
     denied = client.get(f"/api/v1/enrollments/{other_enrollment.id}", headers=headers)
     assert denied.status_code == 403, denied.text
     assert denied.json()["error"]["code"] == "STUDENT_ASSIGNMENT_REQUIRED"
