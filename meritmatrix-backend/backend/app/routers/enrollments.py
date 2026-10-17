@@ -7,6 +7,8 @@ import uuid
 from typing import List
 
 from app.auth.assignment_access import assigned_student_ids, require_student_assignment
+from app.models.enrollment import Enrollment
+from app.models.student import Student
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -64,12 +66,27 @@ def list_enrollments(
     """List enrollments for a school. Requires membership in that school."""
     _verify_school_membership(db, current_user, school_id)
     
-    service = EnrollmentService(db)
-    enrollments = service.get_enrollments_by_school(school_id, limit=limit, offset=offset)
     allowed_student_ids = assigned_student_ids(db, current_user, school_id)
     if allowed_student_ids is not None:
-        enrollments = [row for row in enrollments if row.student_id in allowed_student_ids]
-    return enrollments
+        if not allowed_student_ids:
+            return []
+        # Filter before pagination so a teacher's assigned students are not
+        # hidden behind unrelated enrollments earlier in the school-wide list.
+        return (
+            db.query(Enrollment)
+            .join(Student, Student.id == Enrollment.student_id)
+            .filter(
+                Student.school_id == school_id,
+                Enrollment.student_id.in_(allowed_student_ids),
+            )
+            .order_by(Enrollment.created_at)
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+    service = EnrollmentService(db)
+    return service.get_enrollments_by_school(school_id, limit=limit, offset=offset)
 
 
 @router.post("", response_model=EnrollmentResponse, status_code=201)
