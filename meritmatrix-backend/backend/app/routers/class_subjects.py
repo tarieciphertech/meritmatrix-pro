@@ -153,6 +153,8 @@ def create_class_subject(
     """
     # Verify membership via class (service will verify subject belongs to same school)
     _verify_school_membership_for_class(db, current_user, payload.class_id)
+
+    deny_linked_staff_management(db, current_user, "change class-subject assignments")
     
     service = ClassSubjectService(db)
     cs = service.assign_subject_to_class(payload)
@@ -188,6 +190,8 @@ def remove_class_subject(
     """Remove a class-subject assignment. Requires membership in the owning school."""
     # Verify membership first
     _verify_school_membership_for_class_subject(db, current_user, class_subject_id)
+
+    deny_linked_staff_management(db, current_user, "change class-subject assignments")
     
     service = ClassSubjectService(db)
     service.remove_subject_from_class(class_subject_id)
