@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.auth.assignment_access import assigned_student_ids, require_student_assignment
+from app.auth.assignment_access import assigned_student_ids, require_student_assignment, deny_linked_staff_management
 from app.auth.dependencies import (
     get_current_active_user,
     require_permission,
