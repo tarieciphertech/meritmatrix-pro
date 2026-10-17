@@ -241,6 +241,31 @@ def test_marks_must_be_submitted_for_review_before_publication(
     assert submitted.json()["marks_submitted"] is True
     assert submitted.json()["is_published"] is False
 
+    from app.models.user_school import UserSchool
+
+    teacher = make_user(email="review-teacher@example.com", password="StrongPass123", role_name="TEACHER")
+    db_session.add(UserSchool(user_id=teacher.id, school_id=school.id))
+    db_session.commit()
+    teacher_headers = auth_headers("review-teacher@example.com", "StrongPass123")
+
+    teacher_publish = client.patch(
+        f"/api/v1/assessments/{assessment_id}",
+        headers=teacher_headers,
+        json={"is_published": True},
+    )
+    assert teacher_publish.status_code == 403, teacher_publish.text
+    assert teacher_publish.json()["error"]["code"] == "ACADEMIC_ADMIN_REQUIRED"
+
+    teacher_grade_edit = client.put(
+        f"/api/v1/grading-scales?school_id={school.id}",
+        headers=teacher_headers,
+        json={"bands": [
+            {"grade_label": "A", "min_percentage": 0, "max_percentage": 100},
+        ]},
+    )
+    assert teacher_grade_edit.status_code == 403, teacher_grade_edit.text
+    assert teacher_grade_edit.json()["error"]["code"] == "ACADEMIC_ADMIN_REQUIRED"
+
     published = client.patch(
         f"/api/v1/assessments/{assessment_id}",
         headers=headers,
