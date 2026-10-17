@@ -37,7 +37,7 @@ def list_audit_events(
             code="SCHOOL_ACCESS_DENIED",
         )
 
-    query = db.query(AuditLog).filter(AuditLog.school_id == school_id)
+    query = db.query(AuditLog, User).outerjoin(User, User.id == AuditLog.actor_user_id).filter(AuditLog.school_id == school_id)
     if action:
         query = query.filter(AuditLog.action == action)
     if entity_type:
@@ -50,14 +50,19 @@ def list_audit_events(
     rows = query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).offset(offset).limit(limit).all()
     return [
         {
-            "id": str(row.id),
-            "school_id": str(row.school_id) if row.school_id else None,
-            "actor_user_id": str(row.actor_user_id) if row.actor_user_id else None,
-            "action": row.action,
-            "entity_type": row.entity_type,
-            "entity_id": row.entity_id,
-            "details": row.details,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "id": str(event.id),
+            "school_id": str(event.school_id) if event.school_id else None,
+            "actor_user_id": str(event.actor_user_id) if event.actor_user_id else None,
+            "actor_name": (
+                " ".join(part for part in [actor.first_name, actor.last_name] if part)
+                if actor else "System / deleted user"
+            ),
+            "actor_identifier": (actor.email or actor.phone or actor.username) if actor else None,
+            "action": event.action,
+            "entity_type": event.entity_type,
+            "entity_id": event.entity_id,
+            "details": event.details,
+            "created_at": event.created_at.isoformat() if event.created_at else None,
         }
-        for row in rows
+        for event, actor in rows
     ]
