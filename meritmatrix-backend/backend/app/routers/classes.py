@@ -13,7 +13,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.auth.assignment_access import assigned_class_ids
+from app.auth.assignment_access import assigned_class_ids, require_class_assignment
 from app.auth.dependencies import (
     get_current_active_user,
     require_permission,
@@ -87,8 +87,9 @@ def read_class(
     service = ClassService(db)
     clazz = service.get_class(class_id)
 
-    # Verify membership in the class's school
+    # Verify school membership and assignment scope for linked teacher accounts.
     _verify_school_membership(db, current_user, clazz.school_id)
+    require_class_assignment(db, current_user, clazz.school_id, clazz.id)
 
     return clazz
 
