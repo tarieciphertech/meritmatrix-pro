@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
 import GuardianNotificationInbox from '../components/GuardianNotificationInbox';
@@ -51,14 +51,17 @@ export default function GuardianPortalPage() {
   const [schoolId, setSchoolId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadRequestIdRef = useRef(0);
 
   const loadStudents = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
     // Clear prior-school student information before loading a new selection.
     setStudents([]);
     setLoading(true);
     setError(null);
     try {
       const availableSchools = await api.get<PortalSchool[]>('/api/v1/guardian-portal/schools');
+      if (loadRequestIdRef.current !== requestId) return;
       setSchools(availableSchools);
       const chosenId = availableSchools.some((school) => school.id === schoolId)
         ? schoolId
@@ -67,16 +70,19 @@ export default function GuardianPortalPage() {
       const linked = chosenId
         ? await api.get<LinkedStudent[]>('/api/v1/guardian-portal/students', { school_id: chosenId })
         : [];
+      if (loadRequestIdRef.current !== requestId) return;
       setStudents(linked);
     } catch (err) {
-      setStudents([]);
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : 'Unable to load your linked students. Please try again.',
-      );
+      if (loadRequestIdRef.current === requestId) {
+        setStudents([]);
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : 'Unable to load your linked students. Please try again.',
+        );
+      }
     } finally {
-      setLoading(false);
+      if (loadRequestIdRef.current === requestId) setLoading(false);
     }
   }, [schoolId]);
 
