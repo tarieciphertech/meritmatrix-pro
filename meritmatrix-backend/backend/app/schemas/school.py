@@ -6,7 +6,7 @@ from typing import Optional, Literal
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 CountryCode = Literal["ZW", "BW"]
-InstitutionType = Literal["early_childhood", "primary", "secondary", "combined", "tertiary"]
+InstitutionType = Literal["early_childhood", "primary", "secondary", "high_school", "combined", "tertiary"]
 
 
 class SchoolCreate(BaseModel):

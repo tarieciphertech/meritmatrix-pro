@@ -7,6 +7,8 @@ def test_supported_country_templates_are_present():
     assert {"ZW", "BW"} <= set(templates)
     assert templates["ZW"]["country_name"] == "Zimbabwe"
     assert templates["BW"]["country_name"] == "Botswana"
+    assert "high_school" in templates["ZW"]["institution_types"]
+    assert "high_school" in templates["BW"]["institution_types"]
 
 
 def test_zimbabwe_template_contains_expected_levels():

@@ -33,7 +33,7 @@ export default function SchoolConfigurationPage() {
   const levels = useMemo(() => {
     if (!template) return [];
     if (!institutionType || institutionType === 'combined') return template.levels;
-    const stageByType: Record<InstitutionType, string[]> = { early_childhood: ['early_childhood'], primary: ['early_childhood', 'primary'], secondary: ['secondary', 'advanced_secondary'], combined: ['early_childhood', 'primary', 'secondary', 'advanced_secondary'], tertiary: [] };
+    const stageByType: Record<InstitutionType, string[]> = { early_childhood: ['early_childhood'], primary: ['early_childhood', 'primary'], secondary: ['secondary'], high_school: ['secondary', 'advanced_secondary'], combined: ['early_childhood', 'primary', 'secondary', 'advanced_secondary'], tertiary: [] };
     if (institutionType === 'tertiary') return [];
     return template.levels.filter((level) => stageByType[institutionType].includes(level.stage));
   }, [template, institutionType]);

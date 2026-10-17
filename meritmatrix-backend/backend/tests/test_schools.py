@@ -19,6 +19,7 @@ def test_create_school(client, make_user, auth_headers, seeded_rbac):
         "code": "TEST001",
         "city": "Test City",
         "country": "Test Country",
+        "institution_type": "high_school",
     }
     response = client.post("/api/v1/schools", headers=headers, json=payload)
     assert response.status_code == 201
