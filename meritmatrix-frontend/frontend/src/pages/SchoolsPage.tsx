@@ -114,7 +114,7 @@ export default function SchoolsPage() {
   }
 
   function setField(key: keyof SchoolCreate, value: string) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value } as SchoolCreate));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -336,20 +336,12 @@ export default function SchoolsPage() {
             />
           </Field>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="City">
-              <Input
-                value={form.city ?? ''}
-                onChange={(e) => setField('city', e.target.value)}
-              />
-            </Field>
-            <Field label="Country">
-              <Input
-                value={form.country ?? ''}
-                onChange={(e) => setField('country', e.target.value)}
-              />
-            </Field>
-          </div>
+          <Field label="City">
+            <Input
+              value={form.city ?? ''}
+              onChange={(e) => setField('city', e.target.value)}
+            />
+          </Field>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Website">
