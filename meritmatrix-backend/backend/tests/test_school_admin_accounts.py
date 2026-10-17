@@ -78,10 +78,13 @@ def test_super_admin_provisions_school_admin_and_school_admin_is_tenant_scoped(
     configured = client.patch(
         f"/api/v1/schools/{school_a['id']}",
         headers=admin_headers,
-        json={"timezone": "Africa/Gaborone", "currency": "BWP"},
+        json={"timezone": "Africa/Gaborone", "currency": "BWP", "address": "12 School Road", "phone": "+26770000000", "logo_url": "https://example.com/school-logo.png"},
     )
     assert configured.status_code == 200, configured.text
     assert configured.json()["currency"] == "BWP"
+    assert configured.json()["address"] == "12 School Road"
+    assert configured.json()["phone"] == "+26770000000"
+    assert configured.json()["logo_url"] == "https://example.com/school-logo.png"
 
     rename = client.patch(
         f"/api/v1/schools/{school_a['id']}",
