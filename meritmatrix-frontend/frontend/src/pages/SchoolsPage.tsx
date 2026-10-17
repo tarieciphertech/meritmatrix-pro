@@ -106,6 +106,7 @@ export default function SchoolsPage() {
       phone: school.phone ?? '',
       email: school.email ?? '',
       website: school.website ?? '',
+      logo_url: school.logo_url ?? '',
       timezone: school.timezone ?? '',
       currency: school.currency ?? '',
     });
@@ -341,6 +342,16 @@ export default function SchoolsPage() {
               value={form.city ?? ''}
               onChange={(e) => setField('city', e.target.value)}
             />
+          </Field>
+
+          <Field label="School logo URL">
+            <Input
+              type="url"
+              value={form.logo_url ?? ''}
+              onChange={(e) => setField('logo_url', e.target.value)}
+              placeholder="https://example.com/school-logo.png"
+            />
+            <p className="mt-1 text-xs text-slate-500">Use a publicly accessible image URL. It will appear on printed report cards.</p>
           </Field>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
