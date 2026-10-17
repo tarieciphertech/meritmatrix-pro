@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
+from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, _role_names, require_permission
 from app.auth.assignment_access import assigned_class_subject_ids, require_class_subject_assignment
 from app.database import get_db
 from app.models.academic_year import AcademicYear
@@ -36,6 +36,24 @@ def _school_access(db: Session, user: User, school_id: uuid.UUID) -> None:
         raise ForbiddenError("You do not have access to this school's academic records.", code="SCHOOL_ACCESS_DENIED")
 
 
+def _is_school_administrator(db: Session, user: User, school_id: uuid.UUID) -> bool:
+    """School-wide academic settings and publication belong to administrators, never linked teachers."""
+    if SYSTEM_ADMIN_PERMISSION in _permission_names(user):
+        return True
+    if "SCHOOL_ADMIN" not in _role_names(user):
+        return False
+    # Staff-linked accounts are assignment-scoped, even if an extra role is attached accidentally.
+    return assigned_class_subject_ids(db, user, school_id) is None
+
+
+def _require_school_administrator(db: Session, user: User, school_id: uuid.UUID) -> None:
+    if not _is_school_administrator(db, user, school_id):
+        raise ForbiddenError(
+            "Only a school administrator can manage grading bands or publish results.",
+            code="ACADEMIC_ADMIN_REQUIRED",
+        )
+
+
 def _assessment_row(db: Session, assessment_id: uuid.UUID):
     row = (
         db.query(Assessment, Class, Subject, Term)
@@ -55,6 +73,7 @@ def _assessment_row(db: Session, assessment_id: uuid.UUID):
         "title": assessment.title, "assessment_type": assessment.assessment_type,
         "assessment_date": assessment.assessment_date, "max_score": assessment.max_score,
         "weight_percent": assessment.weight_percent, "is_published": assessment.is_published,
+        "marks_submitted": assessment.marks_submitted,
         "instructions": assessment.instructions, "class_name": clazz.name,
         "class_code": clazz.code, "subject_name": subject.name, "subject_code": subject.code,
         "term_name": term.name, "created_at": assessment.created_at, "updated_at": assessment.updated_at,
@@ -92,8 +111,7 @@ def replace_grading_bands(
     current_user: User = Depends(require_permission("assessments.update")),
 ):
     _school_access(db, current_user, school_id)
-    if assigned_class_subject_ids(db, current_user, school_id) is not None:
-        raise ForbiddenError("Teachers cannot change school-wide grading bands.", code="GRADING_SCALE_ADMIN_ONLY")
+    _require_school_administrator(db, current_user, school_id)
     labels = [band.grade_label.strip().casefold() for band in payload.bands]
     if len(set(labels)) != len(labels):
         raise ConflictError("Each grade label must be unique within a school.", code="DUPLICATE_GRADE_LABEL")
@@ -178,8 +196,24 @@ def update_assessment(
     _school_access(db, current_user, assessment.school_id)
     require_class_subject_assignment(db, current_user, assessment.school_id, assessment.class_subject_id, assessment.assessment_date)
     changes = payload.model_dump(exclude_unset=True)
-    if assessment.is_published and changes != {"is_published": False}:
+    if "is_published" in changes:
+        _require_school_administrator(db, current_user, assessment.school_id)
+        if changes["is_published"] and not assessment.marks_submitted:
+            raise ConflictError(
+                "Submit marks for verification before publishing results.",
+                code="MARKS_NOT_SUBMITTED_FOR_REVIEW",
+            )
+        if assessment.is_published and changes != {"is_published": False}:
+            raise ConflictError("Published assessments are locked. Unpublish the assessment before changing it.", code="ASSESSMENT_PUBLISHED")
+        if changes["is_published"] is False:
+            assessment.marks_submitted = False
+    elif assessment.is_published:
         raise ConflictError("Published assessments are locked. Unpublish the assessment before changing it.", code="ASSESSMENT_PUBLISHED")
+    elif assessment.marks_submitted and changes:
+        raise ConflictError(
+            "Submitted marks are locked for review. An administrator must return them to draft before editing.",
+            code="MARKS_SUBMITTED_LOCKED",
+        )
     if "max_score" in changes and changes["max_score"] is not None:
         if db.query(AssessmentMark).filter(AssessmentMark.assessment_id == assessment.id, AssessmentMark.score > changes["max_score"]).first():
             raise ConflictError("Maximum score cannot be reduced below an already-recorded mark.", code="MAX_SCORE_BELOW_EXISTING_MARKS")
@@ -188,6 +222,78 @@ def update_assessment(
     term = db.query(Term).filter(Term.id == assessment.term_id).first()
     if assessment.assessment_date and term and not (term.start_date <= assessment.assessment_date <= term.end_date):
         raise ConflictError("Assessment date must fall within the selected term.", code="ASSESSMENT_DATE_OUTSIDE_TERM")
+    db.commit()
+    db.refresh(assessment)
+    return _assessment_row(db, assessment.id)
+
+
+@router.post("/{assessment_id}/submit-for-review", response_model=AssessmentResponse)
+def submit_marks_for_review(
+    assessment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("assessments.update")),
+):
+    """Lock a completed marks register and submit it for administrator verification."""
+    assessment = db.query(Assessment).filter(Assessment.id == assessment_id).first()
+    if not assessment:
+        raise NotFoundError("Assessment not found.", code="ASSESSMENT_NOT_FOUND")
+    _school_access(db, current_user, assessment.school_id)
+    require_class_subject_assignment(db, current_user, assessment.school_id, assessment.class_subject_id, assessment.assessment_date)
+    if assessment.is_published:
+        raise ConflictError("Published results have already been released.", code="ASSESSMENT_PUBLISHED")
+    if assessment.marks_submitted:
+        return _assessment_row(db, assessment.id)
+
+    class_subject = db.query(ClassSubject).filter(ClassSubject.id == assessment.class_subject_id).first()
+    active_enrollments = (
+        db.query(Enrollment.id)
+        .join(AcademicYear, AcademicYear.id == Enrollment.academic_year_id)
+        .join(Student, Student.id == Enrollment.student_id)
+        .filter(
+            Enrollment.class_id == class_subject.class_id,
+            Enrollment.academic_year_id == assessment.term.academic_year_id,
+            Enrollment.status == EnrollmentStatus.ACTIVE,
+            AcademicYear.school_id == assessment.school_id,
+            Student.school_id == assessment.school_id,
+            Student.is_active.is_(True),
+        )
+        .all()
+    )
+    if not active_enrollments:
+        raise ConflictError("There are no active enrolled students to submit.", code="EMPTY_ASSESSMENT_ROSTER")
+    enrollment_ids = {row[0] for row in active_enrollments}
+    marked_ids = {
+        row[0] for row in db.query(AssessmentMark.enrollment_id)
+        .filter(AssessmentMark.assessment_id == assessment.id)
+        .all()
+    }
+    missing_count = len(enrollment_ids - marked_ids)
+    if missing_count:
+        raise ConflictError(
+            f"Record marks for all active students before submitting. {missing_count} student(s) still need marks.",
+            code="INCOMPLETE_MARKS",
+        )
+    assessment.marks_submitted = True
+    db.commit()
+    db.refresh(assessment)
+    return _assessment_row(db, assessment.id)
+
+
+@router.post("/{assessment_id}/return-to-draft", response_model=AssessmentResponse)
+def return_marks_to_draft(
+    assessment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("assessments.update")),
+):
+    """Allow an administrator to return submitted, unpublished marks for correction."""
+    assessment = db.query(Assessment).filter(Assessment.id == assessment_id).first()
+    if not assessment:
+        raise NotFoundError("Assessment not found.", code="ASSESSMENT_NOT_FOUND")
+    _school_access(db, current_user, assessment.school_id)
+    _require_school_administrator(db, current_user, assessment.school_id)
+    if assessment.is_published:
+        raise ConflictError("Unpublish results before returning them to draft.", code="ASSESSMENT_PUBLISHED")
+    assessment.marks_submitted = False
     db.commit()
     db.refresh(assessment)
     return _assessment_row(db, assessment.id)
@@ -267,6 +373,11 @@ def save_marks(
     require_class_subject_assignment(db, current_user, assessment.school_id, assessment.class_subject_id, assessment.assessment_date)
     if assessment.is_published:
         raise ConflictError("Published assessments are locked. Unpublish it before editing marks.", code="ASSESSMENT_PUBLISHED")
+    if assessment.marks_submitted:
+        raise ConflictError(
+            "Submitted marks are locked for review. An administrator must return them to draft before editing.",
+            code="MARKS_SUBMITTED_LOCKED",
+        )
     enrollment_ids = [mark.enrollment_id for mark in payload.marks]
     if len(set(enrollment_ids)) != len(enrollment_ids):
         raise ConflictError("Each student can appear only once in a marks submission.", code="DUPLICATE_STUDENT_MARK")
