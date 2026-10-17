@@ -62,6 +62,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       setSchools([]);
       if (!user) {
         setSelectedSchoolId(null);
+        localStorage.removeItem(SELECTED_SCHOOL_KEY);
       }
     }
   }, [user, refresh]);
