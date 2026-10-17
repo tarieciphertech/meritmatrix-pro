@@ -110,6 +110,16 @@ def test_super_admin_provisions_school_admin_and_school_admin_is_tenant_scoped(
     assert outside_staff.status_code == 403
     assert outside_staff.json()["error"]["code"] == "SCHOOL_ACCESS_DENIED"
 
+    # Platform-wide school creation and administrator directory remain super-admin-only.
+    create_other_school = client.post(
+        "/api/v1/schools",
+        headers=admin_headers,
+        json={"name": "Unauthorized School", "code": "UNAUTHORIZED", "city": "Gaborone", "country": "Botswana"},
+    )
+    assert create_other_school.status_code == 403
+    admin_directory = client.get("/api/v1/schools/admin-accounts", headers=admin_headers)
+    assert admin_directory.status_code == 403
+
     # Global user endpoints are not available to a school admin.
     users = client.get("/api/v1/users", headers=admin_headers)
     assert users.status_code == 403
@@ -161,3 +171,60 @@ def test_school_admin_with_multiple_school_memberships_is_denied(
     assert service.is_user_member_of_school(admin.id, school_a.id) is False
     assert service.is_user_member_of_school(admin.id, school_b.id) is False
     assert service.get_schools_for_user(admin.id) == []
+
+
+
+def test_school_admin_membership_cannot_be_extended_to_another_school(
+    make_user, seeded_rbac, db_session
+):
+    """The service must reject cross-school assignment instead of merely failing closed later."""
+    import pytest
+
+    from app.models.school import School
+    from app.models.user_school import UserSchool
+    from app.services.user_school_service import UserSchoolService
+    from app.utils.errors import ConflictError
+
+    admin = make_user(email="single-school-admin@example.com", role_name="SCHOOL_ADMIN")
+    school_a = School(name="Admin Scope A", code="ADMIN-SCOPE-A", city="Gaborone", country="Botswana")
+    school_b = School(name="Admin Scope B", code="ADMIN-SCOPE-B", city="Gaborone", country="Botswana")
+    db_session.add_all([school_a, school_b])
+    db_session.flush()
+    db_session.add(UserSchool(user_id=admin.id, school_id=school_a.id, school_role="SCHOOL_ADMIN"))
+    db_session.commit()
+
+    service = UserSchoolService(db_session)
+    with pytest.raises(ConflictError) as exc:
+        service.add_user_to_school(admin.id, school_b.id, "SCHOOL_ADMIN")
+    assert exc.value.code == "SCHOOL_ADMIN_SINGLE_SCHOOL"
+    assert [membership.school_id for membership in service.repo.get_by_user(admin.id)] == [school_a.id]
+
+
+def test_school_admin_role_cannot_be_granted_to_a_multi_school_member(
+    make_user, seeded_rbac, db_session
+):
+    """Promoting an existing multi-school user to SCHOOL_ADMIN must also be blocked."""
+    import pytest
+
+    from app.models.school import School
+    from app.models.user_school import UserSchool
+    from app.services.user_school_service import UserSchoolService
+    from app.utils.errors import ConflictError
+
+    user = make_user(email="future-admin@example.com", role_name="TEACHER")
+    school_a = School(name="Future Admin A", code="FUTURE-ADMIN-A", city="Gaborone", country="Botswana")
+    school_b = School(name="Future Admin B", code="FUTURE-ADMIN-B", city="Gaborone", country="Botswana")
+    db_session.add_all([school_a, school_b])
+    db_session.flush()
+    memberships = [
+        UserSchool(user_id=user.id, school_id=school_a.id, school_role="TEACHER"),
+        UserSchool(user_id=user.id, school_id=school_b.id, school_role="TEACHER"),
+    ]
+    db_session.add_all(memberships)
+    db_session.commit()
+
+    service = UserSchoolService(db_session)
+    with pytest.raises(ConflictError) as exc:
+        service.update_school_role(memberships[0].id, "SCHOOL_ADMIN")
+    assert exc.value.code == "SCHOOL_ADMIN_SINGLE_SCHOOL"
+    assert memberships[0].school_role == "TEACHER"
