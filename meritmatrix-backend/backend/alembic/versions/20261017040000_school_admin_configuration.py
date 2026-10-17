@@ -48,6 +48,19 @@ def upgrade() -> None:
                     role_id=role[0], permission_id=permission_id
                 ))
 
+    # These endpoints operate on the platform-wide user table and have no
+    # school filter. School admins provision teacher accounts through /staff.
+    school_admin = bind.execute(sa.select(roles.c.id).where(roles.c.name == "SCHOOL_ADMIN")).first()
+    if school_admin:
+        global_user_permissions = bind.execute(sa.select(permissions.c.id).where(
+            permissions.c.name.in_(["users.read", "users.create", "users.update"])
+        )).all()
+        for row in global_user_permissions:
+            bind.execute(sa.delete(role_permissions).where(
+                role_permissions.c.role_id == school_admin[0],
+                role_permissions.c.permission_id == row[0],
+            ))
+
 
 def downgrade() -> None:
     bind = op.get_bind()
@@ -61,3 +74,18 @@ def downgrade() -> None:
     if row:
         bind.execute(sa.delete(role_permissions).where(role_permissions.c.permission_id == row[0]))
         bind.execute(sa.delete(permissions).where(permissions.c.id == row[0]))
+
+    # Restore global user permissions if rolling back this access-control change.
+    school_admin = bind.execute(sa.select(roles.c.id).where(roles.c.name == "SCHOOL_ADMIN")).first()
+    if school_admin:
+        for permission in bind.execute(sa.select(permissions.c.id).where(
+            permissions.c.name.in_(["users.read", "users.create", "users.update"])
+        )).all():
+            exists = bind.execute(sa.select(role_permissions.c.role_id).where(
+                role_permissions.c.role_id == school_admin[0],
+                role_permissions.c.permission_id == permission[0],
+            )).first()
+            if not exists:
+                bind.execute(sa.insert(role_permissions).values(
+                    role_id=school_admin[0], permission_id=permission[0]
+                ))
