@@ -24,7 +24,7 @@ def assigned_class_ids(
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if staff is None:
         return None
-    if not staff.is_active or staff.school_id != school_id:
+    if not staff.is_active or staff.employment_status != "active" or staff.school_id != school_id:
         return set()
 
     effective_date = on_date or date.today()
@@ -105,7 +105,7 @@ def assigned_class_subject_ids(
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if staff is None:
         return None
-    if not staff.is_active or staff.school_id != school_id:
+    if not staff.is_active or staff.employment_status != "active" or staff.school_id != school_id:
         return set()
 
     effective_date = on_date or date.today()
