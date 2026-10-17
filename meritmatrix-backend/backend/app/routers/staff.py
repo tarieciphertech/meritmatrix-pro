@@ -48,6 +48,8 @@ def list_staff(
 ):
     """List staff for a school. Requires membership in that school."""
     _verify_school_membership(db, current_user, school_id)
+
+    deny_linked_staff_management(db, current_user, "view the school staff directory")
     
     service = StaffService(db)
     return service.get_staff_by_school(school_id, limit=limit, offset=offset)
@@ -62,6 +64,8 @@ def create_staff(
 ):
     """Create a staff member for a school. Requires membership in that school."""
     _verify_school_membership(db, current_user, school_id)
+
+    deny_linked_staff_management(db, current_user, "create staff records")
     
     service = StaffService(db)
     staff = service.create_staff(school_id, payload)
@@ -87,6 +91,8 @@ def read_staff(
     
     # Verify membership in the staff's school
     _verify_school_membership(db, current_user, staff.school_id)
+
+    deny_linked_staff_management(db, current_user, "view staff profiles")
     
     return staff
 
@@ -104,6 +110,8 @@ def update_staff(
     
     # Verify membership
     _verify_school_membership(db, current_user, staff.school_id)
+
+    deny_linked_staff_management(db, current_user, "edit staff records")
     
     # Update with school_id from the existing staff (prevents school change)
     changes = payload.model_dump(exclude_unset=True)
@@ -130,6 +138,8 @@ def archive_staff(
     
     # Verify membership
     _verify_school_membership(db, current_user, staff.school_id)
+
+    deny_linked_staff_management(db, current_user, "archive staff records")
     
     service.archive_staff(staff_id, staff.school_id)
     record_audit_event(
@@ -150,6 +160,8 @@ def create_staff_account(
     service = StaffService(db)
     staff = service.get_staff(staff_id)
     _verify_school_membership(db, current_user, staff.school_id)
+
+    deny_linked_staff_management(db, current_user, "provision staff login accounts")
 
     if not staff.is_active or staff.employment_status != "active":
         raise ConflictError("Only active staff members can be given login access.", code="STAFF_NOT_ACTIVE")
