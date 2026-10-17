@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { AcademicYearResponse, StudentResponse, TermResponse } from '../types';
@@ -20,43 +20,69 @@ export default function ReportCardsPage() {
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  const setupRequestIdRef = useRef(0);
+  const resultsRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    activeSchoolIdRef.current = selectedSchool?.id ?? null;
+    setupRequestIdRef.current += 1;
+    resultsRequestIdRef.current += 1;
+    setStudents([]); setTerms([]); setRows([]); setStudentId(''); setTermId(''); setError(null);
+  }, [selectedSchool?.id]);
 
   const loadSetup = useCallback(async () => {
-    if (!selectedSchool) { setStudents([]); setTerms([]); setRows([]); setStudentId(''); setTermId(''); return; }
-    // Clear the prior school's report-card data before loading the new school.
+    if (!selectedSchool) { setStudents([]); setTerms([]); setRows([]); setStudentId(''); setTermId(''); setLoading(false); return; }
+    const requestSchoolId = selectedSchool.id;
+    const requestId = ++setupRequestIdRef.current;
     setStudents([]); setTerms([]); setRows([]); setStudentId(''); setTermId('');
     setLoading(true); setError(null);
     try {
       const [studentRows, years] = await Promise.all([
-        api.get<StudentResponse[]>('/api/v1/students', { school_id: selectedSchool.id }),
-        api.get<AcademicYearResponse[]>('/api/v1/academic-years', { school_id: selectedSchool.id }),
+        api.get<StudentResponse[]>('/api/v1/students', { school_id: requestSchoolId }),
+        api.get<AcademicYearResponse[]>('/api/v1/academic-years', { school_id: requestSchoolId }),
       ]);
+      if (activeSchoolIdRef.current !== requestSchoolId || setupRequestIdRef.current !== requestId) return;
       setStudents(studentRows.filter(s => s.is_active));
       setStudentId(current => studentRows.some(s => s.id === current && s.is_active) ? current : studentRows.find(s => s.is_active)?.id ?? '');
       const termGroups = await Promise.all(years.map(y => api.get<TermResponse[]>('/api/v1/terms', { academic_year_id: y.id }).catch(() => [] as TermResponse[])));
+      if (activeSchoolIdRef.current !== requestSchoolId || setupRequestIdRef.current !== requestId) return;
       const termRows = termGroups.flat().filter(t => t.is_active);
       setTerms(termRows);
       setTermId(current => termRows.some(t => t.id === current) ? current : termRows.find(t => t.is_current)?.id ?? termRows[0]?.id ?? '');
     } catch (e) {
-      setStudents([]); setTerms([]); setRows([]); setStudentId(''); setTermId('');
-      setError(e instanceof Error ? e.message : 'Could not load report-card setup.');
+      if (activeSchoolIdRef.current === requestSchoolId && setupRequestIdRef.current === requestId) {
+        setStudents([]); setTerms([]); setRows([]); setStudentId(''); setTermId('');
+        setError(e instanceof Error ? e.message : 'Could not load report-card setup.');
+      }
     }
-    finally { setLoading(false); }
+    finally {
+      if (activeSchoolIdRef.current === requestSchoolId && setupRequestIdRef.current === requestId) setLoading(false);
+    }
   }, [selectedSchool]);
   useEffect(() => { void loadSetup(); }, [loadSetup]);
 
   const loadResults = useCallback(async () => {
     if (!selectedSchool || !studentId || !termId) { setRows([]); return; }
+    const requestSchoolId = selectedSchool.id;
+    const requestStudentId = studentId;
+    const requestTermId = termId;
+    const requestId = ++resultsRequestIdRef.current;
     setRows([]);
     setLoading(true); setError(null);
     try {
-      const result = await api.get<ResultRow[]>('/api/v1/results', { school_id: selectedSchool.id, student_id: studentId, term_id: termId });
+      const result = await api.get<ResultRow[]>('/api/v1/results', { school_id: requestSchoolId, student_id: requestStudentId, term_id: requestTermId });
+      if (activeSchoolIdRef.current !== requestSchoolId || resultsRequestIdRef.current !== requestId) return;
       setRows(result);
     } catch (e) {
-      setRows([]);
-      setError(e instanceof Error ? e.message : 'Could not load published results.');
+      if (activeSchoolIdRef.current === requestSchoolId && resultsRequestIdRef.current === requestId) {
+        setRows([]);
+        setError(e instanceof Error ? e.message : 'Could not load published results.');
+      }
     }
-    finally { setLoading(false); }
+    finally {
+      if (activeSchoolIdRef.current === requestSchoolId && resultsRequestIdRef.current === requestId) setLoading(false);
+    }
   }, [selectedSchool, studentId, termId]);
   useEffect(() => { void loadResults(); }, [loadResults]);
 
