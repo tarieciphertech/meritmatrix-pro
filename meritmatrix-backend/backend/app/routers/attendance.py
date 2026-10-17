@@ -165,6 +165,7 @@ def save_register(
         saved = []
         notify_by_status: dict[str, set[uuid.UUID]] = {}
         enrollments_by_id = {enrollment.id: enrollment for enrollment in enrollments}
+        cleared_count = 0
         for entry in payload.entries:
             record = db.query(AttendanceRecord).filter(
                 AttendanceRecord.enrollment_id == entry.enrollment_id,
@@ -172,6 +173,11 @@ def save_register(
                 AttendanceRecord.session == payload.session,
             ).first()
             previous_status = record.status if record else None
+            if entry.status == "unmarked":
+                if record:
+                    db.delete(record)
+                    cleared_count += 1
+                continue
             if record:
                 record.status = entry.status
                 record.notes = entry.notes
@@ -210,7 +216,9 @@ def save_register(
             details={
                 "attendance_date": payload.attendance_date.isoformat(),
                 "session": payload.session,
-                "entries_count": len(saved),
+                "entries_count": len(payload.entries),
+                "saved_count": len(saved),
+                "cleared_count": cleared_count,
                 "status_counts": dict(Counter(entry.status for entry in payload.entries)),
             },
         )
