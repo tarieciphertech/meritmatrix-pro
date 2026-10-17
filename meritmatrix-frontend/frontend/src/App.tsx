@@ -33,7 +33,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
   const mustChangePassword = Boolean(user.must_change_password);
   if (mustChangePassword && location.pathname !== '/change-password') return <Navigate to="/change-password" replace />;
   if (!mustChangePassword && location.pathname === '/change-password') return <Navigate to="/" replace />;
-  const isGuardian = (user.roles ?? []).some((role) => role.name === 'GUARDIAN');
+  const isGuardian = (user.roles ?? []).some((role) => ['GUARDIAN', 'PARENT'].includes(role.name));
   if (isGuardian && location.pathname !== '/guardian-portal') return <Navigate to="/guardian-portal" replace />;
   return <>{children}</>;
 }
