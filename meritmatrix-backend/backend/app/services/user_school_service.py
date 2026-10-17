@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from app.models.user_school import UserSchool
 from app.models.user import User
-from app.models.role import Role
 from app.repositories.user_school_repository import UserSchoolRepository
 from app.utils.errors import ConflictError, NotFoundError
 
