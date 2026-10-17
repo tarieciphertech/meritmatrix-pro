@@ -56,7 +56,7 @@ export default function AssessmentsPage() {
     if (!selectedSchool) {
       setClasses([]); setTerms([]); setClassSubjects([]); setAssessments([]);
       setClassId(''); setTermId(''); setClassSubjectId(''); setAssessmentId('');
-      setRoster([]); setResults([]); setGradeBands([]);
+      setRoster([]); setResults([]); setGradeBands([]); setLoading(false);
       return;
     }
     const requestSchoolId = selectedSchool.id;
@@ -89,7 +89,12 @@ export default function AssessmentsPage() {
   useEffect(() => { void loadSetup(); }, [loadSetup]);
 
   const loadClassSubjects = useCallback(async () => {
-    if (!selectedSchool || !classId) { setClassSubjects([]); setClassSubjectId(''); return; }
+    if (
+      !selectedSchool || !classId ||
+      !classes.some(clazz => clazz.id === classId && clazz.school_id === selectedSchool.id)
+    ) {
+      setClassSubjects([]); setClassSubjectId(''); return;
+    }
     const requestSchoolId = selectedSchool.id;
     try {
       const rows = await api.get<ClassSubjectResponse[]>('/api/v1/class-subjects', { class_id: classId });
@@ -102,7 +107,7 @@ export default function AssessmentsPage() {
         setError(e instanceof Error ? e.message : 'Could not load class subjects.');
       }
     }
-  }, [selectedSchool, classId]);
+  }, [selectedSchool, classes, classId]);
   useEffect(() => { void loadClassSubjects(); }, [loadClassSubjects]);
 
   const loadAssessments = useCallback(async () => {
