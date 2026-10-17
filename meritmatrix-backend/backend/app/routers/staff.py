@@ -67,7 +67,7 @@ def create_staff(
     record_audit_event(
         db, school_id=school_id, actor_user_id=current_user.id,
         action="staff.created", entity_type="staff", entity_id=staff.id,
-        details={"staff_number": staff.staff_number, "position": staff.position},
+        details={"staff_number": staff.staff_number, "position": staff.job_title},
     )
     db.commit()
     db.refresh(staff)
