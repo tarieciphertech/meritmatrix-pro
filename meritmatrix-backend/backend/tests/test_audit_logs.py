@@ -1,6 +1,4 @@
 """School audit history authorization and isolation tests."""
-from datetime import datetime, timezone
-
 from app.models.audit_log import AuditLog
 from app.models.school import School
 
