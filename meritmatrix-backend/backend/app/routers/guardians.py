@@ -23,6 +23,8 @@ router = APIRouter(prefix="/api/v1/guardians", tags=["guardians"])
 
 def _verify_school_membership(db: Session, current_user: User, school_id: uuid.UUID) -> None:
     """Verify user has access to the given school. Raises 403 if not."""
+
+    deny_linked_staff_management(db, current_user, "access guardian administration records")
     if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
         return
     
