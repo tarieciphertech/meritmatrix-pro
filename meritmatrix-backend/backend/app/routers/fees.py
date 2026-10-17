@@ -17,6 +17,7 @@ from app.models.user import User
 from app.schemas.fee import FeeChargeCreate, FeeChargeResponse, FeePaymentCreate, FeePaymentResponse
 from app.services.user_school_service import UserSchoolService
 from app.services.audit_service import record_audit_event
+from app.services.notification_service import notify_guardians
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/fees", tags=["fees"])
@@ -96,6 +97,12 @@ def create_charge(
         entity_id=charge.id,
         details={"student_id": str(student.id), "amount": str(payload.amount), "description": payload.description},
     )
+    notify_guardians(
+        db, school_id=school_id, student_ids=[student.id],
+        notification_type="fees.charge_created", title="New school fee charge",
+        message="A new fee charge has been added to your child's school account. Sign in to review the balance.",
+        data={"fee_charge_id": str(charge.id), "description": charge.description},
+    )
     db.commit()
     db.refresh(charge)
     return _charge_response(charge)
@@ -144,6 +151,12 @@ def create_payment(
             "amount": str(payload.amount), "payment_date": payload.payment_date.isoformat(),
             "method": payload.method,
         },
+    )
+    notify_guardians(
+        db, school_id=school_id, student_ids=[charge.student_id],
+        notification_type="fees.payment_recorded", title="School payment recorded",
+        message="The school recorded a payment on your child's account. Sign in to review the updated balance.",
+        data={"fee_charge_id": str(charge.id), "payment_date": payload.payment_date.isoformat()},
     )
     try:
         db.commit()

@@ -19,6 +19,7 @@ from app.models.user import User
 from app.schemas.attendance_record import AttendanceRecordResponse, AttendanceRegisterCreate
 from app.services.user_school_service import UserSchoolService
 from app.services.audit_service import record_audit_event
+from app.services.notification_service import notify_guardians
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/attendance", tags=["attendance"])
@@ -162,12 +163,15 @@ def save_register(
         raise ConflictError("Every student must have an active enrollment in this class for the selected academic year.", code="INVALID_ATTENDANCE_ENROLLMENT")
     try:
         saved = []
+        notify_by_status: dict[str, set[uuid.UUID]] = {}
+        enrollments_by_id = {enrollment.id: enrollment for enrollment in enrollments}
         for entry in payload.entries:
             record = db.query(AttendanceRecord).filter(
                 AttendanceRecord.enrollment_id == entry.enrollment_id,
                 AttendanceRecord.attendance_date == payload.attendance_date,
                 AttendanceRecord.session == payload.session,
             ).first()
+            previous_status = record.status if record else None
             if record:
                 record.status = entry.status
                 record.notes = entry.notes
@@ -179,7 +183,22 @@ def save_register(
                     status=entry.status, notes=entry.notes, recorded_by_user_id=current_user.id,
                 )
                 db.add(record)
+            if entry.status in {"absent", "late", "sick"} and previous_status != entry.status:
+                student_id = enrollments_by_id[entry.enrollment_id].student_id
+                notify_by_status.setdefault(entry.status, set()).add(student_id)
             saved.append(record)
+        for status, student_ids in notify_by_status.items():
+            labels = {
+                "absent": ("Attendance absence recorded", "The school recorded an absence for your child. Sign in to view the attendance details."),
+                "late": ("Late arrival recorded", "The school recorded a late arrival for your child. Sign in to view the attendance details."),
+                "sick": ("Sick leave recorded", "The school recorded sick leave for your child. Sign in to view the attendance details."),
+            }
+            title, message = labels[status]
+            notify_guardians(
+                db, school_id=school_id, student_ids=student_ids,
+                notification_type=f"attendance.{status}", title=title, message=message,
+                data={"class_id": str(class_id), "attendance_date": payload.attendance_date.isoformat(), "session": payload.session},
+            )
         from collections import Counter
         record_audit_event(
             db,

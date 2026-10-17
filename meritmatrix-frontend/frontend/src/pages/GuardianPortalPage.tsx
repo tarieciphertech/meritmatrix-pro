@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
+import GuardianNotificationInbox from '../components/GuardianNotificationInbox';
 
 interface PortalSchool { id: string; name: string; code: string; country?: string | null; country_code?: string | null; }
 
@@ -98,6 +99,8 @@ export default function GuardianPortalPage() {
           <p className="mt-2 text-xs text-slate-500">Only schools with your linked students are listed.</p>
         </div>
       )}
+
+      {schoolId && !loading && <div className="mb-5"><GuardianNotificationInbox schoolId={schoolId} /></div>}
 
       {error && <ErrorBanner message={error} />}
 
