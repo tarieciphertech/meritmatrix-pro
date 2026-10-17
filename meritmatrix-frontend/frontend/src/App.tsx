@@ -21,6 +21,7 @@ import AcademicSetupPage from './pages/AcademicSetupPage';
 import AssessmentsPage from './pages/AssessmentsPage';
 import FeesPage from './pages/FeesPage';
 import ReportCardsPage from './pages/ReportCardsPage';
+import AuditLogsPage from './pages/AuditLogsPage';
 import { Spinner } from './components/ui';
 import type { ReactNode } from 'react';
 
@@ -58,6 +59,7 @@ export default function App() {
       <Route path="/assessments" element={<AssessmentsPage />} />
       <Route path="/fees" element={<FeesPage />} />
       <Route path="/report-cards" element={<ReportCardsPage />} />
+      <Route path="/audit-logs" element={<AuditLogsPage />} />
     </Route>
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></SchoolProvider></AuthProvider>;
