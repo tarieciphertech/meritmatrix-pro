@@ -4,7 +4,7 @@
 // POST /api/v1/enrollments/{id}/complete|withdraw|cancel.
 // Also fetches students, academic years, and classes for dropdowns.
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type {
@@ -78,44 +78,62 @@ export default function EnrollmentsPage() {
   const [form, setForm] = useState<EnrollmentForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  const loadRequestIdRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!selectedSchool) {
-      setEnrollments([]);
-      setStudents([]);
-      setAcademicYears([]);
-      setClasses([]);
+      setEnrollments([]); setStudents([]); setAcademicYears([]); setClasses([]);
+      setLoading(false);
       return;
     }
+    const requestSchoolId = selectedSchool.id;
+    const requestId = ++loadRequestIdRef.current;
+    setEnrollments([]); setStudents([]); setAcademicYears([]); setClasses([]);
     setLoading(true);
     setError(null);
     try {
       const [enrollmentsList, studentsList, yearsList, classesList] = await Promise.all([
         api.get<EnrollmentResponse[]>('/api/v1/enrollments', {
-          school_id: selectedSchool.id,
+          school_id: requestSchoolId,
           limit: 200,
         }),
         api.get<StudentResponse[]>('/api/v1/students', {
-          school_id: selectedSchool.id,
+          school_id: requestSchoolId,
           limit: 200,
         }),
         api.get<AcademicYearResponse[]>('/api/v1/academic-years', {
-          school_id: selectedSchool.id,
+          school_id: requestSchoolId,
         }),
         api.get<ClassResponse[]>('/api/v1/classes', {
-          school_id: selectedSchool.id,
+          school_id: requestSchoolId,
         }),
       ]);
+      if (activeSchoolIdRef.current !== requestSchoolId || loadRequestIdRef.current !== requestId) return;
       setEnrollments(enrollmentsList);
       setStudents(studentsList);
       setAcademicYears(yearsList);
       setClasses(classesList);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load enrollments');
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) {
+        setEnrollments([]); setStudents([]); setAcademicYears([]); setClasses([]);
+        setError(err instanceof Error ? err.message : 'Failed to load enrollments');
+      }
     } finally {
-      setLoading(false);
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) setLoading(false);
     }
   }, [selectedSchool]);
+
+  useEffect(() => {
+    activeSchoolIdRef.current = selectedSchool?.id ?? null;
+    loadRequestIdRef.current += 1;
+    setEnrollments([]); setStudents([]); setAcademicYears([]); setClasses([]);
+    setError(null);
+    setModalOpen(false);
+    setEditingEnrollment(null);
+    setForm(emptyForm);
+    setFormError(null);
+  }, [selectedSchool?.id]);
 
   useEffect(() => {
     void load();
