@@ -70,8 +70,6 @@ export default function GuardianPortalPage() {
       setStudents(linked);
     } catch (err) {
       setStudents([]);
-      setSchools([]);
-      setSchoolId('');
       setError(
         err instanceof ApiError
           ? err.message
