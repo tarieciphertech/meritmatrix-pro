@@ -109,9 +109,13 @@ export default function AssessmentsPage() {
       setError('Every grading band needs a grade label before the scale can be saved.');
       return;
     }
-    const orderedBands = [...gradeBands].sort((a, b) => a.min_percentage - b.min_percentage);
+    if (gradeBands.some(band => band.min_percentage < 0 || band.max_percentage > 100)) {
+      setError('Grading percentages must stay between 0 and 100.');
+      return;
+    }
+    const orderedBands = gradeBands.filter(band => band.is_active).sort((a, b) => a.min_percentage - b.min_percentage);
     if (orderedBands.some(band => band.min_percentage > band.max_percentage)) {
-      setError('Each grading band minimum must be less than or equal to its maximum.');
+      setError('Each active grading band minimum must be less than or equal to its maximum.');
       return;
     }
     if (orderedBands.some((band, index) => index > 0 && band.min_percentage <= orderedBands[index - 1].max_percentage)) {
