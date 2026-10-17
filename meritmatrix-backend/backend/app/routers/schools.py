@@ -43,14 +43,17 @@ def list_schools(
     if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
         return service.list_schools(limit=limit, offset=offset)
     
-    # For SCHOOL_ADMIN, filter to only their schools
+    # Filter the complete membership set before applying pagination. Paginating
+    # the global school list first can hide a user's assigned school when it falls
+    # outside the first global page.
     from app.services.user_school_service import UserSchoolService
     membership_service = UserSchoolService(db)
     user_schools = membership_service.get_schools_for_user(current_user.id)
-    school_ids = [str(s.id) for s in user_schools]
-    
-    all_schools = service.list_schools(limit=limit, offset=offset)
-    return [s for s in all_schools if str(s.id) in school_ids]
+    assigned_schools = sorted(
+        (school for school in user_schools if school.is_active),
+        key=lambda school: (school.name.casefold(), str(school.id)),
+    )
+    return assigned_schools[offset : offset + limit]
 
 
 @router.post("", response_model=SchoolResponse, status_code=201)
