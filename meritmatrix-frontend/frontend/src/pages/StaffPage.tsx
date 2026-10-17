@@ -172,8 +172,8 @@ export default function StaffPage() {
       `Set an initial password for ${staff.first_name} ${staff.last_name}. Share it privately with the staff member.`,
     );
     if (password === null) return;
-    if (password.length < 8 || password.length > 128 || !/[A-Za-z]/.test(password) || !/[0-9!@#$%^&*(),.?":{}|<>_+-]/.test(password)) {
-      setError('Use a password of 8–128 characters containing letters and at least one number or symbol.');
+    if (password.length < 12 || password.length > 128 || !/[A-Za-z]/.test(password) || !/[0-9!@#$%^&*(),.?":{}|<>_+-]/.test(password)) {
+      setError('Use a password of 12–128 characters containing letters and at least one number or symbol.');
       return;
     }
     setError(null);

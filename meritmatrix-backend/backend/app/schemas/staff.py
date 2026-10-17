@@ -56,7 +56,7 @@ class StaffResponse(StaffBase):
 
 class StaffAccountCreate(BaseModel):
     """Initial password supplied by an authorized school administrator."""
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=12, max_length=128)
 
 
 class StaffAccountResponse(BaseModel):

@@ -218,10 +218,17 @@ def test_create_staff_login_requires_initial_password_change(client, make_user, 
     make_user(email="onboarding-admin@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
     headers = auth_headers("onboarding-admin@example.com", "StrongPass123")
 
-    response = client.post(
+    too_short = client.post(
         f"/api/v1/staff/{staff.id}/account",
         headers=headers,
         json={"password": "TempPass123"},
+    )
+    assert too_short.status_code == 422, too_short.text
+
+    response = client.post(
+        f"/api/v1/staff/{staff.id}/account",
+        headers=headers,
+        json={"password": "TempPass1234"},
     )
     assert response.status_code == 201, response.text
     body = response.json()
