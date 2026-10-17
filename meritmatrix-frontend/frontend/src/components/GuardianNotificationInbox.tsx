@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { Button, Card, EmptyState, ErrorBanner, Spinner } from './ui';
 
@@ -19,46 +19,70 @@ export default function GuardianNotificationInbox({ schoolId }: { schoolId: stri
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
+  const activeSchoolIdRef = useRef(schoolId);
+  activeSchoolIdRef.current = schoolId;
+
+  useEffect(() => {
+    requestIdRef.current += 1;
+    setItems([]);
+    setError(null);
+    setLoading(false);
+    setSaving(false);
+  }, [schoolId]);
 
   const load = useCallback(async () => {
-    if (!schoolId) { setItems([]); return; }
+    const requestId = ++requestIdRef.current;
+    if (!schoolId) { setItems([]); setLoading(false); return; }
+    const requestSchoolId = schoolId;
     setLoading(true);
     setError(null);
     try {
-      setItems(await api.get<NotificationItem[]>('/api/v1/notifications', { school_id: schoolId, limit: 20 }));
+      const rows = await api.get<NotificationItem[]>('/api/v1/notifications', { school_id: requestSchoolId, limit: 20 });
+      if (requestIdRef.current !== requestId || activeSchoolIdRef.current !== requestSchoolId) return;
+      setItems(rows);
     } catch (err) {
+      if (requestIdRef.current !== requestId || activeSchoolIdRef.current !== requestSchoolId) return;
+      setItems([]);
       setError(err instanceof Error ? err.message : 'Could not load notifications.');
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId && activeSchoolIdRef.current === requestSchoolId) setLoading(false);
     }
   }, [schoolId]);
 
   useEffect(() => { void load(); }, [load]);
 
   async function markRead(item: NotificationItem) {
-    if (item.read_at) return;
+    if (item.read_at || !schoolId || item.school_id !== schoolId) return;
+    const requestSchoolId = schoolId;
     setSaving(true);
     setError(null);
     try {
       const updated = await api.post<NotificationItem>('/api/v1/notifications/' + item.id + '/read', {});
+      if (activeSchoolIdRef.current !== requestSchoolId) return;
       setItems(current => current.map(row => row.id === updated.id ? updated : row));
     } catch (err) {
+      if (activeSchoolIdRef.current !== requestSchoolId) return;
       setError(err instanceof Error ? err.message : 'Could not mark notification as read.');
     } finally {
-      setSaving(false);
+      if (activeSchoolIdRef.current === requestSchoolId) setSaving(false);
     }
   }
 
   async function markAllRead() {
+    if (!schoolId) return;
+    const requestSchoolId = schoolId;
     setSaving(true);
     setError(null);
     try {
-      await api.post<{ marked_read: number }>('/api/v1/notifications/read-all', undefined, { school_id: schoolId });
+      await api.post<{ marked_read: number }>('/api/v1/notifications/read-all', undefined, { school_id: requestSchoolId });
+      if (activeSchoolIdRef.current !== requestSchoolId) return;
       await load();
     } catch (err) {
+      if (activeSchoolIdRef.current !== requestSchoolId) return;
       setError(err instanceof Error ? err.message : 'Could not mark notifications as read.');
     } finally {
-      setSaving(false);
+      if (activeSchoolIdRef.current === requestSchoolId) setSaving(false);
     }
   }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { AcademicYearResponse, ClassResponse, ClassSubjectResponse, SubjectResponse, TermResponse } from '../types';
@@ -37,34 +37,47 @@ export default function AcademicSetupPage() {
  const [tf,setTf]=useState<TermForm>(emptyTerm);
  const [cf,setCf]=useState<ClassForm>(emptyClass);
  const [sf,setSf]=useState<SubjectForm>(emptySubject);
+ const activeSchoolIdRef=useRef<string|null>(selectedSchool?.id??null);
+ const loadRequestIdRef=useRef(0);
+ activeSchoolIdRef.current=selectedSchool?.id??null;
+ useEffect(()=>{
+  loadRequestIdRef.current+=1;
+  setYears([]);setTerms([]);setClasses([]);setSubjects([]);setAssignments([]);
+  setSelectedClassId('');setSelectedSubjectId('');setYearId('');setError(null);
+  setLoading(false);
+ },[selectedSchool?.id]);
 
  const load=useCallback(async()=>{
-  if(!selectedSchool){setYears([]);setTerms([]);setClasses([]);setSubjects([]);return;}
+  const requestId=++loadRequestIdRef.current;
+  if(!selectedSchool){setYears([]);setTerms([]);setClasses([]);setSubjects([]);setAssignments([]);setLoading(false);return;}
+  const requestSchoolId=selectedSchool.id;
   setLoading(true);setError(null);
   try{
    const [ys,cs,ss]=await Promise.all([
-    api.get<AcademicYearResponse[]>('/api/v1/academic-years',{school_id:selectedSchool.id}),
-    api.get<ClassResponse[]>('/api/v1/classes',{school_id:selectedSchool.id}),
-    api.get<SubjectResponse[]>('/api/v1/subjects',{school_id:selectedSchool.id})
+    api.get<AcademicYearResponse[]>('/api/v1/academic-years',{school_id:requestSchoolId}),
+    api.get<ClassResponse[]>('/api/v1/classes',{school_id:requestSchoolId}),
+    api.get<SubjectResponse[]>('/api/v1/subjects',{school_id:requestSchoolId})
    ]);
+   if(activeSchoolIdRef.current!==requestSchoolId||loadRequestIdRef.current!==requestId)return;
    setYears(ys);setClasses(cs);setSubjects(ss);
    setSelectedClassId(current=>cs.some(x=>x.id===current)?current:(cs.find(x=>x.is_active)?.id||''));
    const chosen=ys.find(y=>y.id===yearId)||ys.find(y=>y.is_current)||ys[0];
    setYearId(chosen?.id||'');
    const groups=await Promise.all(ys.map(y=>api.get<TermResponse[]>('/api/v1/terms',{academic_year_id:y.id}).catch(()=>[] as TermResponse[])));
+   if(activeSchoolIdRef.current!==requestSchoolId||loadRequestIdRef.current!==requestId)return;
    setTerms(groups.flat());
-  }catch(e){setError(e instanceof Error?e.message:'Could not load academic setup');}
-  finally{setLoading(false);}
+  }catch(e){if(activeSchoolIdRef.current===selectedSchool?.id&&loadRequestIdRef.current===requestId)setError(e instanceof Error?e.message:'Could not load academic setup');}
+  finally{if(activeSchoolIdRef.current===selectedSchool?.id&&loadRequestIdRef.current===requestId)setLoading(false);}
  },[selectedSchool,yearId]);
  useEffect(()=>{void load();},[load]);
  useEffect(()=>{
-  if(!selectedClassId){setAssignments([]);return;}
+  if(!selectedClassId||!selectedSchool){setAssignments([]);return;}
   let cancelled=false;
   api.get<ClassSubjectResponse[]>('/api/v1/class-subjects',{class_id:selectedClassId})
    .then(items=>{if(!cancelled)setAssignments(items);})
    .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:'Could not load class subjects');});
   return ()=>{cancelled=true;};
- },[selectedClassId]);
+ },[selectedClassId,selectedSchool?.id]);
  async function assignSubject(){
   if(!selectedClassId||!selectedSubjectId)return;
   setAssigning(true);setError(null);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import { Button, Card, EmptyState, ErrorBanner, PageHeader, Select, Spinner, Table, Td } from '../components/ui';
@@ -58,25 +58,40 @@ export default function AuditLogsPage() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
+  const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  activeSchoolIdRef.current = selectedSchool?.id ?? null;
+
+  useEffect(() => {
+    requestIdRef.current += 1;
+    setEvents([]);
+    setError(null);
+    setOffset(0);
+    setLoading(false);
+  }, [selectedSchool?.id]);
 
   const loadEvents = useCallback(async () => {
-    if (!selectedSchool) { setEvents([]); return; }
+    const requestId = ++requestIdRef.current;
+    if (!selectedSchool) { setEvents([]); setLoading(false); return; }
+    const requestSchoolId = selectedSchool.id;
     setLoading(true);
     setError(null);
     try {
       const rows = await api.get<AuditEvent[]>('/api/v1/audit-logs', {
-        school_id: selectedSchool.id,
+        school_id: requestSchoolId,
         limit: PAGE_SIZE,
         offset,
         ...(action ? { action } : {}),
         ...(entityType ? { entity_type: entityType } : {}),
       });
+      if (requestIdRef.current !== requestId || activeSchoolIdRef.current !== requestSchoolId) return;
       setEvents(rows);
     } catch (err) {
+      if (requestIdRef.current !== requestId || activeSchoolIdRef.current !== requestSchoolId) return;
       setEvents([]);
       setError(err instanceof Error ? err.message : 'Could not load audit history.');
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId && activeSchoolIdRef.current === requestSchoolId) setLoading(false);
     }
   }, [selectedSchool, action, entityType, offset]);
 
