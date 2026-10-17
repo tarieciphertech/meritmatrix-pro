@@ -76,6 +76,7 @@ export default function AttendancePage() {
   if(!selectedSchool||!classId)return;
   const requestSchoolId=selectedSchool.id; const requestClassId=classId; const requestDay=day; const requestSession=session;
   const entries=rows.map(row=>({enrollment_id:row.enrollment_id,status:row.status,notes:row.notes||null}));
+  const clearedCount=rows.filter(row=>row.status==='unmarked'&&row.id!==null).length;
   const hasMarkedOrSavedRows=rows.some(row=>row.status!=='unmarked'||row.id!==null);
   if(!hasMarkedOrSavedRows){setError('Mark at least one student before saving.');return;}
   setSaving(true);setError(null);setNotice('');
@@ -84,7 +85,10 @@ export default function AttendancePage() {
    if(activeSchoolIdRef.current!==requestSchoolId||activeClassIdRef.current!==requestClassId||activeDayRef.current!==requestDay||activeSessionRef.current!==requestSession)return;
    const markedCount=entries.filter(entry=>entry.status!=='unmarked').length;
    await loadRoster();
-   if(activeSchoolIdRef.current===requestSchoolId&&activeClassIdRef.current===requestClassId&&activeDayRef.current===requestDay&&activeSessionRef.current===requestSession)setNotice(`Saved attendance for ${markedCount} student(s).`);
+   if(activeSchoolIdRef.current===requestSchoolId&&activeClassIdRef.current===requestClassId&&activeDayRef.current===requestDay&&activeSessionRef.current===requestSession){
+    const message=markedCount===0&&clearedCount>0?`Cleared attendance for ${clearedCount} student(s).`:clearedCount>0?`Saved attendance for ${markedCount} student(s) and cleared ${clearedCount} previous mark(s).`:`Saved attendance for ${markedCount} student(s).`;
+    setNotice(message);
+   }
   }catch(e){if(activeSchoolIdRef.current===requestSchoolId)setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Could not save attendance');}
   finally{setSaving(false);}
  }
