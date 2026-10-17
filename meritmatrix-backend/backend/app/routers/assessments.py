@@ -23,6 +23,7 @@ from app.schemas.assessment import AssessmentCreate, AssessmentResponse, Assessm
 from app.schemas.grading_band import GradingBandResponse, GradingScaleReplace
 from app.services.user_school_service import UserSchoolService
 from app.services.audit_service import record_audit_event
+from app.services.notification_service import notify_guardians
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
@@ -254,6 +255,20 @@ def update_assessment(
         action=action, entity_type="assessment", entity_id=assessment.id,
         details={"title": assessment.title, "changed_fields": sorted(changes.keys())},
     )
+    if changes.get("is_published") is True:
+        published_student_ids = [
+            row[0] for row in db.query(Enrollment.student_id)
+            .join(AssessmentMark, AssessmentMark.enrollment_id == Enrollment.id)
+            .filter(AssessmentMark.assessment_id == assessment.id)
+            .distinct().all()
+        ]
+        notify_guardians(
+            db, school_id=assessment.school_id, student_ids=published_student_ids,
+            notification_type="assessment.results_published",
+            title="Academic results published",
+            message="The school has published assessment results for your child. Sign in to review the results.",
+            data={"assessment_id": str(assessment.id), "assessment_title": assessment.title, "term_id": str(assessment.term_id)},
+        )
     db.commit()
     db.refresh(assessment)
     return _assessment_row(db, assessment.id)
