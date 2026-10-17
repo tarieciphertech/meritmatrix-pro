@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import deny_linked_staff_management
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
 from app.database import get_db
 from app.models.academic_year import AcademicYear
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/api/v1/fees", tags=["fees"])
 
 
 def _school_access(db: Session, user: User, school_id: uuid.UUID) -> None:
+    deny_linked_staff_management(db, user, "access school fee and payment records")
     if SYSTEM_ADMIN_PERMISSION in _permission_names(user):
         return
     if not UserSchoolService(db).is_user_member_of_school(user.id, school_id):
