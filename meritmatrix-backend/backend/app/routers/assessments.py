@@ -172,7 +172,13 @@ def create_assessment(
     require_class_subject_assignment(db, current_user, school_id, pair[0].id, payload.assessment_date)
     if payload.assessment_date and not (term.start_date <= payload.assessment_date <= term.end_date):
         raise ConflictError("Assessment date must fall within the selected term.", code="ASSESSMENT_DATE_OUTSIDE_TERM")
-    assessment = Assessment(school_id=school_id, **payload.model_dump())
+    # Publication is never accepted during creation; it requires a later verified admin action.
+    assessment = Assessment(
+        school_id=school_id,
+        **payload.model_dump(exclude={"is_published"}),
+        is_published=False,
+        marks_submitted=False,
+    )
     db.add(assessment)
     try:
         db.commit()
