@@ -80,7 +80,13 @@ def list_school_admin_accounts(
         .all()
     )
     result = {}
+    from app.services.user_school_service import UserSchoolService
+    membership_service = UserSchoolService(db)
     for membership, user in rows:
+        # Fail closed in the super-admin roster too: a malformed multi-school
+        # administrator must not appear as the administrator for several schools.
+        if not membership_service.is_user_member_of_school(user.id, membership.school_id):
+            continue
         key = str(membership.school_id)
         if key in result:
             continue
