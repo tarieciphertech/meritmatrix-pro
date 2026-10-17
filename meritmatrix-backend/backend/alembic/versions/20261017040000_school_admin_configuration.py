@@ -56,10 +56,14 @@ def upgrade() -> None:
     # The global /users list and mutation endpoints are not school-filtered.
     # User provisioning for school staff must go through the scoped /staff routes.
     restricted_role_grants = {
-        "SCHOOL_ADMIN": ["users.read", "users.create", "users.update"],
-        "TEACHER": ["users.read"],
-        "PARENT": ["users.read"],
-        "STUDENT": ["users.read"],
+        "SCHOOL_ADMIN": [
+            "users.read", "users.create", "users.update", "users.delete",
+            "roles.create", "roles.update", "permissions.read",
+            "schools.create", "schools.update", "system.admin",
+        ],
+        "TEACHER": ["users.read", "system.admin"],
+        "PARENT": ["users.read", "system.admin"],
+        "STUDENT": ["users.read", "system.admin"],
     }
     for role_name, permission_names in restricted_role_grants.items():
         role = bind.execute(sa.select(roles.c.id).where(roles.c.name == role_name)).first()
