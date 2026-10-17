@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.models.class_subject import ClassSubject
 from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.models.staff import Staff
+from app.models.student import Student
 from app.models.teaching_assignment import TeachingAssignment
 from app.models.user import User
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
@@ -32,7 +33,9 @@ def assigned_class_ids(
     rows = (
         db.query(ClassSubject.class_id)
         .join(TeachingAssignment, TeachingAssignment.class_subject_id == ClassSubject.id)
+        .join(Class, Class.id == ClassSubject.class_id)
         .filter(
+            Class.school_id == school_id,
             TeachingAssignment.staff_id == staff.id,
             TeachingAssignment.school_id == school_id,
             TeachingAssignment.is_active.is_(True),
@@ -72,7 +75,13 @@ def assigned_student_ids(
         return set()
     rows = (
         db.query(Enrollment.student_id)
+        .join(Staff, Staff.school_id == school_id) if False else db.query(Enrollment.student_id)
+        .join(Class, Class.id == Enrollment.class_id)
+        .join(Student, Student.id == Enrollment.student_id)
         .filter(
+            Class.school_id == school_id,
+            Student.school_id == school_id,
+            Student.is_active.is_(True),
             Enrollment.class_id.in_(classes),
             Enrollment.status == EnrollmentStatus.ACTIVE,
         )
@@ -112,7 +121,12 @@ def assigned_class_subject_ids(
     effective_date = on_date or date.today()
     rows = (
         db.query(TeachingAssignment.class_subject_id)
+        .join(ClassSubject, ClassSubject.id == TeachingAssignment.class_subject_id)
+        .join(Class, Class.id == ClassSubject.class_id)
+        .join(Subject, Subject.id == ClassSubject.subject_id)
         .filter(
+            Class.school_id == school_id,
+            Subject.school_id == school_id,
             TeachingAssignment.staff_id == staff.id,
             TeachingAssignment.school_id == school_id,
             TeachingAssignment.is_active.is_(True),
