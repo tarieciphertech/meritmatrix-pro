@@ -97,28 +97,40 @@ def list_class_subjects(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("class_subjects.read")),
 ):
-    """List class-subject assignments. Requires membership in the owning school."""
-    service = ClassSubjectService(db)
-    
+    """List class-subject assignments with readable class and subject labels."""
+    query = (
+        db.query(ClassSubject, Class, Subject)
+        .join(Class, Class.id == ClassSubject.class_id)
+        .join(Subject, Subject.id == ClassSubject.subject_id)
+    )
     if class_id:
-        # Verify membership via class
         _verify_school_membership_for_class(db, current_user, class_id)
-        return service.get_subjects_by_class(class_id)
+        query = query.filter(ClassSubject.class_id == class_id)
     elif subject_id:
-        # Verify membership via subject
-        from app.repositories.subject_repository import SubjectRepository
-        subject_repo = SubjectRepository(db)
-        subject = subject_repo.get_by_id(subject_id)
+        subject = db.query(Subject).filter(Subject.id == subject_id).first()
         if subject is None:
             from app.utils.errors import NotFoundError
             raise NotFoundError("Subject not found.", code="SUBJECT_NOT_FOUND")
         _verify_school_membership(db, current_user, subject.school_id)
-        return service.get_classes_by_subject(subject_id)
-    else:
-        # No filter - require SUPER_ADMIN or return empty
-        if SYSTEM_ADMIN_PERMISSION not in _permission_names(current_user):
-            return []
-        return service.get_all_class_subjects()
+        query = query.filter(ClassSubject.subject_id == subject_id)
+    elif SYSTEM_ADMIN_PERMISSION not in _permission_names(current_user):
+        return []
+
+    rows = query.order_by(ClassSubject.created_at).all()
+    return [
+        {
+            "id": assignment.id,
+            "class_id": assignment.class_id,
+            "subject_id": assignment.subject_id,
+            "created_at": assignment.created_at,
+            "updated_at": assignment.updated_at,
+            "class_name": clazz.name,
+            "class_code": clazz.code,
+            "subject_name": subject.name,
+            "subject_code": subject.code,
+        }
+        for assignment, clazz, subject in rows
+    ]
 
 
 @router.post("", response_model=ClassSubjectResponse, status_code=201)
