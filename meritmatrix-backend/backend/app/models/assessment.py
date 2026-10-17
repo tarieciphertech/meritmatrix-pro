@@ -24,6 +24,8 @@ class Assessment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     max_score: Mapped[float] = mapped_column(Float, nullable=False)
     weight_percent: Mapped[float] = mapped_column(Float, nullable=False, default=100.0)
     is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    # Marks stay private until submitted for administrative verification.
+    marks_submitted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     class_subject = relationship("ClassSubject")
