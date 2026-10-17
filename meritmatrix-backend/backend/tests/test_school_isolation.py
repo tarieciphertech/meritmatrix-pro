@@ -354,46 +354,17 @@ def test_school_admin_account_cannot_be_created_twice_for_same_school(
 
 
 
+
 def test_school_admin_cannot_access_global_user_directory(
-    client, auth_headers, make_user, seeded_rbac, school_a
+    client, auth_headers, make_user, seeded_rbac, school_a, db_session
 ):
-    make_user(email="scoped-admin@example.com", password="StrongPass123", role_name="SCHOOL_ADMIN")
-    from app.models.user import User
     from app.models.user_school import UserSchool
-    # Attach this administrator to exactly one school.
-    admin = client.post(
-        f"/api/v1/schools/{school_a}/admin-account",
-        headers=auth_headers("platform-provisioner@example.com", "StrongPass123"),
-        json={
-            "first_name": "Scoped", "last_name": "Administrator",
-            "email": "scoped-admin@example.com", "password": "InitialPassword123!",
-        },
-    )
-    # The endpoint is deliberately reserved for SUPER_ADMIN; create the scoped
-    # account through the standard fixture if no provisioner was seeded.
-    if admin.status_code == 401:
-        make_user(email="platform-provisioner@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
-        admin = client.post(
-            f"/api/v1/schools/{school_a}/admin-account",
-            headers=auth_headers("platform-provisioner@example.com", "StrongPass123"),
-            json={
-                "first_name": "Scoped", "last_name": "Administrator",
-                "email": "scoped-admin@example.com", "password": "InitialPassword123!",
-            },
-        )
-    assert admin.status_code in (201, 409), admin.text
-    headers = auth_headers("scoped-admin@example.com", "InitialPassword123!")
-    current_user = client.get("/api/v1/auth/me", headers=headers)
-    assert current_user.status_code == 200, current_user.text
-    # This account starts with a required password change, so its global data
-    # access remains blocked until onboarding is completed.
-    change = client.post(
-        "/api/v1/auth/change-password",
-        headers=headers,
-        json={"current_password": "InitialPassword123!", "new_password": "ChangedPassword123!"},
-    )
-    assert change.status_code in (200, 204), change.text
-    headers = auth_headers("scoped-admin@example.com", "ChangedPassword123!")
+
+    admin = make_user(email="scoped-admin@example.com", password="StrongPass123", role_name="SCHOOL_ADMIN")
+    db_session.add(UserSchool(user_id=admin.id, school_id=school_a, school_role="SCHOOL_ADMIN"))
+    db_session.commit()
+
+    headers = auth_headers("scoped-admin@example.com", "StrongPass123")
     users = client.get("/api/v1/users", headers=headers)
     assert users.status_code == 403, users.text
 
