@@ -14,6 +14,7 @@ from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.models.staff import Staff
 from app.models.teaching_assignment import TeachingAssignment
 from app.models.user import User
+from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
 from app.utils.errors import ForbiddenError
 
 
@@ -137,4 +138,27 @@ def require_class_subject_assignment(
         raise ForbiddenError(
             "You are not assigned to teach this subject in this class for the selected date.",
             code="CLASS_SUBJECT_ASSIGNMENT_REQUIRED",
+        )
+
+
+
+def deny_linked_staff_management(
+    db: Session,
+    user: User,
+    action: str = "manage school administration records",
+) -> None:
+    """Defense in depth: staff-linked logins cannot administer student/school records.
+
+    Teachers use assignment-scoped academic workflows (attendance and assessment
+    marks). They must not gain profile, enrollment, finance, guardian, or staff
+    administration powers simply because a broad permission is accidentally
+    granted to a role. System administrators retain their explicit override.
+    """
+    if SYSTEM_ADMIN_PERMISSION in _permission_names(user):
+        return
+    linked_staff = db.query(Staff.id).filter(Staff.user_id == user.id).first()
+    if linked_staff is not None:
+        raise ForbiddenError(
+            f"Staff-linked accounts cannot {action}. Use the authorized school administration workflow.",
+            code="STAFF_MANAGEMENT_RESTRICTED",
         )
