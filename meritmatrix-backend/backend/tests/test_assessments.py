@@ -108,7 +108,7 @@ def test_assignment_access_denies_unassigned_class_subject():
     from app.utils.errors import ForbiddenError
 
     school_id, assigned_subject_id, requested_subject_id = uuid4(), uuid4(), uuid4()
-    staff = SimpleNamespace(id=uuid4(), user_id=uuid4(), school_id=school_id, is_active=True)
+    staff = SimpleNamespace(id=uuid4(), user_id=uuid4(), school_id=school_id, is_active=True, employment_status="active")
 
     class Query:
         def __init__(self, first=None, rows=None):

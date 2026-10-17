@@ -362,3 +362,83 @@ def test_enrollment_identity_cannot_be_changed(client, make_user, auth_headers, 
     response = client.patch(f"/api/v1/enrollments/{enrollment.id}", headers=headers, json=payload)
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "ENROLLMENT_IDENTITY_CHANGE_DENIED"
+
+def test_linked_teacher_only_reads_enrollments_for_assigned_students(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    """School membership alone must not expose unrelated students' enrollments to teachers."""
+    from app.models.class_subject import ClassSubject
+    from app.models.staff import Staff
+    from app.models.subject import Subject
+    from app.models.teaching_assignment import TeachingAssignment
+    from app.models.user_school import UserSchool
+
+    school = School(name="Assignment Scope School", code="ASSIGN01", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    year = AcademicYear(
+        school_id=school.id, name="2026", start_date=date(2026, 1, 1),
+        end_date=date(2026, 12, 31), is_current=True, is_active=True,
+    )
+    assigned_class = Class(school_id=school.id, name="Form 1", code="F1", level=1, is_active=True)
+    other_class = Class(school_id=school.id, name="Form 2", code="F2", level=2, is_active=True)
+    assigned_student = Student(
+        school_id=school.id, student_number="AS-001", first_name="Assigned",
+        last_name="Student", status="active", is_active=True,
+    )
+    other_student = Student(
+        school_id=school.id, student_number="AS-002", first_name="Other",
+        last_name="Student", status="active", is_active=True,
+    )
+    subject = Subject(school_id=school.id, name="Mathematics", code="MATH", is_active=True)
+    db_session.add_all([year, assigned_class, other_class, assigned_student, other_student, subject])
+    db_session.flush()
+    assigned_pair = ClassSubject(class_id=assigned_class.id, subject_id=subject.id)
+    db_session.add(assigned_pair)
+    db_session.flush()
+    assigned_enrollment = Enrollment(
+        student_id=assigned_student.id, academic_year_id=year.id, class_id=assigned_class.id,
+        enrollment_date=date(2026, 1, 10), status=EnrollmentStatus.ACTIVE,
+    )
+    other_enrollment = Enrollment(
+        student_id=other_student.id, academic_year_id=year.id, class_id=other_class.id,
+        enrollment_date=date(2026, 1, 10), status=EnrollmentStatus.ACTIVE,
+    )
+    teacher = make_user(
+        email="enrollment-scope-teacher@example.com", password="StrongPass123",
+        role_name="TEACHER",
+    )
+    db_session.add(UserSchool(user_id=teacher.id, school_id=school.id))
+    staff = Staff(
+        school_id=school.id, staff_number="AS-T-001", first_name="Assigned",
+        last_name="Teacher", employment_status="active", is_active=True, user_id=teacher.id,
+    )
+    db_session.add_all([assigned_enrollment, other_enrollment, staff])
+    db_session.flush()
+    db_session.add(TeachingAssignment(
+        school_id=school.id, staff_id=staff.id, class_subject_id=assigned_pair.id,
+        start_date=date(2026, 1, 1), is_active=True,
+    ))
+    db_session.commit()
+
+    headers = auth_headers("enrollment-scope-teacher@example.com", "StrongPass123")
+    listed = client.get(
+        f"/api/v1/enrollments?school_id={school.id}",
+        headers=headers,
+    )
+    assert listed.status_code == 200, listed.text
+    assert [row["id"] for row in listed.json()] == [str(assigned_enrollment.id)]
+
+    allowed = client.get(f"/api/v1/enrollments/{assigned_enrollment.id}", headers=headers)
+    assert allowed.status_code == 200, allowed.text
+
+    # Employment status must immediately revoke assignment-scoped academic access.
+    staff.employment_status = "terminated"
+    db_session.commit()
+    terminated_access = client.get(f"/api/v1/enrollments/{assigned_enrollment.id}", headers=headers)
+    assert terminated_access.status_code == 403, terminated_access.text
+    assert terminated_access.json()["error"]["code"] == "STUDENT_ASSIGNMENT_REQUIRED"
+
+    denied = client.get(f"/api/v1/enrollments/{other_enrollment.id}", headers=headers)
+    assert denied.status_code == 403, denied.text
+    assert denied.json()["error"]["code"] == "STUDENT_ASSIGNMENT_REQUIRED"
