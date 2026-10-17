@@ -6,6 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import require_staff_school_scope
 from app.auth.assignment_access import deny_linked_staff_management
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
 from app.database import get_db
@@ -25,6 +26,8 @@ router = APIRouter(prefix="/api/v1/teaching-assignments", tags=["teaching-assign
 
 
 def _verify_school_access(db: Session, user: User, school_id: uuid.UUID) -> None:
+    require_staff_school_scope(db, user, school_id)
+
     if SYSTEM_ADMIN_PERMISSION in _permission_names(user):
         return
     if not UserSchoolService(db).is_user_member_of_school(user.id, school_id):
