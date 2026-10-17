@@ -82,8 +82,9 @@ export default function AttendancePage() {
   try{
    await api.put<AttendanceRow[]>('/api/v1/attendance/register',{attendance_date:requestDay,session:requestSession,entries},{school_id:requestSchoolId,class_id:requestClassId});
    if(activeSchoolIdRef.current!==requestSchoolId||activeClassIdRef.current!==requestClassId||activeDayRef.current!==requestDay||activeSessionRef.current!==requestSession)return;
-   setNotice(`Saved attendance for ${entries.length} student(s).`);
+   const markedCount=entries.filter(entry=>entry.status!=='unmarked').length;
    await loadRoster();
+   if(activeSchoolIdRef.current===requestSchoolId&&activeClassIdRef.current===requestClassId&&activeDayRef.current===requestDay&&activeSessionRef.current===requestSession)setNotice(`Saved attendance for ${markedCount} student(s).`);
   }catch(e){if(activeSchoolIdRef.current===requestSchoolId)setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Could not save attendance');}
   finally{setSaving(false);}
  }
