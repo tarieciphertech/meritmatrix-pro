@@ -64,6 +64,46 @@ def test_linked_guardian_receives_and_can_read_notification(
     assert unread.json() == []
 
 
+def test_staff_account_sharing_guardian_email_does_not_receive_family_notifications(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    school = School(name="Notification Email Collision", code="NEC001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    guardian = Guardian(
+        school_id=school.id, first_name="Shared", last_name="Email",
+        phone="+26777777777", email="shared-contact@example.com", is_active=True,
+    )
+    student = Student(
+        school_id=school.id, student_number="NEC-STU-1",
+        first_name="Linked", last_name="Student", status="active", is_active=True,
+    )
+    db_session.add_all([guardian, student])
+    db_session.flush()
+    db_session.add(StudentGuardian(
+        student_id=student.id, guardian_id=guardian.id,
+        relationship_type="mother", receives_notifications=True,
+    ))
+    make_user(
+        email="shared-contact@example.com", password="StrongPass123",
+        role_name="TEACHER", first_name="Staff", last_name="Account",
+    )
+    db_session.commit()
+
+    created = notify_guardians(
+        db_session, school_id=school.id, student_ids=[student.id],
+        notification_type="attendance.absent", title="Attendance absence recorded",
+        message="An absence was recorded.",
+    )
+    db_session.commit()
+
+    assert created == 0
+    headers = auth_headers("shared-contact@example.com", "StrongPass123")
+    response = client.get(f"/api/v1/notifications?school_id={school.id}", headers=headers)
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+
 def test_user_cannot_mark_another_users_notification_as_read(
     client, make_user, auth_headers, seeded_rbac, db_session
 ):
