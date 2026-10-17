@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { ClassResponse } from '../types';
@@ -27,45 +27,64 @@ export default function AttendancePage() {
  const [saving,setSaving]=useState(false);
  const [error,setError]=useState<string|null>(null);
  const [notice,setNotice]=useState('');
+ const activeSchoolIdRef=useRef<string|null>(selectedSchool?.id??null);
+ const classLoadRequestIdRef=useRef(0);
+ const rosterLoadRequestIdRef=useRef(0);
+ const activeClassIdRef=useRef(classId); const activeDayRef=useRef(day); const activeSessionRef=useRef(session);
+ activeClassIdRef.current=classId; activeDayRef.current=day; activeSessionRef.current=session;
+ useEffect(()=>{
+  activeSchoolIdRef.current=selectedSchool?.id??null;
+  classLoadRequestIdRef.current+=1; rosterLoadRequestIdRef.current+=1;
+  setClasses([]);setClassId('');setRows([]);setError(null);setNotice('');
+ },[selectedSchool?.id]);
  const loadClasses=useCallback(async()=>{
   if(!selectedSchool){setClasses([]);setClassId('');return;}
+  const requestSchoolId=selectedSchool.id; const requestId=++classLoadRequestIdRef.current;
+  setClasses([]);
   try{
-   const list=await api.get<ClassResponse[]>('/api/v1/classes',{school_id:selectedSchool.id,on_date:day});
+   const list=await api.get<ClassResponse[]>('/api/v1/classes',{school_id:requestSchoolId,on_date:day});
+   if(activeSchoolIdRef.current!==requestSchoolId||classLoadRequestIdRef.current!==requestId)return;
    const active=list.filter(x=>x.is_active);
    setClasses(active);
    setClassId(prev=>active.some(x=>x.id===prev)?prev:active[0]?.id??'');
   }catch(e){
-   setClasses([]);
-   setClassId('');
-   setError(e instanceof Error?e.message:'Could not load classes');
+   if(activeSchoolIdRef.current===requestSchoolId&&classLoadRequestIdRef.current===requestId){
+    setClasses([]);setClassId('');setError(e instanceof Error?e.message:'Could not load classes');
+   }
   }
  },[selectedSchool,day]);
  useEffect(()=>{void loadClasses();},[loadClasses]);
  const loadRoster=useCallback(async()=>{
-  if(!selectedSchool||!classId||!day){setRows([]);return;}
-  setLoading(true);setError(null);setNotice('');
+  const requestId=++rosterLoadRequestIdRef.current;
+  if(!selectedSchool||!classId||!day){setRows([]);setLoading(false);return;}
+  const requestSchoolId=selectedSchool.id; const requestClassId=classId; const requestDay=day; const requestSession=session;
+  setRows([]);setLoading(true);setError(null);setNotice('');
   try{
-   const list=await api.get<AttendanceRow[]>('/api/v1/attendance/roster',{school_id:selectedSchool.id,class_id:classId,attendance_date:day,session});
+   const list=await api.get<AttendanceRow[]>('/api/v1/attendance/roster',{school_id:requestSchoolId,class_id:requestClassId,attendance_date:requestDay,session:requestSession});
+   if(activeSchoolIdRef.current!==requestSchoolId||rosterLoadRequestIdRef.current!==requestId)return;
    setRows(list);
   }catch(e){
-   setRows([]);
-   setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Could not load the class register');
-  }finally{setLoading(false);}
+   if(activeSchoolIdRef.current===requestSchoolId&&rosterLoadRequestIdRef.current===requestId){
+    setRows([]);setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Could not load the class register');
+   }
+  }finally{if(activeSchoolIdRef.current===requestSchoolId&&rosterLoadRequestIdRef.current===requestId)setLoading(false);}
  },[selectedSchool,classId,day,session]);
  useEffect(()=>{void loadRoster();},[loadRoster]);
  function mark(enrollmentId:string,status:Status){setRows(prev=>prev.map(row=>row.enrollment_id===enrollmentId?{...row,status}:row));}
  function note(enrollmentId:string,notes:string){setRows(prev=>prev.map(row=>row.enrollment_id===enrollmentId?{...row,notes}:row));}
  async function save(){
   if(!selectedSchool||!classId)return;
+  const requestSchoolId=selectedSchool.id; const requestClassId=classId; const requestDay=day; const requestSession=session;
   const entries=rows.map(row=>({enrollment_id:row.enrollment_id,status:row.status,notes:row.notes||null}));
   const hasMarkedOrSavedRows=rows.some(row=>row.status!=='unmarked'||row.id!==null);
   if(!hasMarkedOrSavedRows){setError('Mark at least one student before saving.');return;}
   setSaving(true);setError(null);setNotice('');
   try{
-   await api.put<AttendanceRow[]>('/api/v1/attendance/register',{attendance_date:day,session,entries},{school_id:selectedSchool.id,class_id:classId});
+   await api.put<AttendanceRow[]>('/api/v1/attendance/register',{attendance_date:requestDay,session:requestSession,entries},{school_id:requestSchoolId,class_id:requestClassId});
+   if(activeSchoolIdRef.current!==requestSchoolId||activeClassIdRef.current!==requestClassId||activeDayRef.current!==requestDay||activeSessionRef.current!==requestSession)return;
    setNotice(`Saved attendance for ${entries.length} student(s).`);
    await loadRoster();
-  }catch(e){setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Could not save attendance');}
+  }catch(e){if(activeSchoolIdRef.current===requestSchoolId)setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Could not save attendance');}
   finally{setSaving(false);}
  }
  if(!selectedSchool)return <div><PageHeader title="Daily Attendance"/><Card className="p-6">Select a school first.</Card></div>;

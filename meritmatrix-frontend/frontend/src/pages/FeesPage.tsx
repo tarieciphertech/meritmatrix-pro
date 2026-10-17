@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { AcademicYearResponse, StudentResponse, TermResponse } from '../types';
@@ -30,17 +30,27 @@ export default function FeesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  const loadRequestIdRef = useRef(0);
 
   const load = useCallback(async () => {
-    if (!selectedSchool) { setStudents([]); setYears([]); setTerms([]); setCharges([]); setPayments([]); return; }
+    if (!selectedSchool) {
+      setStudents([]); setYears([]); setTerms([]); setCharges([]); setPayments([]);
+      setLoading(false);
+      return;
+    }
+    const requestSchoolId = selectedSchool.id;
+    const requestId = ++loadRequestIdRef.current;
+    setStudents([]); setYears([]); setTerms([]); setCharges([]); setPayments([]);
     setLoading(true); setError(null);
     try {
       const [studentRows, yearRows, chargeRows, paymentRows] = await Promise.all([
-        api.get<StudentResponse[]>('/api/v1/students', { school_id: selectedSchool.id }),
-        api.get<AcademicYearResponse[]>('/api/v1/academic-years', { school_id: selectedSchool.id }),
-        api.get<Charge[]>('/api/v1/fees/charges', { school_id: selectedSchool.id }),
-        api.get<Payment[]>('/api/v1/fees/payments', { school_id: selectedSchool.id }),
+        api.get<StudentResponse[]>('/api/v1/students', { school_id: requestSchoolId }),
+        api.get<AcademicYearResponse[]>('/api/v1/academic-years', { school_id: requestSchoolId }),
+        api.get<Charge[]>('/api/v1/fees/charges', { school_id: requestSchoolId }),
+        api.get<Payment[]>('/api/v1/fees/payments', { school_id: requestSchoolId }),
       ]);
+      if (activeSchoolIdRef.current !== requestSchoolId || loadRequestIdRef.current !== requestId) return;
       setStudents(studentRows.filter(s => s.is_active));
       setYears(yearRows.filter(y => y.is_active));
       setCharges(chargeRows);
@@ -48,13 +58,30 @@ export default function FeesPage() {
       setStudentId(current => studentRows.some(s => s.id === current && s.is_active) ? current : studentRows.find(s => s.is_active)?.id ?? '');
       setYearId(current => yearRows.some(y => y.id === current && y.is_active) ? current : yearRows.find(y => y.is_current)?.id ?? yearRows.find(y => y.is_active)?.id ?? '');
       const groups = await Promise.all(yearRows.map(y => api.get<TermResponse[]>('/api/v1/terms', { academic_year_id: y.id }).catch(() => [] as TermResponse[])));
+      if (activeSchoolIdRef.current !== requestSchoolId || loadRequestIdRef.current !== requestId) return;
       const termRows = groups.flat().filter(t => t.is_active);
       setTerms(termRows);
       setTermId(current => termRows.some(t => t.id === current) ? current : termRows.find(t => t.is_current)?.id ?? '');
       setChargeId(current => chargeRows.some(c => c.id === current && c.balance > 0) ? current : chargeRows.find(c => c.balance > 0)?.id ?? '');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load fee records.'); }
-    finally { setLoading(false); }
+    } catch (e) {
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) {
+        setStudents([]); setYears([]); setTerms([]); setCharges([]); setPayments([]);
+        setError(e instanceof Error ? e.message : 'Could not load fee records.');
+      }
+    } finally {
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) setLoading(false);
+    }
   }, [selectedSchool]);
+
+  useEffect(() => {
+    activeSchoolIdRef.current = selectedSchool?.id ?? null;
+    loadRequestIdRef.current += 1;
+    setStudents([]); setYears([]); setTerms([]); setCharges([]); setPayments([]);
+    setStudentId(''); setYearId(''); setTermId(''); setChargeId('');
+    setDescription(''); setAmount(''); setDueDate(''); setPaymentAmount(''); setPaymentDate(today()); setMethod('cash'); setReference('');
+    setError(null); setNotice('');
+  }, [selectedSchool?.id]);
+
   useEffect(() => { void load(); }, [load]);
 
   async function createCharge() {

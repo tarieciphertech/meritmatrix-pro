@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { ClassResponse, ClassSubjectResponse, StaffResponse } from '../types';
@@ -11,7 +11,32 @@ const initial:Form = {staff_id:'',class_subject_id:'',start_date:today,end_date:
 
 export default function TeachingAssignmentsPage() {
  const {selectedSchool}=useSchool(); const [staff,setStaff]=useState<StaffResponse[]>([]); const [classes,setClasses]=useState<ClassResponse[]>([]); const [pairs,setPairs]=useState<ClassSubjectResponse[]>([]); const [items,setItems]=useState<Assignment[]>([]); const [form,setForm]=useState<Form>(initial); const [show,setShow]=useState(false); const [loading,setLoading]=useState(false); const [saving,setSaving]=useState(false); const [error,setError]=useState<string|null>(null); const [notice,setNotice]=useState('');
- const load=useCallback(async()=>{if(!selectedSchool){setStaff([]);setClasses([]);setPairs([]);setItems([]);return;}setLoading(true);setError(null);try{const [s,c,a]=await Promise.all([api.get<StaffResponse[]>('/api/v1/staff',{school_id:selectedSchool.id,limit:200}),api.get<ClassResponse[]>('/api/v1/classes',{school_id:selectedSchool.id}),api.get<Assignment[]>('/api/v1/teaching-assignments',{school_id:selectedSchool.id})]);const groups=await Promise.all(c.map(x=>api.get<ClassSubjectResponse[]>('/api/v1/class-subjects',{class_id:x.id}).catch(()=>[] as ClassSubjectResponse[])));setStaff(s.filter(x=>x.is_active&&x.employment_status==='active'));setClasses(c.filter(x=>x.is_active));setPairs(groups.flat());setItems(a);}catch(e){setError(e instanceof Error?e.message:'Could not load assignments');}finally{setLoading(false);}},[selectedSchool]);
+ const activeSchoolIdRef=useRef<string|null>(selectedSchool?.id??null); const loadRequestIdRef=useRef(0);
+ const load=useCallback(async()=>{
+  if(!selectedSchool){setStaff([]);setClasses([]);setPairs([]);setItems([]);setLoading(false);return;}
+  const requestSchoolId=selectedSchool.id; const requestId=++loadRequestIdRef.current;
+  setStaff([]);setClasses([]);setPairs([]);setItems([]);setLoading(true);setError(null);
+  try{
+   const [staffRows,classRows,assignmentRows]=await Promise.all([
+    api.get<StaffResponse[]>('/api/v1/staff',{school_id:requestSchoolId,limit:200}),
+    api.get<ClassResponse[]>('/api/v1/classes',{school_id:requestSchoolId}),
+    api.get<Assignment[]>('/api/v1/teaching-assignments',{school_id:requestSchoolId}),
+   ]);
+   if(activeSchoolIdRef.current!==requestSchoolId||loadRequestIdRef.current!==requestId)return;
+   const groups=await Promise.all(classRows.map(c=>api.get<ClassSubjectResponse[]>('/api/v1/class-subjects',{class_id:c.id}).catch(()=>[] as ClassSubjectResponse[])));
+   if(activeSchoolIdRef.current!==requestSchoolId||loadRequestIdRef.current!==requestId)return;
+   setStaff(staffRows.filter(x=>x.is_active&&x.employment_status==='active'));
+   setClasses(classRows.filter(x=>x.is_active));setPairs(groups.flat());setItems(assignmentRows);
+  }catch(e){
+   if(activeSchoolIdRef.current===requestSchoolId&&loadRequestIdRef.current===requestId){setStaff([]);setClasses([]);setPairs([]);setItems([]);setError(e instanceof Error?e.message:'Could not load assignments');}
+  }finally{
+   if(activeSchoolIdRef.current===requestSchoolId&&loadRequestIdRef.current===requestId)setLoading(false);
+  }
+ },[selectedSchool]);
+ useEffect(()=>{
+  activeSchoolIdRef.current=selectedSchool?.id??null;loadRequestIdRef.current+=1;
+  setStaff([]);setClasses([]);setPairs([]);setItems([]);setForm({...initial,start_date:today});setShow(false);setError(null);setNotice('');
+ },[selectedSchool?.id]);
  useEffect(()=>{void load();},[load]);
  async function submit(e:FormEvent){e.preventDefault();if(!selectedSchool)return;setSaving(true);setError(null);try{await api.post('/api/v1/teaching-assignments',{staff_id:form.staff_id,class_subject_id:form.class_subject_id,start_date:form.start_date,end_date:form.end_date||null,is_primary:form.is_primary,notes:form.notes||null},{school_id:selectedSchool.id});setForm({...initial,start_date:today});setShow(false);setNotice('Teacher assigned successfully.');await load();}catch(e){setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Could not assign teacher');}finally{setSaving(false);}}
  async function end(item:Assignment){if(!window.confirm('End this teaching assignment?'))return;try{await api.delete('/api/v1/teaching-assignments/'+item.id);await load();}catch(e){setError(e instanceof Error?e.message:'Could not end assignment');}}

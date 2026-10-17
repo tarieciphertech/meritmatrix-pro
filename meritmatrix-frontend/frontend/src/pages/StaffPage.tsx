@@ -2,7 +2,7 @@
 // selected school. Requires a selected school (school_id query param).
 // Uses GET/POST /api/v1/staff?school_id=..., PATCH/DELETE /api/v1/staff/{id}.
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { EmploymentStatus, StaffAccountResponse, StaffCreate, StaffResponse, StaffUpdate } from '../types';
@@ -64,26 +64,47 @@ export default function StaffPage() {
   const [form, setForm] = useState<StaffForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  const loadRequestIdRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!selectedSchool) {
       setStaffList([]);
+      setLoading(false);
       return;
     }
+    const requestSchoolId = selectedSchool.id;
+    const requestId = ++loadRequestIdRef.current;
+    setStaffList([]);
     setLoading(true);
     setError(null);
     try {
       const list = await api.get<StaffResponse[]>('/api/v1/staff', {
-        school_id: selectedSchool.id,
+        school_id: requestSchoolId,
         limit: 200,
       });
+      if (activeSchoolIdRef.current !== requestSchoolId || loadRequestIdRef.current !== requestId) return;
       setStaffList(list);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load staff');
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) {
+        setStaffList([]);
+        setError(err instanceof Error ? err.message : 'Failed to load staff');
+      }
     } finally {
-      setLoading(false);
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) setLoading(false);
     }
   }, [selectedSchool]);
+
+  useEffect(() => {
+    activeSchoolIdRef.current = selectedSchool?.id ?? null;
+    loadRequestIdRef.current += 1;
+    setStaffList([]);
+    setError(null);
+    setModalOpen(false);
+    setEditingStaff(null);
+    setForm(emptyForm);
+    setFormError(null);
+  }, [selectedSchool?.id]);
 
   useEffect(() => {
     void load();
