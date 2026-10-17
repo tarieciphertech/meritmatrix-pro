@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { SchoolCreate, SchoolResponse, SchoolUpdate } from '../types';
+import { INSTITUTION_TYPES, type InstitutionType, type SchoolCreate, type SchoolResponse, type SchoolUpdate } from '../types';
 import {
   Badge,
   Button,
@@ -35,6 +35,8 @@ const emptyForm: SchoolCreate = {
   address: '',
   city: '',
   country: '',
+  country_code: 'ZW',
+  institution_type: 'secondary',
   phone: '',
   email: '',
   website: '',
@@ -99,6 +101,8 @@ export default function SchoolsPage() {
       address: school.address ?? '',
       city: school.city ?? '',
       country: school.country ?? '',
+      country_code: school.country_code ?? undefined,
+      institution_type: school.institution_type ?? undefined,
       phone: school.phone ?? '',
       email: school.email ?? '',
       website: school.website ?? '',
@@ -111,7 +115,7 @@ export default function SchoolsPage() {
   }
 
   function setField(key: keyof SchoolCreate, value: string) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value } as SchoolCreate));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -290,6 +294,20 @@ export default function SchoolsPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Institution type" required>
+              <select required value={form.institution_type ?? ''} onChange={(e) => setField('institution_type', e.target.value as InstitutionType)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+                <option value="">Choose school type…</option>
+                {INSTITUTION_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Country">
+              <select value={form.country_code ?? ''} onChange={(e) => { const code = e.target.value; setForm((prev) => ({ ...prev, country_code: code as SchoolCreate['country_code'], country: code === 'ZW' ? 'Zimbabwe' : code === 'BW' ? 'Botswana' : prev.country })); }} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+                <option value="">Choose country…</option><option value="ZW">Zimbabwe</option><option value="BW">Botswana</option>
+              </select>
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Registration Number">
               <Input
                 value={form.registration_number ?? ''}
@@ -319,20 +337,12 @@ export default function SchoolsPage() {
             />
           </Field>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="City">
-              <Input
-                value={form.city ?? ''}
-                onChange={(e) => setField('city', e.target.value)}
-              />
-            </Field>
-            <Field label="Country">
-              <Input
-                value={form.country ?? ''}
-                onChange={(e) => setField('country', e.target.value)}
-              />
-            </Field>
-          </div>
+          <Field label="City">
+            <Input
+              value={form.city ?? ''}
+              onChange={(e) => setField('city', e.target.value)}
+            />
+          </Field>
 
           <Field label="School logo URL">
             <Input
