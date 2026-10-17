@@ -40,7 +40,7 @@ export default function AttendancePage() {
  const loadClasses=useCallback(async()=>{
   if(!selectedSchool){setClasses([]);setClassId('');return;}
   const requestSchoolId=selectedSchool.id; const requestId=++classLoadRequestIdRef.current;
-  setClasses([]);setClassId('');
+  setClasses([]);
   try{
    const list=await api.get<ClassResponse[]>('/api/v1/classes',{school_id:requestSchoolId,on_date:day});
    if(activeSchoolIdRef.current!==requestSchoolId||classLoadRequestIdRef.current!==requestId)return;
