@@ -85,6 +85,7 @@ export default function SchoolsPage() {
   function openCreate() {
     setEditingSchool(null);
     setForm(emptyForm);
+    setAdminForm(emptyAdminForm);
     setFormError(null);
     setModalOpen(true);
   }
@@ -130,7 +131,22 @@ export default function SchoolsPage() {
         const updatePayload: SchoolUpdate = { ...payload };
         await api.patch<SchoolResponse>(`/api/v1/schools/${editingSchool.id}`, updatePayload);
       } else {
-        await api.post<SchoolResponse>('/api/v1/schools', payload);
+        if (!adminForm.first_name.trim() || !adminForm.last_name.trim() || !adminForm.email.trim()) {
+          setFormError('Enter the first school administrator details before creating the school.');
+          setSaving(false);
+          return;
+        }
+        if (adminForm.password.length < 12) {
+          setFormError('The school administrator temporary password must be at least 12 characters.');
+          setSaving(false);
+          return;
+        }
+        const result = await api.post<{ school: SchoolResponse; admin: { email: string; school_name: string } }>(
+          '/api/v1/schools/onboard',
+          { school: payload, admin: adminForm },
+        );
+        setAdminSuccess(`Created ${result.school.name} and its school administrator (${result.admin.email}). The administrator must change the temporary password at first sign-in.`);
+        setAdminForm(emptyAdminForm);
       }
       setModalOpen(false);
       await load();
@@ -341,6 +357,29 @@ export default function SchoolsPage() {
               placeholder="BWP"
             />
           </Field>
+
+          {!editingSchool && (
+            <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <h3 className="font-semibold text-slate-900">First school administrator</h3>
+                <p className="mt-1 text-sm text-slate-600">Every new school is created with its own administrator account. This account can manage only this school and must change its temporary password at first sign-in.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Administrator first name" required>
+                  <Input required value={adminForm.first_name} onChange={(e) => setAdminForm((v) => ({ ...v, first_name: e.target.value }))} autoComplete="given-name" />
+                </Field>
+                <Field label="Administrator last name" required>
+                  <Input required value={adminForm.last_name} onChange={(e) => setAdminForm((v) => ({ ...v, last_name: e.target.value }))} autoComplete="family-name" />
+                </Field>
+              </div>
+              <Field label="Administrator email / login" required>
+                <Input type="email" required value={adminForm.email} onChange={(e) => setAdminForm((v) => ({ ...v, email: e.target.value }))} autoComplete="email" />
+              </Field>
+              <Field label="Temporary password (12+ characters)" required>
+                <Input type="password" required minLength={12} maxLength={128} value={adminForm.password} onChange={(e) => setAdminForm((v) => ({ ...v, password: e.target.value }))} autoComplete="new-password" />
+              </Field>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>
