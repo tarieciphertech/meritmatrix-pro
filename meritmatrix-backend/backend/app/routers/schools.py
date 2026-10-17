@@ -50,6 +50,11 @@ def list_schools(
     """
     service = SchoolService(db)
 
+    # Platform super-admin retains cross-school visibility, even if also linked to a staff record.
+    from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
+    if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
+        return service.list_schools(limit=limit, offset=offset)
+
     # Linked staff can never widen their school boundary through extra membership rows.
     from app.models.staff import Staff
     staff = db.query(Staff).filter(Staff.user_id == current_user.id).first()
@@ -59,11 +64,6 @@ def list_schools(
         if school is None or not school.is_active:
             return []
         return [school][offset : offset + limit]
-
-    # Check if user is SUPER_ADMIN (has system.admin permission)
-    from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
-    if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
-        return service.list_schools(limit=limit, offset=offset)
     
     # Filter the complete membership set before applying pagination. Paginating
     # the global school list first can hide a user's assigned school when it falls
