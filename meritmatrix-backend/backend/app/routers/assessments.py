@@ -22,6 +22,7 @@ from app.models.user import User
 from app.schemas.assessment import AssessmentCreate, AssessmentResponse, AssessmentUpdate, MarkBatch, MarkResponse
 from app.schemas.grading_band import GradingBandResponse, GradingScaleReplace
 from app.services.user_school_service import UserSchoolService
+from app.services.audit_service import record_audit_event
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
@@ -126,6 +127,11 @@ def replace_grading_bands(
             raise ConflictError("Active grading bands must not overlap.", code="OVERLAPPING_GRADE_BANDS")
     db.query(GradingBand).filter(GradingBand.school_id == school_id).delete(synchronize_session=False)
     db.add_all([GradingBand(school_id=school_id, **band.model_dump()) for band in payload.bands])
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="grading_scale.replaced", entity_type="grading_scale",
+        details={"band_count": len(payload.bands), "grade_labels": [band.grade_label for band in payload.bands]},
+    )
     db.commit()
     return db.query(GradingBand).filter(GradingBand.school_id == school_id).order_by(GradingBand.display_order, GradingBand.min_percentage.desc()).all()
 
@@ -185,6 +191,11 @@ def create_assessment(
         marks_submitted=False,
     )
     db.add(assessment)
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="assessment.created", entity_type="assessment", entity_id=assessment.id,
+        details={"title": assessment.title, "class_subject_id": str(assessment.class_subject_id), "term_id": str(assessment.term_id)},
+    )
     try:
         db.commit()
     except IntegrityError:
@@ -233,6 +244,16 @@ def update_assessment(
     term = db.query(Term).filter(Term.id == assessment.term_id).first()
     if assessment.assessment_date and term and not (term.start_date <= assessment.assessment_date <= term.end_date):
         raise ConflictError("Assessment date must fall within the selected term.", code="ASSESSMENT_DATE_OUTSIDE_TERM")
+    action = (
+        "assessment.results_published" if changes.get("is_published") is True
+        else "assessment.results_unpublished" if changes.get("is_published") is False
+        else "assessment.updated"
+    )
+    record_audit_event(
+        db, school_id=assessment.school_id, actor_user_id=current_user.id,
+        action=action, entity_type="assessment", entity_id=assessment.id,
+        details={"title": assessment.title, "changed_fields": sorted(changes.keys())},
+    )
     db.commit()
     db.refresh(assessment)
     return _assessment_row(db, assessment.id)
@@ -285,6 +306,12 @@ def submit_marks_for_review(
             code="INCOMPLETE_MARKS",
         )
     assessment.marks_submitted = True
+    record_audit_event(
+        db, school_id=assessment.school_id, actor_user_id=current_user.id,
+        action="assessment.marks_submitted_for_review", entity_type="assessment",
+        entity_id=assessment.id,
+        details={"title": assessment.title, "marked_students": len(marked_ids)},
+    )
     db.commit()
     db.refresh(assessment)
     return _assessment_row(db, assessment.id)
@@ -305,6 +332,11 @@ def return_marks_to_draft(
     if assessment.is_published:
         raise ConflictError("Unpublish results before returning them to draft.", code="ASSESSMENT_PUBLISHED")
     assessment.marks_submitted = False
+    record_audit_event(
+        db, school_id=assessment.school_id, actor_user_id=current_user.id,
+        action="assessment.marks_returned_to_draft", entity_type="assessment",
+        entity_id=assessment.id, details={"title": assessment.title},
+    )
     db.commit()
     db.refresh(assessment)
     return _assessment_row(db, assessment.id)
@@ -414,6 +446,11 @@ def save_marks(
             else:
                 mark = AssessmentMark(assessment_id=assessment_id, enrollment_id=entry.enrollment_id, score=entry.score, remarks=entry.remarks, marked_by_user_id=current_user.id)
                 db.add(mark)
+        record_audit_event(
+            db, school_id=assessment.school_id, actor_user_id=current_user.id,
+            action="assessment.marks_saved", entity_type="assessment", entity_id=assessment.id,
+            details={"title": assessment.title, "submitted_mark_count": len(payload.marks)},
+        )
         db.commit()
     except IntegrityError:
         db.rollback()
