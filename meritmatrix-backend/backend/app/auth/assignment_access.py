@@ -10,8 +10,10 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.models.class_subject import ClassSubject
+from app.models.clazz import Class
 from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.models.staff import Staff
+from app.models.subject import Subject
 from app.models.student import Student
 from app.models.teaching_assignment import TeachingAssignment
 from app.models.user import User
@@ -75,7 +77,6 @@ def assigned_student_ids(
         return set()
     rows = (
         db.query(Enrollment.student_id)
-        .join(Staff, Staff.school_id == school_id) if False else db.query(Enrollment.student_id)
         .join(Class, Class.id == Enrollment.class_id)
         .join(Student, Student.id == Enrollment.student_id)
         .filter(
