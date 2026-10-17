@@ -9,6 +9,7 @@ from app.models.guardian import Guardian
 from app.models.student import Student
 from app.models.student_guardian import StudentGuardian
 from app.models.user import User
+from app.models.role import Role
 from app.models.user_notification import UserNotification
 
 
@@ -51,9 +52,18 @@ def notify_guardians(
         identity_filters = [User.guardian_id == guardian_id]
         if guardian_email and guardian_email.strip():
             identity_filters.append(func.lower(func.trim(User.email)) == guardian_email.strip().lower())
+        # Only guardian/legacy-parent identities may receive school-family
+        # notifications. Email equality alone must not notify a staff account
+        # that happens to share a guardian record's email address.
         users = (
             db.query(User)
-            .filter(User.is_active.is_(True), or_(*identity_filters))
+            .join(User.roles)
+            .filter(
+                User.is_active.is_(True),
+                Role.name.in_({"GUARDIAN", "PARENT"}),
+                or_(*identity_filters),
+            )
+            .distinct()
             .all()
         )
         users_by_guardian[guardian_id] = users
