@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import require_staff_school_scope
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, _role_names, require_permission
 from app.auth.assignment_access import assigned_class_subject_ids, require_class_subject_assignment
 from app.database import get_db
@@ -32,6 +33,7 @@ grading_router = APIRouter(prefix="/api/v1/grading-scales", tags=["grading-scale
 
 
 def _school_access(db: Session, user: User, school_id: uuid.UUID) -> None:
+    require_staff_school_scope(db, user, school_id)
     if SYSTEM_ADMIN_PERMISSION in _permission_names(user):
         return
     if not UserSchoolService(db).is_user_member_of_school(user.id, school_id):
