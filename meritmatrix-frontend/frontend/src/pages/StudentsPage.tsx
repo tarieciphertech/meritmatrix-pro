@@ -2,7 +2,7 @@
 // selected school. Requires a selected school (school_id query param).
 // Uses GET/POST /api/v1/students?school_id=..., PATCH/DELETE /api/v1/students/{id}.
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import { useAuth } from '../lib/auth';
@@ -70,27 +70,35 @@ export default function StudentsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [guardianStudent, setGuardianStudent] = useState<StudentResponse | null>(null);
   const [viewingStudent, setViewingStudent] = useState<StudentResponse | null>(null);
+  const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  const loadRequestIdRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!selectedSchool) {
       setStudents([]);
+      setLoading(false);
       return;
     }
+    const requestSchoolId = selectedSchool.id;
+    const requestId = ++loadRequestIdRef.current;
     // Never leave the previous school's student data visible during a school switch.
     setStudents([]);
     setLoading(true);
     setError(null);
     try {
       const list = await api.get<StudentResponse[]>('/api/v1/students', {
-        school_id: selectedSchool.id,
+        school_id: requestSchoolId,
         limit: 200,
       });
+      if (activeSchoolIdRef.current !== requestSchoolId || loadRequestIdRef.current !== requestId) return;
       setStudents(list);
     } catch (err) {
-      setStudents([]);
-      setError(err instanceof Error ? err.message : 'Failed to load students');
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) {
+        setStudents([]);
+        setError(err instanceof Error ? err.message : 'Failed to load students');
+      }
     } finally {
-      setLoading(false);
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) setLoading(false);
     }
   }, [selectedSchool]);
 
@@ -99,6 +107,10 @@ export default function StudentsPage() {
   }, [load]);
 
   useEffect(() => {
+    activeSchoolIdRef.current = selectedSchool?.id ?? null;
+    loadRequestIdRef.current += 1;
+    setStudents([]);
+    setError(null);
     setModalOpen(false);
     setEditingStudent(null);
     setForm(emptyForm);
