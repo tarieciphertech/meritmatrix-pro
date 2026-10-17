@@ -213,9 +213,13 @@ def test_marks_must_be_submitted_for_review_before_publication(
             "assessment_date": "2026-10-17",
             "max_score": 100,
             "weight_percent": 100,
+            # Even a client attempting to publish during creation must be ignored.
+            "is_published": True,
         },
     )
     assert created.status_code == 201, created.text
+    assert created.json()["is_published"] is False
+    assert created.json()["marks_submitted"] is False
     assessment_id = created.json()["id"]
 
     premature_publish = client.patch(
