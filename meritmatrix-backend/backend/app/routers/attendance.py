@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
-from app.auth.assignment_access import assigned_class_ids, require_class_assignment
+from app.auth.assignment_access import assigned_class_ids, require_class_assignment, require_student_assignment
 from app.database import get_db
 from app.models.academic_year import AcademicYear
 from app.models.attendance_record import AttendanceRecord
@@ -44,6 +44,56 @@ def _record_response(record: AttendanceRecord) -> dict:
         "student_id": student.id, "student_number": student.student_number,
         "student_name": " ".join(part for part in [student.first_name, student.middle_name, student.last_name] if part),
         "class_id": clazz.id, "class_name": clazz.name, "class_code": clazz.code,
+    }
+
+
+@router.get("/summary", response_model=dict)
+def student_attendance_summary(
+    school_id: uuid.UUID = Query(...),
+    student_id: uuid.UUID = Query(...),
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("attendance.read")),
+):
+    """Summarize a student's recorded attendance within a report-card period."""
+    _verify_school_access(db, current_user, school_id)
+    if start_date > end_date:
+        raise ConflictError("Start date must be on or before end date.", code="INVALID_ATTENDANCE_PERIOD")
+    student = db.query(Student).filter(Student.id == student_id, Student.school_id == school_id).first()
+    if not student:
+        raise NotFoundError("Student not found in this school.", code="STUDENT_NOT_FOUND")
+    require_student_assignment(db, current_user, school_id, student_id, end_date)
+
+    records = (
+        db.query(AttendanceRecord)
+        .join(Enrollment, Enrollment.id == AttendanceRecord.enrollment_id)
+        .filter(
+            Enrollment.student_id == student_id,
+            AttendanceRecord.school_id == school_id,
+            AttendanceRecord.attendance_date >= start_date,
+            AttendanceRecord.attendance_date <= end_date,
+        )
+        .order_by(AttendanceRecord.attendance_date.desc(), AttendanceRecord.session.asc())
+        .all()
+    )
+    counts = {
+        status: sum(1 for record in records if record.status == status)
+        for status in ("present", "absent", "late", "excused", "sick", "left_early")
+    }
+    total = len(records)
+    return {
+        "school_id": str(school_id),
+        "student_id": str(student_id),
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "total_marked": total,
+        **counts,
+        "attendance_rate": round(100 * counts["present"] / total, 1) if total else None,
+        "recent_records": [
+            {"date": record.attendance_date.isoformat(), "session": record.session, "status": record.status}
+            for record in records[:10]
+        ],
     }
 
 
