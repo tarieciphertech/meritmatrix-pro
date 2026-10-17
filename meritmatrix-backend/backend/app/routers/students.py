@@ -5,6 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import require_staff_school_scope
 from app.auth.assignment_access import assigned_student_ids, require_student_assignment, deny_linked_staff_management
 from app.auth.dependencies import (
     get_current_active_user,
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/api/v1/students", tags=["students"])
 
 
 def _verify_school_membership(db: Session, current_user: User, school_id: uuid.UUID) -> None:
+    require_staff_school_scope(db, current_user, school_id)
     """Verify user has access to the given school. Raises 403 if not."""
     if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
         return
