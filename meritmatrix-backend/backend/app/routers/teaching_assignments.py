@@ -17,6 +17,7 @@ from app.models.teaching_assignment import TeachingAssignment
 from app.models.user import User
 from app.schemas.teaching_assignment import TeachingAssignmentCreate, TeachingAssignmentResponse, TeachingAssignmentUpdate
 from app.services.user_school_service import UserSchoolService
+from app.services.audit_service import record_audit_event
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/teaching-assignments", tags=["teaching-assignments"])
@@ -99,6 +100,15 @@ def create_assignment(
         raise ConflictError("Assignment end date must be on or after its start date.", code="INVALID_ASSIGNMENT_DATES")
     assignment = TeachingAssignment(school_id=school_id, **payload.model_dump())
     db.add(assignment)
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="teaching_assignment.created", entity_type="teaching_assignment", entity_id=assignment.id,
+        details={
+            "staff_id": str(staff.id), "class_subject_id": str(class_subject.id),
+            "start_date": payload.start_date.isoformat(),
+            "end_date": payload.end_date.isoformat() if payload.end_date else None,
+        },
+    )
     db.commit()
     db.refresh(assignment)
     return _assignment(db, assignment.id)
@@ -115,10 +125,16 @@ def update_assignment(
     if not assignment:
         raise NotFoundError("Teaching assignment not found.", code="TEACHING_ASSIGNMENT_NOT_FOUND")
     _verify_school_access(db, current_user, assignment.school_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    for field, value in changes.items():
         setattr(assignment, field, value)
     if assignment.end_date and assignment.end_date < assignment.start_date:
         raise ConflictError("Assignment end date must be on or after its start date.", code="INVALID_ASSIGNMENT_DATES")
+    record_audit_event(
+        db, school_id=assignment.school_id, actor_user_id=current_user.id,
+        action="teaching_assignment.updated", entity_type="teaching_assignment", entity_id=assignment.id,
+        details={"changed_fields": sorted(changes.keys()), "staff_id": str(assignment.staff_id), "class_subject_id": str(assignment.class_subject_id)},
+    )
     db.commit()
     return _assignment(db, assignment.id)
 
@@ -135,5 +151,10 @@ def deactivate_assignment(
     _verify_school_access(db, current_user, assignment.school_id)
     assignment.is_active = False
     assignment.end_date = assignment.end_date or date.today()
+    record_audit_event(
+        db, school_id=assignment.school_id, actor_user_id=current_user.id,
+        action="teaching_assignment.deactivated", entity_type="teaching_assignment", entity_id=assignment.id,
+        details={"staff_id": str(assignment.staff_id), "class_subject_id": str(assignment.class_subject_id), "end_date": assignment.end_date.isoformat()},
+    )
     db.commit()
     return _assignment(db, assignment.id)
