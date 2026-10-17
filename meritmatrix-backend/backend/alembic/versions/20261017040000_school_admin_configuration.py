@@ -65,6 +65,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     permissions = sa.table("permissions", sa.column("id", sa.Uuid(as_uuid=True)), sa.column("name", sa.String()))
+    roles = sa.table("roles", sa.column("id", sa.Uuid(as_uuid=True)), sa.column("name", sa.String()))
     role_permissions = sa.table(
         "role_permissions",
         sa.column("role_id", sa.Uuid(as_uuid=True)),
