@@ -351,3 +351,90 @@ def test_school_admin_account_cannot_be_created_twice_for_same_school(
     )
     assert duplicate.status_code == 409, duplicate.text
     assert duplicate.json()["error"]["code"] == "SCHOOL_ADMIN_EXISTS"
+
+
+
+def test_school_admin_cannot_access_global_user_directory(
+    client, auth_headers, make_user, seeded_rbac, school_a
+):
+    make_user(email="scoped-admin@example.com", password="StrongPass123", role_name="SCHOOL_ADMIN")
+    from app.models.user import User
+    from app.models.user_school import UserSchool
+    # Attach this administrator to exactly one school.
+    admin = client.post(
+        f"/api/v1/schools/{school_a}/admin-account",
+        headers=auth_headers("platform-provisioner@example.com", "StrongPass123"),
+        json={
+            "first_name": "Scoped", "last_name": "Administrator",
+            "email": "scoped-admin@example.com", "password": "InitialPassword123!",
+        },
+    )
+    # The endpoint is deliberately reserved for SUPER_ADMIN; create the scoped
+    # account through the standard fixture if no provisioner was seeded.
+    if admin.status_code == 401:
+        make_user(email="platform-provisioner@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+        admin = client.post(
+            f"/api/v1/schools/{school_a}/admin-account",
+            headers=auth_headers("platform-provisioner@example.com", "StrongPass123"),
+            json={
+                "first_name": "Scoped", "last_name": "Administrator",
+                "email": "scoped-admin@example.com", "password": "InitialPassword123!",
+            },
+        )
+    assert admin.status_code in (201, 409), admin.text
+    headers = auth_headers("scoped-admin@example.com", "InitialPassword123!")
+    current_user = client.get("/api/v1/auth/me", headers=headers)
+    assert current_user.status_code == 200, current_user.text
+    # This account starts with a required password change, so its global data
+    # access remains blocked until onboarding is completed.
+    change = client.post(
+        "/api/v1/auth/change-password",
+        headers=headers,
+        json={"current_password": "InitialPassword123!", "new_password": "ChangedPassword123!"},
+    )
+    assert change.status_code in (200, 204), change.text
+    headers = auth_headers("scoped-admin@example.com", "ChangedPassword123!")
+    users = client.get("/api/v1/users", headers=headers)
+    assert users.status_code == 403, users.text
+
+
+def test_multi_school_admin_is_hidden_from_super_admin_roster(
+    client, auth_headers, make_user, seeded_rbac, school_a, school_b, db_session
+):
+    from app.models.user import User
+    from app.models.user_school import UserSchool
+
+    make_user(email="malformed-admin@example.com", password="StrongPass123", role_name="SCHOOL_ADMIN")
+    malformed = db_session.query(User).filter(User.email == "malformed-admin@example.com").one()
+    db_session.add_all([
+        UserSchool(user_id=malformed.id, school_id=school_a, school_role="SCHOOL_ADMIN"),
+        UserSchool(user_id=malformed.id, school_id=school_b, school_role="SCHOOL_ADMIN"),
+    ])
+    db_session.commit()
+
+    make_user(email="roster-super@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    response = client.get(
+        "/api/v1/schools/admin-accounts",
+        headers=auth_headers("roster-super@example.com", "StrongPass123"),
+    )
+    assert response.status_code == 200, response.text
+    assert all(row["email"] != "malformed-admin@example.com" for row in response.json())
+
+
+def test_school_admin_membership_service_rejects_a_second_school(
+    make_user, seeded_rbac, school_a, school_b, db_session
+):
+    from app.models.user_school import UserSchool
+    from app.services.user_school_service import UserSchoolService
+    from app.utils.errors import ConflictError
+
+    admin = make_user(email="single-school-admin@example.com", role_name="SCHOOL_ADMIN")
+    db_session.add(UserSchool(user_id=admin.id, school_id=school_a, school_role="SCHOOL_ADMIN"))
+    db_session.commit()
+
+    service = UserSchoolService(db_session)
+    with pytest.raises(ConflictError) as exc:
+        service.add_user_to_school(admin.id, school_b, school_role="SCHOOL_ADMIN")
+    assert exc.value.code == "SCHOOL_ADMIN_SINGLE_SCHOOL"
+    assert service.is_user_member_of_school(admin.id, school_a) is True
+    assert service.is_user_member_of_school(admin.id, school_b) is False
