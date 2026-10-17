@@ -2,7 +2,7 @@
 // selected school. Requires a selected school (school_id query param).
 // Uses GET/POST /api/v1/guardians?school_id=..., PATCH/DELETE /api/v1/guardians/{id}.
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { GuardianCreate, GuardianResponse, GuardianUpdate } from '../types';
@@ -43,28 +43,40 @@ export default function GuardiansPage() {
   const [form, setForm] = useState<GuardianCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  const loadRequestIdRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!selectedSchool) {
       setGuardians([]);
+      setLoading(false);
       return;
     }
+    const requestSchoolId = selectedSchool.id;
+    const requestId = ++loadRequestIdRef.current;
+    setGuardians([]);
     setLoading(true);
     setError(null);
     try {
       const list = await api.get<GuardianResponse[]>('/api/v1/guardians', {
-        school_id: selectedSchool.id,
+        school_id: requestSchoolId,
         limit: 200,
       });
+      if (activeSchoolIdRef.current !== requestSchoolId || loadRequestIdRef.current !== requestId) return;
       setGuardians(list);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load guardians');
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) {
+        setGuardians([]);
+        setError(err instanceof Error ? err.message : 'Failed to load guardians');
+      }
     } finally {
-      setLoading(false);
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) setLoading(false);
     }
   }, [selectedSchool]);
 
   async function handleCreateAccount(guardian: GuardianResponse) {
+    const requestSchoolId = selectedSchool?.id;
+    if (!requestSchoolId || guardian.school_id !== requestSchoolId) return;
     const confirmed = window.confirm(
       `Before generating a login code, confirm you have verified ${guardian.first_name} ${guardian.last_name}'s identity in person. The code will be shown once and expires in 24 hours.`,
     );
@@ -78,6 +90,7 @@ export default function GuardiansPage() {
         expires_at: string;
         instructions: string;
       }>(`/api/v1/guardian-accounts/${guardian.id}/create`);
+      if (activeSchoolIdRef.current !== requestSchoolId) return;
       window.alert(
         `Guardian account prepared for ${result.guardian_name}\nPhone: ${result.phone}\n\nONE-TIME ACTIVATION CODE (expires ${new Date(result.expires_at).toLocaleString()}):\n${result.activation_code}\n\nGive this code directly to the verified guardian. They must open /activate-guardian on MeritMatrix Pro and choose their own password. Do not reuse or publish this code.`,
       );
@@ -85,6 +98,17 @@ export default function GuardiansPage() {
       setError(err instanceof ApiError ? err.message : 'Failed to create guardian account');
     }
   }
+
+  useEffect(() => {
+    activeSchoolIdRef.current = selectedSchool?.id ?? null;
+    loadRequestIdRef.current += 1;
+    setGuardians([]);
+    setError(null);
+    setModalOpen(false);
+    setEditingGuardian(null);
+    setForm(emptyForm);
+    setFormError(null);
+  }, [selectedSchool?.id]);
 
   useEffect(() => {
     void load();
