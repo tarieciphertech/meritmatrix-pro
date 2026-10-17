@@ -179,12 +179,22 @@ export default function AssessmentsPage() {
   async function submitMarksForReview() {
     const assessment = assessments.find(x => x.id === assessmentId);
     if (!assessment || assessment.is_published || assessment.marks_submitted) return;
-    if (!window.confirm('Submit these marks for school administrator verification? The marks will be locked until an administrator returns them to draft.')) return;
+    if (roster.length === 0 || roster.some(row => row.score === null || !Number.isFinite(Number(row.score)))) {
+      setError('Enter a score for every active student before submitting for verification.');
+      return;
+    }
+    if (!window.confirm('Save the current marks and submit them for school administrator verification? The marks will be locked until an administrator returns them to draft.')) return;
     setSaving(true); setError(null); setNotice('');
     try {
+      const marks = roster.map(row => ({
+        enrollment_id: row.enrollment_id,
+        score: Number(row.score),
+        remarks: row.remarks || null,
+      }));
+      await api.put('/api/v1/assessments/' + assessmentId + '/marks', { marks });
       const updated = await api.post<Assessment>('/api/v1/assessments/' + assessmentId + '/submit-for-review', {});
       setAssessments(current => current.map(item => item.id === updated.id ? updated : item));
-      setNotice('Marks submitted for verification. They will not be visible to guardians until an administrator publishes the verified results.');
+      setNotice('Current marks saved and submitted for verification. They will not be visible to guardians until an administrator publishes the verified results.');
       await loadRosterAndResults();
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not submit marks for verification.'); }
     finally { setSaving(false); }
