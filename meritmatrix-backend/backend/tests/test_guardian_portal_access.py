@@ -92,3 +92,120 @@ def test_guardian_portal_does_not_discover_students_from_an_unbound_account(
     assert schools_response.json() == []
     assert students_response.status_code == 200, students_response.text
     assert students_response.json() == []
+
+
+
+def test_guardian_portal_shows_only_published_results_attendance_and_fee_balance(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    from datetime import date
+    from decimal import Decimal
+
+    from app.models.academic_year import AcademicYear
+    from app.models.assessment import Assessment, AssessmentMark
+    from app.models.attendance_record import AttendanceRecord
+    from app.models.class_subject import ClassSubject
+    from app.models.clazz import Class
+    from app.models.enrollment import Enrollment, EnrollmentStatus
+    from app.models.fee import FeeCharge, FeePayment
+    from app.models.grading_band import GradingBand
+    from app.models.subject import Subject
+    from app.models.term import Term
+
+    school = School(
+        name="Progress Portal School", code="PPS001", city="Gaborone",
+        country="Botswana", currency="BWP", is_active=True,
+    )
+    db_session.add(school)
+    db_session.flush()
+    guardian = Guardian(
+        school_id=school.id, first_name="Boitumelo", last_name="Parent",
+        phone="+26774444444", email="progress-parent@example.com", is_active=True,
+    )
+    student = Student(
+        school_id=school.id, student_number="PPS-STU-1",
+        first_name="Naledi", last_name="Student", status="active", is_active=True,
+    )
+    year = AcademicYear(
+        school_id=school.id, name="2026", start_date=date(2026, 1, 1),
+        end_date=date(2026, 12, 31), is_current=True, is_active=True,
+    )
+    clazz = Class(school_id=school.id, name="Form 1", code="F1", level=1, is_active=True)
+    subject = Subject(school_id=school.id, name="Mathematics", code="MATH", is_active=True)
+    db_session.add_all([guardian, student, year, clazz, subject])
+    db_session.flush()
+    relationship = StudentGuardian(
+        student_id=student.id, guardian_id=guardian.id,
+        relationship_type="mother", is_primary=True, receives_notifications=True,
+    )
+    term = Term(
+        academic_year_id=year.id, name="Term 3", term_number=3,
+        start_date=date(2026, 9, 1), end_date=date(2026, 12, 31),
+        is_current=True, is_active=True,
+    )
+    class_subject = ClassSubject(class_id=clazz.id, subject_id=subject.id)
+    db_session.add_all([relationship, term, class_subject])
+    db_session.flush()
+    enrollment = Enrollment(
+        student_id=student.id, academic_year_id=year.id, class_id=clazz.id,
+        enrollment_date=date(2026, 1, 12), status=EnrollmentStatus.ACTIVE,
+    )
+    db_session.add(enrollment)
+    db_session.flush()
+    assessment = Assessment(
+        school_id=school.id, class_subject_id=class_subject.id, term_id=term.id,
+        title="Mathematics Test", assessment_type="test", assessment_date=date(2026, 10, 1),
+        max_score=100, weight_percent=100, is_published=True, marks_submitted=True,
+    )
+    band = GradingBand(
+        school_id=school.id, grade_label="A", min_percentage=80,
+        max_percentage=100, comment="Excellent", display_order=1, is_active=True,
+    )
+    charge = FeeCharge(
+        school_id=school.id, student_id=student.id, academic_year_id=year.id,
+        term_id=term.id, description="Term 3 tuition", amount=Decimal("1000.00"),
+        due_date=date(2026, 10, 1), is_void=False,
+    )
+    db_session.add_all([assessment, band, charge])
+    db_session.flush()
+    db_session.add_all([
+        AssessmentMark(
+            assessment_id=assessment.id, enrollment_id=enrollment.id,
+            score=90, remarks="Very good",
+        ),
+        AttendanceRecord(
+            school_id=school.id, enrollment_id=enrollment.id,
+            attendance_date=date(2026, 10, 2), session="full_day", status="present",
+        ),
+        FeePayment(
+            school_id=school.id, student_id=student.id, charge_id=charge.id,
+            payment_date=date(2026, 10, 3), amount=Decimal("400.00"),
+            method="cash", reference="PPS-PAY-1",
+        ),
+    ])
+    user = make_user(
+        email="progress-parent@example.com", password="StrongPass123",
+        role_name="GUARDIAN", first_name="Boitumelo", last_name="Parent",
+    )
+    user.guardian_id = guardian.id
+    db_session.commit()
+
+    headers = auth_headers("progress-parent@example.com", "StrongPass123")
+    response = client.get(
+        f"/api/v1/guardian-portal/students?school_id={school.id}",
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert len(data) == 1
+    record = data[0]
+    assert record["student_number"] == "PPS-STU-1"
+    assert record["subjects"][0]["name"] == "Mathematics"
+    assert record["academic_results"][0]["assessment_title"] == "Mathematics Test"
+    assert record["academic_results"][0]["grade_label"] == "A"
+    assert record["attendance"]["present"] == 1
+    assert record["attendance"]["attendance_rate"] == 100.0
+    assert record["fee_summary"]["currency"] == "BWP"
+    assert record["fee_summary"]["charges_total"] == 1000.0
+    assert record["fee_summary"]["payments_total"] == 400.0
+    assert record["fee_summary"]["balance"] == 600.0
