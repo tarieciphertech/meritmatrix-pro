@@ -161,3 +161,33 @@ def test_school_admin_with_multiple_school_memberships_is_denied(
     assert service.is_user_member_of_school(admin.id, school_a.id) is False
     assert service.is_user_member_of_school(admin.id, school_b.id) is False
     assert service.get_schools_for_user(admin.id) == []
+
+
+
+def test_school_admin_cannot_be_assigned_to_a_second_school(
+    make_user, seeded_rbac, db_session
+):
+    import pytest
+
+    from app.models.school import School
+    from app.services.user_school_service import UserSchoolService
+    from app.utils.errors import ConflictError
+
+    admin = make_user(email="single-school-admin@example.com", role_name="SCHOOL_ADMIN")
+    school_a = School(name="Single Admin A", code="SINGLE-A", city="Gaborone", country="Botswana")
+    school_b = School(name="Single Admin B", code="SINGLE-B", city="Gaborone", country="Botswana")
+    db_session.add_all([school_a, school_b])
+    db_session.flush()
+
+    service = UserSchoolService(db_session)
+    service.add_user_to_school(admin.id, school_a.id, "SCHOOL_ADMIN")
+    db_session.commit()
+
+    with pytest.raises(ConflictError) as exc:
+        service.add_user_to_school(admin.id, school_b.id, "SCHOOL_ADMIN")
+    assert exc.value.code == "SCHOOL_ADMIN_SINGLE_SCHOOL"
+
+    # The failed attempt must not change the existing single-school membership.
+    db_session.rollback()
+    assert service.is_user_member_of_school(admin.id, school_a.id) is True
+    assert service.is_user_member_of_school(admin.id, school_b.id) is False
