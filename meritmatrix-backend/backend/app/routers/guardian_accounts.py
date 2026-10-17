@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import require_staff_school_scope
 from app.auth.dependencies import require_permission, _permission_names, SYSTEM_ADMIN_PERMISSION
 from app.database import get_db
 from app.models.guardian import Guardian
@@ -40,6 +41,7 @@ def _phone(value: str) -> str:
 
 
 def _verify_school_access(db: Session, user: User, guardian: Guardian) -> None:
+    require_staff_school_scope(db, user, guardian.school_id)
     if SYSTEM_ADMIN_PERMISSION in _permission_names(user):
         return
     from app.services.user_school_service import UserSchoolService

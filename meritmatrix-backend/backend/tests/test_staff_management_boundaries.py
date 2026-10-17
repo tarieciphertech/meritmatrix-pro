@@ -1,9 +1,10 @@
 """Defense-in-depth tests for staff-linked account management boundaries."""
 import pytest
 
-from app.auth.assignment_access import deny_linked_staff_management
+from app.auth.assignment_access import deny_linked_staff_management, require_staff_school_scope
 from app.models.school import School
 from app.models.staff import Staff
+from app.models.user_school import UserSchool
 from app.utils.errors import ForbiddenError
 
 
@@ -58,3 +59,62 @@ def test_super_admin_override_is_preserved_for_management_records(
 
     # Explicit system-admin authority must continue to override the staff guard.
     deny_linked_staff_management(db_session, admin, "edit student profiles")
+
+
+def test_linked_teacher_cannot_cross_employing_school_even_with_extra_membership(
+    make_user, seeded_rbac, db_session
+):
+    first = School(name="Teacher Home School", code="THSCOPE01", city="Gaborone", country="Botswana")
+    second = School(name="Other School", code="THSCOPE02", city="Gaborone", country="Botswana")
+    db_session.add_all([first, second])
+    db_session.flush()
+
+    teacher = make_user(email="scope-teacher@example.com", role_name="TEACHER")
+    db_session.add(
+        Staff(
+            school_id=first.id,
+            staff_number="T-SCOPE-01",
+            first_name="Teacher",
+            last_name="Scoped",
+            email=teacher.email,
+            user_id=teacher.id,
+            employment_status="active",
+            is_active=True,
+        )
+    )
+    # Even a stray membership row must not widen a linked teacher's access.
+    db_session.add(UserSchool(user_id=teacher.id, school_id=second.id))
+    db_session.commit()
+
+    require_staff_school_scope(db_session, teacher, first.id)
+    with pytest.raises(ForbiddenError) as exc:
+        require_staff_school_scope(db_session, teacher, second.id)
+
+    assert exc.value.code == "STAFF_SCHOOL_SCOPE_DENIED"
+
+
+def test_inactive_or_terminated_staff_cannot_access_employing_school(
+    make_user, seeded_rbac, db_session
+):
+    school = School(name="Former Teacher School", code="THSCOPE03", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    teacher = make_user(email="former-teacher@example.com", role_name="TEACHER")
+    db_session.add(
+        Staff(
+            school_id=school.id,
+            staff_number="T-SCOPE-02",
+            first_name="Former",
+            last_name="Teacher",
+            email=teacher.email,
+            user_id=teacher.id,
+            employment_status="terminated",
+            is_active=False,
+        )
+    )
+    db_session.commit()
+
+    with pytest.raises(ForbiddenError) as exc:
+        require_staff_school_scope(db_session, teacher, school.id)
+
+    assert exc.value.code == "STAFF_SCHOOL_SCOPE_DENIED"

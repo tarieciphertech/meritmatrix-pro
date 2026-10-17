@@ -11,6 +11,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import require_staff_school_scope
 from app.auth.dependencies import (
     get_current_active_user,
     require_permission,
@@ -48,11 +49,21 @@ def list_schools(
     SCHOOL_ADMIN sees only their assigned schools.
     """
     service = SchoolService(db)
-    
-    # Check if user is SUPER_ADMIN (has system.admin permission)
+
+    # Platform super-admin retains cross-school visibility, even if also linked to a staff record.
     from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
     if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
         return service.list_schools(limit=limit, offset=offset)
+
+    # Linked staff can never widen their school boundary through extra membership rows.
+    from app.models.staff import Staff
+    staff = db.query(Staff).filter(Staff.user_id == current_user.id).first()
+    if staff is not None:
+        require_staff_school_scope(db, current_user, staff.school_id)
+        school = db.get(School, staff.school_id)
+        if school is None or not school.is_active:
+            return []
+        return [school][offset : offset + limit]
     
     # Filter the complete membership set before applying pagination. Paginating
     # the global school list first can hide a user's assigned school when it falls
@@ -250,10 +261,11 @@ def create_school(
 def read_school(
     school_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_permission("schools.read")),
+    current_user: User = Depends(require_permission("schools.read")),
     _membership_check: User = Depends(require_school_membership("school_id")),
 ):
     """Read a specific school. Requires schools.read + membership in that school."""
+    require_staff_school_scope(db, current_user, school_id)
     service = SchoolService(db)
     return service.get_school(school_id)
 
@@ -267,6 +279,7 @@ def update_school(
     _membership_check: User = Depends(require_school_membership("school_id")),
 ):
     """Update school configuration; platform identity and activation stay super-admin-only."""
+    require_staff_school_scope(db, current_user, school_id)
     changes = payload.model_dump(exclude_unset=True)
     if SYSTEM_ADMIN_PERMISSION not in _permission_names(current_user):
         if {"name", "code", "is_active"}.intersection(changes):
@@ -296,10 +309,11 @@ def update_school(
 def deactivate_school(
     school_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_permission("schools.update")),
+    current_user: User = Depends(require_permission("schools.update")),
     _membership_check: User = Depends(require_school_membership("school_id")),
 ):
     """Deactivate a school. Requires schools.update + membership in that school."""
+    require_staff_school_scope(db, current_user, school_id)
     service = SchoolService(db)
     service.deactivate_school(school_id)
     db.commit()

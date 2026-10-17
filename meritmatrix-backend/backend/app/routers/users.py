@@ -5,6 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import deny_linked_staff_management
 from app.auth.dependencies import get_current_active_user, require_permission
 from app.database import get_db
 from app.models.user import User
@@ -24,8 +25,9 @@ def list_users(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_permission("users.read")),
+    current_user: User = Depends(require_permission("users.read")),
 ):
+    deny_linked_staff_management(db, current_user, "list platform user accounts")
     service = UserService(db)
     return service.list_users(limit=limit, offset=offset)
 
@@ -34,8 +36,9 @@ def list_users(
 def create_user(
     payload: UserCreate,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_permission("users.create")),
+    current_user: User = Depends(require_permission("users.create")),
 ):
+    deny_linked_staff_management(db, current_user, "create platform user accounts")
     service = UserService(db)
     user = service.create_user(payload)
     db.commit()
@@ -47,8 +50,9 @@ def create_user(
 def read_user(
     user_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_permission("users.read")),
+    current_user: User = Depends(require_permission("users.read")),
 ):
+    deny_linked_staff_management(db, current_user, "read platform user accounts")
     service = UserService(db)
     return service.get_user(user_id)
 
@@ -58,8 +62,9 @@ def update_user(
     user_id: uuid.UUID,
     payload: UserUpdate,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_permission("users.update")),
+    current_user: User = Depends(require_permission("users.update")),
 ):
+    deny_linked_staff_management(db, current_user, "update platform user accounts")
     service = UserService(db)
     user = service.update_user(user_id, payload)
     db.commit()

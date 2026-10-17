@@ -21,6 +21,28 @@ from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
 from app.utils.errors import ForbiddenError
 
 
+def require_staff_school_scope(db: Session, user: User, school_id: uuid.UUID) -> None:
+    """Enforce the employing-school boundary for every linked staff account.
+
+    A user-school membership row alone must never let a teacher inspect another
+    school's records. Only a platform super-admin can override this boundary.
+    """
+    if SYSTEM_ADMIN_PERMISSION in _permission_names(user):
+        return
+    staff = db.query(Staff).filter(Staff.user_id == user.id).first()
+    if staff is None:
+        return
+    if (
+        not staff.is_active
+        or staff.employment_status != "active"
+        or staff.school_id != school_id
+    ):
+        raise ForbiddenError(
+            "Staff accounts can only access records for their active employing school.",
+            code="STAFF_SCHOOL_SCOPE_DENIED",
+        )
+
+
 def assigned_class_ids(
     db: Session, user: User, school_id: uuid.UUID, on_date: Optional[date] = None
 ) -> Optional[Set[uuid.UUID]]:
