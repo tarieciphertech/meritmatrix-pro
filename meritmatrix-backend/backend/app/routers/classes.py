@@ -7,11 +7,13 @@ Authorization model:
 - SUPER_ADMIN bypasses membership check.
 """
 import uuid
-from typing import List
+from datetime import date
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import assigned_class_ids
 from app.auth.dependencies import (
     get_current_active_user,
     require_permission,
@@ -32,7 +34,7 @@ def _verify_school_membership(db: Session, current_user: User, school_id: uuid.U
     # SUPER_ADMIN bypasses all membership checks
     if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
         return
-    
+
     from app.services.user_school_service import UserSchoolService
     service = UserSchoolService(db)
     if not service.is_user_member_of_school(current_user.id, school_id):
@@ -43,15 +45,19 @@ def _verify_school_membership(db: Session, current_user: User, school_id: uuid.U
 @router.get("", response_model=List[ClassResponse])
 def list_classes(
     school_id: uuid.UUID = Query(..., description="Filter by school ID"),
+    on_date: Optional[date] = Query(default=None, description="Filter teacher classes by assignment date"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("classes.read")),
 ):
-    """List classes for a school. Requires membership in that school."""
-    # Verify membership in the target school
+    """List school classes; linked staff see only classes assigned on the requested date."""
     _verify_school_membership(db, current_user, school_id)
-    
+
     service = ClassService(db)
-    return service.get_classes_by_school(school_id)
+    classes = service.get_classes_by_school(school_id)
+    allowed_class_ids = assigned_class_ids(db, current_user, school_id, on_date)
+    if allowed_class_ids is not None:
+        return [clazz for clazz in classes if clazz.id in allowed_class_ids]
+    return classes
 
 
 @router.post("", response_model=ClassResponse, status_code=201)
@@ -62,9 +68,8 @@ def create_class(
     current_user: User = Depends(require_permission("classes.create")),
 ):
     """Create a class for a school. Requires membership in that school."""
-    # Verify membership in the target school
     _verify_school_membership(db, current_user, school_id)
-    
+
     service = ClassService(db)
     clazz = service.create_class(school_id, payload)
     db.commit()
@@ -81,10 +86,10 @@ def read_class(
     """Read a class. Requires membership in the owning school."""
     service = ClassService(db)
     clazz = service.get_class(class_id)
-    
+
     # Verify membership in the class's school
     _verify_school_membership(db, current_user, clazz.school_id)
-    
+
     return clazz
 
 
@@ -115,9 +120,9 @@ def deactivate_class(
     """Deactivate a class. Requires membership in the owning school."""
     service = ClassService(db)
     clazz = service.get_class(class_id)
-    
+
     # Verify membership in the class's school
     _verify_school_membership(db, current_user, clazz.school_id)
-    
+
     service.deactivate_class(class_id)
     db.commit()
