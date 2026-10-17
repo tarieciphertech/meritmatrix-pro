@@ -13,7 +13,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.auth.assignment_access import assigned_class_ids, require_class_assignment
+from app.auth.assignment_access import assigned_class_ids, require_class_assignment, deny_linked_staff_management
 from app.auth.dependencies import (
     get_current_active_user,
     require_permission,
@@ -69,6 +69,7 @@ def create_class(
 ):
     """Create a class for a school. Requires membership in that school."""
     _verify_school_membership(db, current_user, school_id)
+    deny_linked_staff_management(db, current_user, "create classes")
 
     service = ClassService(db)
     clazz = service.create_class(school_id, payload)
@@ -106,6 +107,7 @@ def update_class(
     # Authorize against the existing class before applying any changes.
     clazz = service.get_class(class_id)
     _verify_school_membership(db, current_user, clazz.school_id)
+    deny_linked_staff_management(db, current_user, "edit classes")
     clazz = service.update_class(class_id, payload)
     db.commit()
     db.refresh(clazz)
@@ -124,6 +126,7 @@ def deactivate_class(
 
     # Verify membership in the class's school
     _verify_school_membership(db, current_user, clazz.school_id)
+    deny_linked_staff_management(db, current_user, "deactivate classes")
 
     service.deactivate_class(class_id)
     db.commit()
