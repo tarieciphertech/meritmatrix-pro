@@ -117,7 +117,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     # users.delete, system.admin) remain reserved for SUPER_ADMIN.
     # School-scoped access is additionally enforced by membership checks.
     "SCHOOL_ADMIN": [
-        "users.read", "users.create", "users.update", "roles.read",
+        "roles.read",
         "schools.read", "schools.configure",
         "academic_years.read", "academic_years.create", "academic_years.update",
         "terms.read", "terms.create", "terms.update",
