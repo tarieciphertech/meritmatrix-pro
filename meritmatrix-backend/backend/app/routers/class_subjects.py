@@ -18,6 +18,7 @@ from app.auth.dependencies import (
     SYSTEM_ADMIN_PERMISSION,
     _permission_names,
 )
+from app.auth.assignment_access import assigned_class_subject_ids
 from app.database import get_db
 from app.models.class_subject import ClassSubject
 from app.models.clazz import Class
@@ -120,6 +121,9 @@ def list_class_subjects(
         return []
 
     rows = query.order_by(ClassSubject.created_at).all()
+    allowed_assignments = assigned_class_subject_ids(db, current_user, rows[0][1].school_id) if rows else None
+    if allowed_assignments is not None:
+        rows = [row for row in rows if row[0].id in allowed_assignments]
     return [
         {
             "id": assignment.id,
