@@ -27,10 +27,11 @@ from app.models.assessment import Assessment, AssessmentMark  # noqa: F401
 from app.models.fee import FeeCharge, FeePayment  # noqa: F401
 from app.models.grading_band import GradingBand  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
+from app.models.user_notification import UserNotification  # noqa: F401
 
 __all__ = [
     "User", "Role", "Permission", "RefreshToken", "user_roles", "role_permissions",
     "School", "SchoolSettings", "AcademicYear", "Term", "Class", "Subject", "ClassSubject", "UserSchool",
     "Student", "StudentStatus", "Guardian", "GuardianActivation", "StudentGuardian", "RelationshipType",
-    "Staff", "EmploymentStatus", "Enrollment", "EnrollmentStatus", "CalendarEvent", "TeachingAssignment", "AttendanceRecord", "Assessment", "AssessmentMark", "FeeCharge", "FeePayment", "GradingBand", "AuditLog",
+    "Staff", "EmploymentStatus", "Enrollment", "EnrollmentStatus", "CalendarEvent", "TeachingAssignment", "AttendanceRecord", "Assessment", "AssessmentMark", "FeeCharge", "FeePayment", "GradingBand", "AuditLog", "UserNotification",
 ]
