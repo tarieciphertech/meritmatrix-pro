@@ -6,20 +6,28 @@ def test_unauthenticated_request_to_protected_endpoint_fails(client, seeded_rbac
     assert response.status_code == 401
 
 
-def test_user_with_permission_can_access_protected_endpoint(client, make_user, auth_headers):
-    make_user(
+def test_school_admin_can_access_its_assigned_school(client, make_user, auth_headers, seeded_rbac, db_session):
+    from app.models.school import School
+    from app.models.user_school import UserSchool
+
+    admin = make_user(
         email="admin@example.com",
         password="StrongPass123",
-        role_name="SCHOOL_ADMIN",  # has users.read
+        role_name="SCHOOL_ADMIN",
     )
+    school = School(name="RBAC School", code="RBAC-SCHOOL", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    db_session.add(UserSchool(user_id=admin.id, school_id=school.id, school_role="SCHOOL_ADMIN"))
+    db_session.commit()
     headers = auth_headers("admin@example.com", "StrongPass123")
 
-    response = client.get("/api/v1/users", headers=headers)
-    assert response.status_code == 200
+    response = client.get("/api/v1/schools/" + str(school.id), headers=headers)
+    assert response.status_code == 200, response.text
 
 
 def test_user_missing_permission_gets_403(client, make_user, auth_headers):
-    # STUDENT role in the default seed only has users.read, not users.create.
+    # STUDENT role has no platform-wide user-management permissions.
     make_user(email="student1@example.com", password="StrongPass123", role_name="STUDENT")
     headers = auth_headers("student1@example.com", "StrongPass123")
 

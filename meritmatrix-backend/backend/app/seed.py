@@ -52,6 +52,7 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
     "schools.read": "View schools",
     "schools.create": "Create schools",
     "schools.update": "Update schools",
+    "schools.configure": "Manage school-specific configuration",
     "academic_years.read": "View academic years",
     "academic_years.create": "Create academic years",
     "academic_years.update": "Update academic years",
@@ -116,8 +117,8 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     # users.delete, system.admin) remain reserved for SUPER_ADMIN.
     # School-scoped access is additionally enforced by membership checks.
     "SCHOOL_ADMIN": [
-        "users.read", "users.create", "users.update", "roles.read",
-        "schools.read",
+        "roles.read",
+        "schools.read", "schools.configure",
         "academic_years.read", "academic_years.create", "academic_years.update",
         "terms.read", "terms.create", "terms.update",
         "classes.read", "classes.create", "classes.update",
@@ -133,13 +134,13 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "fees.read", "fees.create", "audit_logs.read",
     ],
     "TEACHER": [
-        "users.read", "schools.read", "academic_years.read", "terms.read", "classes.read",
+        "schools.read", "academic_years.read", "terms.read", "classes.read",
         "subjects.read", "class_subjects.read", "students.read", "enrollments.read",
         "attendance.read", "attendance.create", "assessments.read",
         "assessments.create", "assessments.update",
     ],
-    "PARENT": ["users.read"],
-    "STUDENT": ["users.read"],
+    "PARENT": [],
+    "STUDENT": [],
 }
 
 # Demo/dev users: one per role. Passwords are sourced from environment

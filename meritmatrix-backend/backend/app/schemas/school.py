@@ -78,3 +78,22 @@ class SchoolResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class SchoolAdminCreate(BaseModel):
+    """Create the dedicated administrator login for one school."""
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=128)
+
+
+class SchoolAdminAccountResponse(BaseModel):
+    user_id: uuid.UUID
+    school_id: uuid.UUID
+    school_name: str
+    first_name: str
+    last_name: str
+    email: EmailStr
+    role: str
+    must_change_password: bool
