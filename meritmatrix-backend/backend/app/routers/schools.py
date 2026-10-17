@@ -261,10 +261,11 @@ def create_school(
 def read_school(
     school_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_permission("schools.read")),
+    current_user: User = Depends(require_permission("schools.read")),
     _membership_check: User = Depends(require_school_membership("school_id")),
 ):
     """Read a specific school. Requires schools.read + membership in that school."""
+    require_staff_school_scope(db, current_user, school_id)
     service = SchoolService(db)
     return service.get_school(school_id)
 
@@ -278,6 +279,7 @@ def update_school(
     _membership_check: User = Depends(require_school_membership("school_id")),
 ):
     """Update school configuration; platform identity and activation stay super-admin-only."""
+    require_staff_school_scope(db, current_user, school_id)
     changes = payload.model_dump(exclude_unset=True)
     if SYSTEM_ADMIN_PERMISSION not in _permission_names(current_user):
         if {"name", "code", "is_active"}.intersection(changes):
@@ -307,10 +309,11 @@ def update_school(
 def deactivate_school(
     school_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_permission("schools.update")),
+    current_user: User = Depends(require_permission("schools.update")),
     _membership_check: User = Depends(require_school_membership("school_id")),
 ):
     """Deactivate a school. Requires schools.update + membership in that school."""
+    require_staff_school_scope(db, current_user, school_id)
     service = SchoolService(db)
     service.deactivate_school(school_id)
     db.commit()
