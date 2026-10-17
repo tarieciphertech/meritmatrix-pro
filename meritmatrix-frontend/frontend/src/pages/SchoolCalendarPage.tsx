@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import { Button, Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
@@ -23,13 +23,35 @@ export default function SchoolCalendarPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  const loadRequestIdRef = useRef(0);
+  activeSchoolIdRef.current = selectedSchool?.id ?? null;
+
+  useEffect(() => {
+    loadRequestIdRef.current += 1;
+    setEvents([]);
+    setError(null);
+    setNotice('');
+    setLoading(false);
+  }, [selectedSchool?.id]);
 
   const load = useCallback(async () => {
-    if (!selectedSchool) { setEvents([]); return; }
+    const requestId = ++loadRequestIdRef.current;
+    if (!selectedSchool) { setEvents([]); setLoading(false); return; }
+    const requestSchoolId = selectedSchool.id;
     setLoading(true); setError(null);
-    try { setEvents(await api.get<CalendarEvent[]>('/api/v1/calendar-events', { school_id: selectedSchool.id })); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Could not load school calendar'); }
-    finally { setLoading(false); }
+    try {
+      const rows = await api.get<CalendarEvent[]>('/api/v1/calendar-events', { school_id: requestSchoolId });
+      if (activeSchoolIdRef.current !== requestSchoolId || loadRequestIdRef.current !== requestId) return;
+      setEvents(rows);
+    } catch (e) {
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) {
+        setEvents([]);
+        setError(e instanceof Error ? e.message : 'Could not load school calendar');
+      }
+    } finally {
+      if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) setLoading(false);
+    }
   }, [selectedSchool]);
   useEffect(() => { void load(); }, [load]);
 
