@@ -265,3 +265,84 @@ class TestDuplicatePrevention:
         # Same code in different school should work
         response = client.post(f"/api/v1/classes?school_id={school_b}", headers=headers, json=payload)
         assert response.status_code == 201
+
+
+class TestSchoolAdminPlatformBoundaries:
+    def test_school_admin_cannot_create_schools_or_list_global_users(
+        self, client, auth_headers, school_a_admin, school_a
+    ):
+        """School admins administer one school; platform identity remains super-admin-only."""
+        headers = auth_headers("adminA@example.com", "StrongPass123")
+
+        create_school = client.post(
+            "/api/v1/schools",
+            headers=headers,
+            json={"name": "Unauthorized School", "code": "UNAUTH01", "city": "Gaborone", "country": "Botswana"},
+        )
+        assert create_school.status_code == 403, create_school.text
+
+        list_users = client.get("/api/v1/users", headers=headers)
+        assert list_users.status_code == 403, list_users.text
+
+        create_another_admin = client.post(
+            f"/api/v1/schools/{school_a}/admin-account",
+            headers=headers,
+            json={
+                "first_name": "Second",
+                "last_name": "Admin",
+                "email": "second-admin@example.com",
+                "password": "StrongTemporaryPass123!",
+            },
+        )
+        assert create_another_admin.status_code == 403, create_another_admin.text
+
+    def test_school_admin_can_update_only_school_configuration_fields(
+        self, client, auth_headers, school_a_admin, school_a
+    ):
+        """A school admin may configure their school but cannot rename the platform school record."""
+        headers = auth_headers("adminA@example.com", "StrongPass123")
+
+        update_configuration = client.patch(
+            f"/api/v1/schools/{school_a}",
+            headers=headers,
+            json={"country_code": "BW", "institution_type": "secondary"},
+        )
+        assert update_configuration.status_code == 200, update_configuration.text
+        assert update_configuration.json()["country_code"] == "BW"
+
+        rename_school = client.patch(
+            f"/api/v1/schools/{school_a}",
+            headers=headers,
+            json={"name": "Renamed by School Admin"},
+        )
+        assert rename_school.status_code == 403, rename_school.text
+        assert rename_school.json()["error"]["code"] == "PLATFORM_SCHOOL_FIELDS_RESTRICTED"
+
+    def test_school_admin_membership_service_rejects_second_school(
+        self, school_a_admin, school_b, db_session
+    ):
+        """Even internal membership operations cannot accidentally widen an admin's scope."""
+        from app.services.user_school_service import UserSchoolService
+
+        service = UserSchoolService(db_session)
+        with pytest.raises(Exception) as exc:
+            service.add_user_to_school(school_a_admin.id, school_b, school_role="SCHOOL_ADMIN")
+        assert getattr(exc.value, "code", None) == "SCHOOL_ADMIN_SINGLE_SCHOOL"
+        assert service.is_user_member_of_school(school_a_admin.id, school_b) is False
+        assert [str(school.id) for school in service.get_schools_for_user(school_a_admin.id)] == [
+            str(service.repo.get_by_user(school_a_admin.id)[0].school_id)
+        ]
+
+    def test_super_admin_retains_cross_school_access(
+        self, client, auth_headers, make_user, seeded_rbac, school_a, school_b
+    ):
+        make_user(email="platform-super@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+        headers = auth_headers("platform-super@example.com", "StrongPass123")
+
+        first = client.get(f"/api/v1/schools/{school_a}", headers=headers)
+        second = client.get(f"/api/v1/schools/{school_b}", headers=headers)
+        all_schools = client.get("/api/v1/schools?limit=200", headers=headers)
+
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+        assert {school["id"] for school in all_schools.json()} >= {str(school_a), str(school_b)}
