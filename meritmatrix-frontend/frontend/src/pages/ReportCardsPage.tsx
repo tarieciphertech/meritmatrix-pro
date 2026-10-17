@@ -63,11 +63,11 @@ export default function ReportCardsPage() {
   useEffect(() => { void loadSetup(); }, [loadSetup]);
 
   const loadResults = useCallback(async () => {
+    const requestId = ++resultsRequestIdRef.current;
     if (!selectedSchool || !studentId || !termId) { setRows([]); return; }
     const requestSchoolId = selectedSchool.id;
     const requestStudentId = studentId;
     const requestTermId = termId;
-    const requestId = ++resultsRequestIdRef.current;
     setRows([]);
     setLoading(true); setError(null);
     try {
