@@ -52,6 +52,7 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
     "schools.read": "View schools",
     "schools.create": "Create schools",
     "schools.update": "Update schools",
+    "schools.configure": "Manage school-specific configuration",
     "academic_years.read": "View academic years",
     "academic_years.create": "Create academic years",
     "academic_years.update": "Update academic years",
@@ -117,7 +118,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     # School-scoped access is additionally enforced by membership checks.
     "SCHOOL_ADMIN": [
         "users.read", "users.create", "users.update", "roles.read",
-        "schools.read",
+        "schools.read", "schools.configure",
         "academic_years.read", "academic_years.create", "academic_years.update",
         "terms.read", "terms.create", "terms.update",
         "classes.read", "classes.create", "classes.update",
