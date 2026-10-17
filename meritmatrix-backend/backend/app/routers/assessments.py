@@ -115,10 +115,15 @@ def replace_grading_bands(
     labels = [band.grade_label.strip().casefold() for band in payload.bands]
     if len(set(labels)) != len(labels):
         raise ConflictError("Each grade label must be unique within a school.", code="DUPLICATE_GRADE_LABEL")
-    ordered = sorted(payload.bands, key=lambda band: (band.min_percentage, band.max_percentage))
+    # Inactive bands may be retained as historical/draft ranges; only active bands
+    # participate in grade assignment and therefore need to be mutually exclusive.
+    ordered = sorted(
+        (band for band in payload.bands if band.is_active),
+        key=lambda band: (band.min_percentage, band.max_percentage),
+    )
     for previous, current in zip(ordered, ordered[1:]):
         if current.min_percentage <= previous.max_percentage:
-            raise ConflictError("Grading bands must not overlap.", code="OVERLAPPING_GRADE_BANDS")
+            raise ConflictError("Active grading bands must not overlap.", code="OVERLAPPING_GRADE_BANDS")
     db.query(GradingBand).filter(GradingBand.school_id == school_id).delete(synchronize_session=False)
     db.add_all([GradingBand(school_id=school_id, **band.model_dump()) for band in payload.bands])
     db.commit()
