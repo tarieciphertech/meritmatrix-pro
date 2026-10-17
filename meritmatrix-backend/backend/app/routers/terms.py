@@ -11,6 +11,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import require_staff_school_scope
 from app.auth.dependencies import (
     get_current_active_user,
     require_permission,
@@ -42,6 +43,8 @@ def _verify_school_membership_for_academic_year(
         from app.utils.errors import NotFoundError
         raise NotFoundError("Academic year not found.", code="ACADEMIC_YEAR_NOT_FOUND")
     
+    require_staff_school_scope(db, current_user, ay.school_id)
+
     # Check membership
     from app.services.user_school_service import UserSchoolService
     service = UserSchoolService(db)
