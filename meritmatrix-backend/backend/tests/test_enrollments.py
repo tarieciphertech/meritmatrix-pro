@@ -441,4 +441,4 @@ def test_linked_teacher_only_reads_enrollments_for_assigned_students(
 
     denied = client.get(f"/api/v1/enrollments/{other_enrollment.id}", headers=headers)
     assert denied.status_code == 403, denied.text
-    assert denied.json()["error"]["code"] == "STUDENT_ASSIGNMENT_REQUIRED"
+    assert denied.json()["error"]["code"] == "STAFF_SCHOOL_SCOPE_DENIED"
