@@ -59,12 +59,19 @@ class UserSchoolService:
                 code="USER_SCHOOL_EXISTS"
             )
         
-        # Verify user exists
+        # Verify user exists and enforce the single-school boundary for school admins.
         from app.repositories.user_repository import UserRepository
         user_repo = UserRepository(self.db)
-        if user_repo.get_by_id(user_id) is None:
+        user = user_repo.get_by_id(user_id)
+        if user is None:
             raise NotFoundError("User not found.", code="USER_NOT_FOUND")
-        
+
+        if any(role.name == "SCHOOL_ADMIN" for role in user.roles) and self.repo.get_by_user(user_id):
+            raise ConflictError(
+                "A school administrator can be assigned to only one school. Create a separate administrator account for each school.",
+                code="SCHOOL_ADMIN_SINGLE_SCHOOL",
+            )
+
         # Verify school exists
         from app.repositories.school_repository import SchoolRepository
         school_repo = SchoolRepository(self.db)
