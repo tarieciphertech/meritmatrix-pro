@@ -14,7 +14,7 @@ import type {
   StaffResponse,
   StudentResponse,
 } from '../types';
-import { Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
+import { Button, Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
 
 interface Counts {
   students: number | null;
@@ -28,7 +28,7 @@ const MAX_COUNT_FETCH = 200; // backend max limit per request
 export default function DashboardPage() {
   const { user } = useAuth();
   const isTeacher = (user?.roles ?? []).some((role) => role.name === 'TEACHER');
-  const { schools, selectedSchool, error: schoolError } = useSchool();
+  const { schools, loading: schoolsLoading, selectedSchool, selectSchool, error: schoolError } = useSchool();
   const [counts, setCounts] = useState<Counts>({
     students: null,
     guardians: null,
@@ -100,8 +100,9 @@ export default function DashboardPage() {
         subtitle={
           selectedSchool
             ? `Viewing data for ${selectedSchool.name}`
-            : 'Select a school from the header to view its data.'
+            : 'Choose a school below to open its dashboard and records.'
         }
+        actions={selectedSchool ? <Button variant="secondary" onClick={() => selectSchool('')}>← Back to school selection</Button> : undefined}
       />
 
       {schoolError && <ErrorBanner message={schoolError} />}
@@ -131,47 +132,50 @@ export default function DashboardPage() {
           </div>
         )
       ) : (
-        <Card className="p-6">
-          <p className="text-sm text-slate-600">
-            No school selected yet. Use the school selector in the header to browse students,
-            guardians, staff, and enrollments.
-          </p>
-        </Card>
-      )}
-
-      {/* Your schools */}
-      <div className="mt-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Your schools ({schools.length})
-        </h2>
-        {schools.length === 0 ? (
-          <Card className="p-6">
-            <p className="text-sm text-slate-600">
-              You are not a member of any school yet. Ask a platform administrator to assign you
-              to a school.
-            </p>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {schools.map((s) => (
-              <Card key={s.id} className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium text-slate-900">{s.name}</p>
-                    <p className="mt-0.5 text-sm text-slate-500">Code: {s.code}</p>
-                    {s.city && <p className="text-sm text-slate-500">{s.city}</p>}
-                  </div>
-                  {!s.is_active && (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                      Inactive
-                    </span>
-                  )}
-                </div>
-              </Card>
-            ))}
+        <section aria-labelledby="school-selection-heading" className="mt-2">
+          <div className="mb-4">
+            <h2 id="school-selection-heading" className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Select a school
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">Choose a school card to open its dashboard. You can return here at any time.</p>
           </div>
-        )}
-      </div>
+          {schoolsLoading ? (
+            <Spinner label="Loading your schools…" />
+          ) : schools.length === 0 ? (
+            <Card className="p-6">
+              <p className="text-sm text-slate-600">
+                No schools are available to your account yet. Ask a platform administrator to assign you to a school.
+              </p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {schools.map((school) => (
+                <button
+                  key={school.id}
+                  type="button"
+                  disabled={!school.is_active}
+                  onClick={() => selectSchool(school.id)}
+                  aria-label={`Open ${school.name} dashboard`}
+                  className="group w-full rounded-lg text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed"
+                >
+                  <Card className="h-full p-5 transition-all group-hover:-translate-y-0.5 group-hover:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-indigo-600 disabled:opacity-60">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-900">{school.name}</p>
+                        <p className="mt-1 text-sm text-slate-500">School code: {school.code}</p>
+                        {school.city && <p className="mt-1 text-sm text-slate-500">{school.city}</p>}
+                      </div>
+                      <span className={school.is_active ? "rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500"}>
+                        {school.is_active ? 'Open school →' : 'Inactive'}
+                      </span>
+                    </div>
+                  </Card>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
