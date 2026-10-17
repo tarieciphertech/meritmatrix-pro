@@ -162,3 +162,10 @@ def test_linked_teacher_can_only_open_attendance_for_assigned_class(
     )
     assert denied.status_code == 403, denied.text
     assert denied.json()["error"]["code"] == "TEACHING_ASSIGNMENT_REQUIRED"
+
+    denied_class_detail = client.get(
+        f"/api/v1/classes/{other_class.id}",
+        headers=headers,
+    )
+    assert denied_class_detail.status_code == 403, denied_class_detail.text
+    assert denied_class_detail.json()["error"]["code"] == "TEACHING_ASSIGNMENT_REQUIRED"
