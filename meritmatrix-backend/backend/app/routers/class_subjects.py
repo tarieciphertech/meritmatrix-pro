@@ -18,6 +18,7 @@ from app.auth.dependencies import (
     SYSTEM_ADMIN_PERMISSION,
     _permission_names,
 )
+from app.auth.assignment_access import assigned_class_subject_ids
 from app.database import get_db
 from app.models.class_subject import ClassSubject
 from app.models.clazz import Class
