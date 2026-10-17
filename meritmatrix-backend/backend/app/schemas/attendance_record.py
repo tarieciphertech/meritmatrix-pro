@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-ATTENDANCE_STATUSES = {"present", "absent", "late", "excused", "sick", "left_early"}
+ATTENDANCE_STATUSES = {"unmarked", "present", "absent", "late", "excused", "sick", "left_early"}
 
 
 class AttendanceEntry(BaseModel):
