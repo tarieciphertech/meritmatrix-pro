@@ -103,10 +103,6 @@ export default function StudentsPage() {
   }, [selectedSchool]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
     activeSchoolIdRef.current = selectedSchool?.id ?? null;
     loadRequestIdRef.current += 1;
     setStudents([]);
@@ -117,6 +113,10 @@ export default function StudentsPage() {
     setGuardianStudent(null);
     setViewingStudent(null);
   }, [selectedSchool?.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   function openCreate() {
     setEditingStudent(null);
