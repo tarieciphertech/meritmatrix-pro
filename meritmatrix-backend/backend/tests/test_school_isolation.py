@@ -265,3 +265,89 @@ class TestDuplicatePrevention:
         # Same code in different school should work
         response = client.post(f"/api/v1/classes?school_id={school_b}", headers=headers, json=payload)
         assert response.status_code == 201
+
+
+def test_super_admin_can_provision_school_admin_and_scope_is_enforced(
+    client, auth_headers, make_user, seeded_rbac, db_session, school_a, school_b
+):
+    """A provisioned SCHOOL_ADMIN can administer one school but never the platform or another school."""
+    from app.models.user import User
+
+    make_user(email="provisioner@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    super_headers = auth_headers("provisioner@example.com", "StrongPass123")
+    created = client.post(
+        f"/api/v1/schools/{school_a}/admin-account",
+        headers=super_headers,
+        json={
+            "first_name": "School",
+            "last_name": "Administrator",
+            "email": "school-a-admin@example.com",
+            "password": "InitialPassword123!",
+        },
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["school_id"] == str(school_a)
+    assert created.json()["role"] == "SCHOOL_ADMIN"
+    assert created.json()["must_change_password"] is True
+
+    # Simulate completion of the mandatory first-login password-change flow.
+    admin = db_session.query(User).filter(User.email == "school-a-admin@example.com").one()
+    admin.must_change_password = False
+    db_session.commit()
+
+    admin_headers = auth_headers("school-a-admin@example.com", "InitialPassword123!")
+
+    own_school = client.get(f"/api/v1/schools/{school_a}", headers=admin_headers)
+    assert own_school.status_code == 200, own_school.text
+    other_school = client.get(f"/api/v1/schools/{school_b}", headers=admin_headers)
+    assert other_school.status_code == 403, other_school.text
+    assert other_school.json()["error"]["code"] == "SCHOOL_ACCESS_DENIED"
+
+    school_list = client.get("/api/v1/schools?limit=200", headers=admin_headers)
+    assert school_list.status_code == 200, school_list.text
+    assert {row["id"] for row in school_list.json()} == {str(school_a)}
+
+    # School administrators cannot create schools or inspect platform admin accounts.
+    create_school = client.post(
+        "/api/v1/schools",
+        headers=admin_headers,
+        json={"name": "Unauthorized School", "code": "NOPE01"},
+    )
+    assert create_school.status_code == 403, create_school.text
+    platform_admin_accounts = client.get("/api/v1/schools/admin-accounts", headers=admin_headers)
+    assert platform_admin_accounts.status_code == 403, platform_admin_accounts.text
+
+    # School-specific configuration remains available to its assigned administrator.
+    configure_own_school = client.patch(
+        f"/api/v1/schools/{school_a}",
+        headers=admin_headers,
+        json={"timezone": "Africa/Gaborone", "currency": "BWP"},
+    )
+    assert configure_own_school.status_code == 200, configure_own_school.text
+
+    configure_other_school = client.patch(
+        f"/api/v1/schools/{school_b}",
+        headers=admin_headers,
+        json={"timezone": "Africa/Gaborone"},
+    )
+    assert configure_other_school.status_code == 403, configure_other_school.text
+
+
+def test_school_admin_account_cannot_be_created_twice_for_same_school(
+    client, auth_headers, make_user, seeded_rbac, school_a
+):
+    make_user(email="provisioner@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    headers = auth_headers("provisioner@example.com", "StrongPass123")
+    payload = {
+        "first_name": "School", "last_name": "Admin",
+        "email": "unique-school-admin@example.com", "password": "InitialPassword123!",
+    }
+    first = client.post(f"/api/v1/schools/{school_a}/admin-account", headers=headers, json=payload)
+    assert first.status_code == 201, first.text
+    duplicate = client.post(
+        f"/api/v1/schools/{school_a}/admin-account",
+        headers=headers,
+        json={**payload, "email": "second-school-admin@example.com"},
+    )
+    assert duplicate.status_code == 409, duplicate.text
+    assert duplicate.json()["error"]["code"] == "SCHOOL_ADMIN_EXISTS"
