@@ -1,6 +1,4 @@
 """Dedicated school-admin provisioning and tenant-isolation regression tests."""
-from app.models.school import School
-
 
 def _create_school(client, headers, name, code):
     response = client.post(
