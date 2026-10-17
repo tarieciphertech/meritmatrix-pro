@@ -151,7 +151,7 @@ export default function AssessmentsPage() {
         weight_percent: Number(weight), is_published: false,
       }, { school_id: selectedSchool.id });
       setTitle(''); setAssessmentId(created.id);
-      setNotice('Assessment created. Enter marks below, then publish when they are ready.');
+      setNotice('Assessment created. Enter marks for every active student, then submit them for administrator verification.');
       await loadAssessments();
       setAssessmentId(created.id);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not create assessment.'); }
@@ -270,7 +270,7 @@ export default function AssessmentsPage() {
 
       <Card className="p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-64 flex-1"><label className="text-sm font-medium text-slate-700">Assessment to mark<select value={assessmentId} onChange={e => setAssessmentId(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 bg-white p-2"><option value="">Choose assessment…</option>{assessments.map(x => <option key={x.id} value={x.id}>{x.subject_name} · {x.title}{x.is_published ? ' (Published)' : ''}</option>)}</select></label></div>
+          <div className="min-w-64 flex-1"><label className="text-sm font-medium text-slate-700">Assessment to mark<select value={assessmentId} onChange={e => setAssessmentId(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 bg-white p-2"><option value="">Choose assessment…</option>{assessments.map(x => <option key={x.id} value={x.id}>{x.subject_name} · {x.title}{x.is_published ? ' (Published)' : x.marks_submitted ? ' (Submitted for verification)' : ' (Draft)'}</option>)}</select></label></div>
           {selectedAssessment && <div className="text-sm text-slate-500">Maximum: {selectedAssessment.max_score} · Weight: {selectedAssessment.weight_percent}%</div>}
         </div>
         {selectedAssessment && <div className="mt-3 flex flex-wrap items-center gap-2">
