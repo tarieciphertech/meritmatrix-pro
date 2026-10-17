@@ -21,6 +21,13 @@ import {
   Td,
 } from '../components/ui';
 
+type SchoolAdminStatus = {
+  school_id: string; school_name: string; configured: boolean; user_id: string;
+  first_name: string; last_name: string; email: string; is_active: boolean; must_change_password: boolean;
+};
+type SchoolAdminForm = { first_name: string; last_name: string; email: string; password: string };
+const emptyAdminForm: SchoolAdminForm = { first_name: '', last_name: '', email: '', password: '' };
+
 const emptyForm: SchoolCreate = {
   name: '',
   code: '',
@@ -47,6 +54,12 @@ export default function SchoolsPage() {
   const [form, setForm] = useState<SchoolCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [adminAccounts, setAdminAccounts] = useState<SchoolAdminStatus[]>([]);
+  const [creatingAdminFor, setCreatingAdminFor] = useState<SchoolResponse | null>(null);
+  const [adminForm, setAdminForm] = useState<SchoolAdminForm>(emptyAdminForm);
+  const [adminSaving, setAdminSaving] = useState(false);
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [adminSuccess, setAdminSuccess] = useState<string | null>(null);
 
   const canManage = hasRole('SUPER_ADMIN');
 
@@ -56,12 +69,14 @@ export default function SchoolsPage() {
     try {
       const list = await api.get<SchoolResponse[]>('/api/v1/schools', { limit: 200 });
       setSchools(list);
+      if (canManage) setAdminAccounts(await api.get<SchoolAdminStatus[]>('/api/v1/schools/admin-accounts'));
+      else setAdminAccounts([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load schools');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canManage]);
 
   useEffect(() => {
     void load();
@@ -126,6 +141,26 @@ export default function SchoolsPage() {
     }
   }
 
+  function openAdminSetup(school: SchoolResponse) {
+    setCreatingAdminFor(school); setAdminForm(emptyAdminForm); setAdminError(null);
+  }
+
+  async function handleCreateAdmin(e: FormEvent) {
+    e.preventDefault();
+    if (!creatingAdminFor) return;
+    if (adminForm.password.length < 12) { setAdminError('Use an initial password of at least 12 characters.'); return; }
+    setAdminSaving(true); setAdminError(null);
+    try {
+      const created = await api.post<{ user_id: string; school_id: string; school_name: string; first_name: string; last_name: string; email: string; role: string; must_change_password: boolean }>(
+        '/api/v1/schools/' + creatingAdminFor.id + '/admin-account', adminForm,
+      );
+      setAdminSuccess('Administrator account created for ' + created.school_name + ': ' + created.email + '. The administrator must change the initial password at first sign-in.');
+      setCreatingAdminFor(null); setAdminForm(emptyAdminForm); await load();
+    } catch (err) {
+      setAdminError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not create the school administrator account.');
+    } finally { setAdminSaving(false); }
+  }
+
   async function handleDeactivate(school: SchoolResponse) {
     if (!window.confirm(`Deactivate "${school.name}"? This will mark it inactive.`)) return;
     try {
@@ -149,6 +184,7 @@ export default function SchoolsPage() {
       />
 
       {error && <ErrorBanner message={error} onRetry={load} />}
+      {adminSuccess && <div role="status" className="mb-4 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{adminSuccess}</div>}
 
       {loading ? (
         <Spinner />
@@ -158,7 +194,7 @@ export default function SchoolsPage() {
         </Card>
       ) : (
         <Card>
-          <Table headers={['Name', 'Code', 'City', 'Country', 'Status', 'Actions']}>
+          <Table headers={canManage ? ['Name', 'Code', 'City', 'Country', 'Status', 'School Administrator', 'Actions'] : ['Name', 'Code', 'City', 'Country', 'Status', 'Actions']}>
             {schools.map((s) => (
               <tr key={s.id} className="hover:bg-slate-50">
                 <Td className="font-medium text-slate-900">{s.name}</Td>
@@ -170,6 +206,13 @@ export default function SchoolsPage() {
                     {s.is_active ? 'Active' : 'Inactive'}
                   </Badge>
                 </Td>
+                {canManage && <Td>
+                  {(() => {
+                    const admin = adminAccounts.find((item) => item.school_id === s.id);
+                    if (!admin) return <span className="text-sm text-slate-500">Not configured</span>;
+                    return <div className="text-sm"><p className="font-medium text-slate-800">{admin.first_name} {admin.last_name}</p><p className="text-slate-500">{admin.email}</p><p className={admin.is_active ? 'text-emerald-700' : 'text-red-700'}>{admin.is_active ? 'Active' : 'Inactive'}{admin.must_change_password ? ' · Password change required' : ''}</p></div>;
+                  })()}
+                </Td>}
                 <Td>
                   <div className="flex items-center gap-2">
                     {canManage && (
@@ -177,6 +220,7 @@ export default function SchoolsPage() {
                         <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(s)}>
                           Edit
                         </Button>
+                        {!adminAccounts.some((item) => item.school_id === s.id) && s.is_active && <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => openAdminSetup(s)}>Set Admin</Button>}
                         {s.is_active && (
                           <Button
                             variant="danger"
@@ -306,6 +350,20 @@ export default function SchoolsPage() {
               {saving ? 'Saving…' : editingSchool ? 'Save Changes' : 'Create School'}
             </Button>
           </div>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(creatingAdminFor)} title="Create School Administrator" onClose={() => { if (!adminSaving) setCreatingAdminFor(null); }}>
+        <form onSubmit={handleCreateAdmin} className="space-y-4">
+          <p className="text-sm text-slate-600">This account will administer only {creatingAdminFor?.name ?? 'this school'}. It cannot access other schools or platform-wide controls. The administrator must change the initial password at first sign-in.</p>
+          {adminError && <div role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{adminError}</div>}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="First name" required><Input required value={adminForm.first_name} onChange={(e) => setAdminForm((v) => ({ ...v, first_name: e.target.value }))} /></Field>
+            <Field label="Last name" required><Input required value={adminForm.last_name} onChange={(e) => setAdminForm((v) => ({ ...v, last_name: e.target.value }))} /></Field>
+          </div>
+          <Field label="Administrator email" required><Input type="email" required value={adminForm.email} onChange={(e) => setAdminForm((v) => ({ ...v, email: e.target.value }))} autoComplete="email" /></Field>
+          <Field label="Temporary password (12+ characters)" required><Input type="password" required minLength={12} maxLength={128} value={adminForm.password} onChange={(e) => setAdminForm((v) => ({ ...v, password: e.target.value }))} autoComplete="new-password" /></Field>
+          <div className="flex justify-end gap-2 pt-2"><Button variant="secondary" type="button" onClick={() => setCreatingAdminFor(null)} disabled={adminSaving}>Cancel</Button><Button type="submit" disabled={adminSaving}>{adminSaving ? 'Creating…' : 'Create School Admin'}</Button></div>
         </form>
       </Modal>
     </div>
