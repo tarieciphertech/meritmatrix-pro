@@ -55,7 +55,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // Guardian users select only from linked schools inside the guardian portal.
   // The global school list is reserved for staff/admin users.
   useEffect(() => {
-    const isGuardian = (user?.roles ?? []).some((role) => role.name === 'GUARDIAN');
+    const isGuardian = (user?.roles ?? []).some((role) => ['GUARDIAN', 'PARENT'].includes(role.name));
     if (user && !isGuardian) {
       void refresh();
     } else {
