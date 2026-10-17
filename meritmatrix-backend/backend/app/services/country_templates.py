@@ -13,7 +13,7 @@ COUNTRY_TEMPLATES = {
         "status": "starter",
         "timezone": "Africa/Harare",
         "currency": "USD",
-        "institution_types": ["primary", "secondary", "combined", "tertiary"],
+        "institution_types": ["primary", "secondary", "high_school", "combined", "tertiary"],
         "levels": [
             {"code": "ECD_A", "name": "ECD A", "stage": "early_childhood", "sequence": 10},
             {"code": "ECD_B", "name": "ECD B", "stage": "early_childhood", "sequence": 20},
@@ -46,7 +46,7 @@ COUNTRY_TEMPLATES = {
         "status": "starter_requires_authority_review",
         "timezone": "Africa/Gaborone",
         "currency": "BWP",
-        "institution_types": ["early_childhood", "primary", "secondary", "combined", "tertiary"],
+        "institution_types": ["early_childhood", "primary", "secondary", "high_school", "combined", "tertiary"],
         "levels": [
             {"code": "PRE_PRIMARY", "name": "Pre-primary / Early Childhood (optional)", "stage": "early_childhood", "sequence": 10},
             *[
@@ -59,7 +59,7 @@ COUNTRY_TEMPLATES = {
             ],
             *[
                 {"code": f"FORM_{n}", "name": f"Form {n}", "stage": "advanced_secondary", "sequence": 230 + n * 10}
-                for n in range(4, 6)
+                for n in range(4, 7)
             ],
         ],
         "calendar_event_types": [
@@ -69,7 +69,7 @@ COUNTRY_TEMPLATES = {
             "The default school pathway is 7 years of primary (Standard 1–7), 3 years of junior secondary (Forms 1–3), and 2 years of senior secondary (Forms 4–5).",
             "Forms 1–3 complete the 10-year basic/universal education cycle; the full 7-3-2 pathway spans 12 school years.",
             "Pre-primary is optional and separate from the 7-3-2 sequence. Tertiary and vocational structures must be configured separately.",
-            "Do not infer that every institution offers every listed level. Allow school-specific extensions, such as Form 6 where applicable, without making them the national default.",
+            "Form 6 is included as an optional school-specific high-school extension and requires local authority confirmation before official use.",
             "Verify current official level labels and examination pathways before production activation. Calendar dates must be approved for each academic year."
         ],
     },
