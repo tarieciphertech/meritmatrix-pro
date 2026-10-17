@@ -85,6 +85,7 @@ export default function AssessmentsPage() {
     } catch (e) {
       if (activeSchoolIdRef.current === requestSchoolId) {
         setClasses([]); setTerms([]); setClassSubjects([]); setGradeBands([]);
+        setAssessments([]); setAssessmentId(''); setRoster([]); setResults([]);
         setError(e instanceof Error ? e.message : 'Could not load academic setup.');
       }
     } finally {
@@ -110,7 +111,7 @@ export default function AssessmentsPage() {
       setClassSubjectId(current => rows.some(x => x.id === current) ? current : rows[0]?.id ?? '');
     } catch (e) {
       if (activeSchoolIdRef.current === requestSchoolId) {
-        setClassSubjects([]);
+        setClassSubjects([]); setClassSubjectId('');
         setError(e instanceof Error ? e.message : 'Could not load class subjects.');
       }
     }
@@ -129,7 +130,7 @@ export default function AssessmentsPage() {
       setAssessmentId(current => rows.some(x => x.id === current) ? current : rows[0]?.id ?? '');
     } catch (e) {
       if (activeSchoolIdRef.current === requestSchoolId) {
-        setAssessments([]); setAssessmentId('');
+        setAssessments([]); setAssessmentId(''); setRoster([]); setResults([]);
         setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not load assessments.');
       }
     }
