@@ -227,6 +227,20 @@ export default function AssessmentsPage() {
     finally { setSaving(false); }
   }
 
+  async function unpublishAssessment() {
+    const assessment = assessments.find(x => x.id === assessmentId);
+    if (!assessment || !assessment.is_published || !canManageSchoolGrading) return;
+    if (!window.confirm('Unpublish these results and return the assessment to draft for corrections? Guardians will no longer see these results until they are verified and published again.')) return;
+    setSaving(true); setError(null); setNotice('');
+    try {
+      const updated = await api.patch<Assessment>('/api/v1/assessments/' + assessmentId, { is_published: false });
+      setAssessments(current => current.map(item => item.id === updated.id ? updated : item));
+      setNotice('Results unpublished and returned to draft. Correct the marks, then submit them for verification again.');
+      await loadAssessments();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not unpublish results.'); }
+    finally { setSaving(false); }
+  }
+
   const selectedAssessment = assessments.find(x => x.id === assessmentId);
   if (!selectedSchool) return <div><PageHeader title="Assessments & Results" subtitle="Select a school to manage assessments."/><Card className="p-6">Choose a school from the selector above.</Card></div>;
 
@@ -259,6 +273,7 @@ export default function AssessmentsPage() {
           <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (selectedAssessment.is_published ? 'bg-emerald-50 text-emerald-700' : selectedAssessment.marks_submitted ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-700')}>{selectedAssessment.is_published ? 'Published' : selectedAssessment.marks_submitted ? 'Submitted for verification' : 'Draft'}</span>
           {!selectedAssessment.is_published && !selectedAssessment.marks_submitted && <><Button variant="secondary" onClick={() => void saveMarks()} disabled={saving}>{saving ? 'Saving…' : 'Save marks'}</Button><Button onClick={() => void submitMarksForReview()} disabled={saving || roster.length === 0 || roster.some(row => row.score === null || !Number.isFinite(Number(row.score)))}>{saving ? 'Submitting…' : 'Submit for verification'}</Button></>}
           {!selectedAssessment.is_published && selectedAssessment.marks_submitted && canManageSchoolGrading && <><Button onClick={() => void publishAssessment()} disabled={saving}>{saving ? 'Publishing…' : 'Publish verified results'}</Button><Button variant="secondary" onClick={() => void returnAssessmentToDraft()} disabled={saving}>Return to draft</Button></>}
+          {selectedAssessment.is_published && canManageSchoolGrading && <Button variant="secondary" onClick={() => void unpublishAssessment()} disabled={saving}>{saving ? 'Unpublishing…' : 'Unpublish for corrections'}</Button>}
         </div>}
         {selectedAssessment?.marks_submitted && !selectedAssessment.is_published && !canManageSchoolGrading && <p className="mt-3 rounded-md bg-sky-50 p-3 text-sm text-sky-800">Marks are submitted and locked for review. A school administrator must verify and publish them before guardians can see the results.</p>}
         {!selectedAssessment ? <p className="mt-4 text-sm text-slate-500">Create or select an assessment to enter marks.</p> : roster.length === 0 ? <p className="mt-4 text-sm text-slate-500">No active students are enrolled in this class for the assessment term.</p> : <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr><th className="px-3 py-3 text-left font-semibold text-slate-600">Student</th><th className="px-3 py-3 text-left font-semibold text-slate-600">Score / {selectedAssessment.max_score}</th><th className="px-3 py-3 text-left font-semibold text-slate-600">Teacher remarks</th></tr></thead><tbody className="divide-y divide-slate-100">{roster.map(row => <tr key={row.enrollment_id}><td className="px-3 py-3"><p className="font-medium text-slate-900">{row.student_name}</p><p className="text-xs text-slate-500">{row.student_number}</p></td><td className="px-3 py-3"><input aria-label={'Score for ' + row.student_name} type="number" min="0" max={selectedAssessment.max_score} step="0.1" disabled={selectedAssessment.is_published || selectedAssessment.marks_submitted} value={row.score ?? ''} onChange={e => updateRow(row.enrollment_id, 'score', e.target.value)} className="w-32 rounded-md border border-slate-300 p-2 disabled:bg-slate-100"/></td><td className="px-3 py-3"><input aria-label={'Remarks for ' + row.student_name} disabled={selectedAssessment.is_published || selectedAssessment.marks_submitted} value={row.remarks ?? ''} onChange={e => updateRow(row.enrollment_id, 'remarks', e.target.value)} placeholder="Optional feedback" className="w-full min-w-48 rounded-md border border-slate-300 p-2 disabled:bg-slate-100"/></td></tr>)}</tbody></table></div>}
