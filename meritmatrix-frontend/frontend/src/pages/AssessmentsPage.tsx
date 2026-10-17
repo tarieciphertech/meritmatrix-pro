@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
+import { useAuth } from '../lib/auth';
 import type { AcademicYearResponse, ClassResponse, ClassSubjectResponse, TermResponse } from '../types';
 import { Button, Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
 
 type Assessment = {
   id: string; title: string; class_subject_id: string; term_id: string;
   assessment_type: string; assessment_date: string | null; max_score: number;
-  weight_percent: number; is_published: boolean; class_name: string; class_code: string;
+  weight_percent: number; is_published: boolean; marks_submitted: boolean; class_name: string; class_code: string;
   subject_name: string; subject_code: string; term_name: string;
 };
 type RosterRow = { enrollment_id: string; student_id: string; student_number: string; student_name: string; score: number | null; remarks: string | null };
@@ -16,6 +17,8 @@ type GradeBand = { id?: string; grade_label: string; min_percentage: number; max
 
 export default function AssessmentsPage() {
   const { selectedSchool } = useSchool();
+  const { hasRole } = useAuth();
+  const canManageSchoolGrading = hasRole('SUPER_ADMIN') || hasRole('SCHOOL_ADMIN');
   const [classes, setClasses] = useState<ClassResponse[]>([]);
   const [terms, setTerms] = useState<TermResponse[]>([]);
   const [classSubjects, setClassSubjects] = useState<ClassSubjectResponse[]>([]);
@@ -98,6 +101,23 @@ export default function AssessmentsPage() {
 
   async function saveGradingScale() {
     if (!selectedSchool) return;
+    if (!canManageSchoolGrading) {
+      setError('Only a school administrator can manage the school grading scale.');
+      return;
+    }
+    if (gradeBands.some(band => !band.grade_label.trim())) {
+      setError('Every grading band needs a grade label before the scale can be saved.');
+      return;
+    }
+    const orderedBands = [...gradeBands].filter(band => band.is_active).sort((a, b) => a.min_percentage - b.min_percentage);
+    if (orderedBands.some(band => band.min_percentage > band.max_percentage)) {
+      setError('Each grading band minimum must be less than or equal to its maximum.');
+      return;
+    }
+    if (orderedBands.some((band, index) => index > 0 && band.min_percentage <= orderedBands[index - 1].max_percentage)) {
+      setError('Active grading bands must not overlap. Adjust the ranges before saving.');
+      return;
+    }
     setSaving(true); setError(null); setNotice('');
     try {
       const saved = await api.put<GradeBand[]>('/api/v1/grading-scales', {
@@ -156,14 +176,42 @@ export default function AssessmentsPage() {
     finally { setSaving(false); }
   }
 
+  async function submitMarksForReview() {
+    const assessment = assessments.find(x => x.id === assessmentId);
+    if (!assessment || assessment.is_published || assessment.marks_submitted) return;
+    if (!window.confirm('Submit these marks for school administrator verification? The marks will be locked until an administrator returns them to draft.')) return;
+    setSaving(true); setError(null); setNotice('');
+    try {
+      const updated = await api.post<Assessment>('/api/v1/assessments/' + assessmentId + '/submit-for-review', {});
+      setAssessments(current => current.map(item => item.id === updated.id ? updated : item));
+      setNotice('Marks submitted for verification. They will not be visible to guardians until an administrator publishes the verified results.');
+      await loadRosterAndResults();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not submit marks for verification.'); }
+    finally { setSaving(false); }
+  }
+
+  async function returnAssessmentToDraft() {
+    const assessment = assessments.find(x => x.id === assessmentId);
+    if (!assessment || assessment.is_published || !assessment.marks_submitted || !canManageSchoolGrading) return;
+    if (!window.confirm('Return these marks to draft so the teacher can correct them?')) return;
+    setSaving(true); setError(null); setNotice('');
+    try {
+      const updated = await api.post<Assessment>('/api/v1/assessments/' + assessmentId + '/return-to-draft', {});
+      setAssessments(current => current.map(item => item.id === updated.id ? updated : item));
+      setNotice('Assessment returned to draft. The teacher can edit the marks and submit them again.');
+      await loadRosterAndResults();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not return marks to draft.'); }
+    finally { setSaving(false); }
+  }
+
   async function publishAssessment() {
     const assessment = assessments.find(x => x.id === assessmentId);
-    if (!assessment || assessment.is_published) return;
-    if (!window.confirm('Publish these results to linked guardians? Published marks are locked until an administrator unpublishes the assessment.')) return;
+    if (!assessment || assessment.is_published || !assessment.marks_submitted || !canManageSchoolGrading) return;
+    if (!window.confirm('Publish these verified results to linked guardians? Published marks will become visible to guardians.')) return;
     setSaving(true); setError(null); setNotice('');
     try {
       await api.patch('/api/v1/assessments/' + assessmentId, { is_published: true });
-      setNotice('Results published to the guardian portal.');
+      setNotice('Verified results published to the guardian portal.');
       await loadAssessments();
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not publish results.'); }
     finally { setSaving(false); }
@@ -198,24 +246,34 @@ export default function AssessmentsPage() {
           {selectedAssessment && <div className="text-sm text-slate-500">Maximum: {selectedAssessment.max_score} · Weight: {selectedAssessment.weight_percent}%</div>}
         </div>
         {selectedAssessment && <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (selectedAssessment.is_published ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{selectedAssessment.is_published ? 'Published' : 'Draft'}</span>
-          {!selectedAssessment.is_published && <><Button variant="secondary" onClick={() => void saveMarks()} disabled={saving}>{saving ? 'Saving…' : 'Save marks'}</Button><Button onClick={() => void publishAssessment()} disabled={saving}>Publish results</Button></>}
+          <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (selectedAssessment.is_published ? 'bg-emerald-50 text-emerald-700' : selectedAssessment.marks_submitted ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-700')}>{selectedAssessment.is_published ? 'Published' : selectedAssessment.marks_submitted ? 'Submitted for verification' : 'Draft'}</span>
+          {!selectedAssessment.is_published && !selectedAssessment.marks_submitted && <><Button variant="secondary" onClick={() => void saveMarks()} disabled={saving}>{saving ? 'Saving…' : 'Save marks'}</Button><Button onClick={() => void submitMarksForReview()} disabled={saving || roster.length === 0 || roster.some(row => row.score === null || !Number.isFinite(Number(row.score)))}>{saving ? 'Submitting…' : 'Submit for verification'}</Button></>}
+          {!selectedAssessment.is_published && selectedAssessment.marks_submitted && canManageSchoolGrading && <><Button onClick={() => void publishAssessment()} disabled={saving}>{saving ? 'Publishing…' : 'Publish verified results'}</Button><Button variant="secondary" onClick={() => void returnAssessmentToDraft()} disabled={saving}>Return to draft</Button></>}
         </div>}
-        {!selectedAssessment ? <p className="mt-4 text-sm text-slate-500">Create or select an assessment to enter marks.</p> : roster.length === 0 ? <p className="mt-4 text-sm text-slate-500">No active students are enrolled in this class for the assessment term.</p> : <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr><th className="px-3 py-3 text-left font-semibold text-slate-600">Student</th><th className="px-3 py-3 text-left font-semibold text-slate-600">Score / {selectedAssessment.max_score}</th><th className="px-3 py-3 text-left font-semibold text-slate-600">Teacher remarks</th></tr></thead><tbody className="divide-y divide-slate-100">{roster.map(row => <tr key={row.enrollment_id}><td className="px-3 py-3"><p className="font-medium text-slate-900">{row.student_name}</p><p className="text-xs text-slate-500">{row.student_number}</p></td><td className="px-3 py-3"><input aria-label={'Score for ' + row.student_name} type="number" min="0" max={selectedAssessment.max_score} step="0.1" disabled={selectedAssessment.is_published} value={row.score ?? ''} onChange={e => updateRow(row.enrollment_id, 'score', e.target.value)} className="w-32 rounded-md border border-slate-300 p-2 disabled:bg-slate-100"/></td><td className="px-3 py-3"><input aria-label={'Remarks for ' + row.student_name} disabled={selectedAssessment.is_published} value={row.remarks ?? ''} onChange={e => updateRow(row.enrollment_id, 'remarks', e.target.value)} placeholder="Optional feedback" className="w-full min-w-48 rounded-md border border-slate-300 p-2 disabled:bg-slate-100"/></td></tr>)}</tbody></table></div>}
+        {selectedAssessment?.marks_submitted && !selectedAssessment.is_published && !canManageSchoolGrading && <p className="mt-3 rounded-md bg-sky-50 p-3 text-sm text-sky-800">Marks are submitted and locked for review. A school administrator must verify and publish them before guardians can see the results.</p>}
+        {!selectedAssessment ? <p className="mt-4 text-sm text-slate-500">Create or select an assessment to enter marks.</p> : roster.length === 0 ? <p className="mt-4 text-sm text-slate-500">No active students are enrolled in this class for the assessment term.</p> : <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr><th className="px-3 py-3 text-left font-semibold text-slate-600">Student</th><th className="px-3 py-3 text-left font-semibold text-slate-600">Score / {selectedAssessment.max_score}</th><th className="px-3 py-3 text-left font-semibold text-slate-600">Teacher remarks</th></tr></thead><tbody className="divide-y divide-slate-100">{roster.map(row => <tr key={row.enrollment_id}><td className="px-3 py-3"><p className="font-medium text-slate-900">{row.student_name}</p><p className="text-xs text-slate-500">{row.student_number}</p></td><td className="px-3 py-3"><input aria-label={'Score for ' + row.student_name} type="number" min="0" max={selectedAssessment.max_score} step="0.1" disabled={selectedAssessment.is_published || selectedAssessment.marks_submitted} value={row.score ?? ''} onChange={e => updateRow(row.enrollment_id, 'score', e.target.value)} className="w-32 rounded-md border border-slate-300 p-2 disabled:bg-slate-100"/></td><td className="px-3 py-3"><input aria-label={'Remarks for ' + row.student_name} disabled={selectedAssessment.is_published || selectedAssessment.marks_submitted} value={row.remarks ?? ''} onChange={e => updateRow(row.enrollment_id, 'remarks', e.target.value)} placeholder="Optional feedback" className="w-full min-w-48 rounded-md border border-slate-300 p-2 disabled:bg-slate-100"/></td></tr>)}</tbody></table></div>}
       </Card>
 
       <Card className="p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="font-semibold text-slate-900">School grading scale</h2><p className="mt-1 text-sm text-slate-500">Set grade labels and percentage ranges for this school. Ranges must not overlap.</p></div>
-          <div className="flex gap-2"><Button variant="secondary" onClick={() => setGradeBands(current => [...current, { grade_label: '', min_percentage: 0, max_percentage: 0, comment: '', display_order: current.length, is_active: true }])}>Add band</Button><Button onClick={() => void saveGradingScale()} disabled={saving || gradeBands.length===0}>{saving ? 'Saving…' : 'Save grading scale'}</Button></div>
+          <div><h2 className="font-semibold text-slate-900">School grading scale</h2><p className="mt-1 text-sm text-slate-500">School-approved grade labels and percentage ranges. Active ranges must not overlap.</p></div>
+          {canManageSchoolGrading && <div className="flex gap-2"><Button variant="secondary" onClick={() => setGradeBands(current => [...current, { grade_label: '', min_percentage: 0, max_percentage: 0, comment: '', display_order: current.length, is_active: true }])}>Add band</Button><Button onClick={() => void saveGradingScale()} disabled={saving || gradeBands.length===0}>{saving ? 'Saving…' : 'Save grading scale'}</Button></div>}
         </div>
-        {gradeBands.length===0 ? <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-500">No grade bands configured. Add the ranges approved by this school or its education authority.</p> : <div className="mt-3 space-y-2">{gradeBands.map((band,index)=><div key={band.id ?? 'new-'+index} className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-5">
+        {!canManageSchoolGrading ? <div className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+          <p>Only a school administrator can configure or change the school-wide grading scale.</p>
+          {gradeBands.length === 0 ? <p className="mt-1">No grading bands are configured yet. Ask the school administrator to enter the approved ranges.</p> : <ul className="mt-2 space-y-1">{gradeBands.filter(b => b.is_active).map((band, index) => <li key={band.id ?? index}>{band.grade_label}: {band.min_percentage}%–{band.max_percentage}%{band.comment ? ' — ' + band.comment : ''}</li>)}</ul>}
+        </div> : <>
+{gradeBands.length===0 ? <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-500">No grade bands configured. Add the ranges approved by this school or its education authority.</p> : <div className="mt-3 space-y-2">{gradeBands.map((band,index)=><div key={band.id ?? 'new-'+index} className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-5">
           <label className="text-xs font-medium text-slate-600">Grade label<input value={band.grade_label} onChange={e=>updateBand(index,'grade_label',e.target.value)} placeholder="A, B, Merit…" className="mt-1 block w-full rounded-md border border-slate-300 p-2 text-sm"/></label>
           <label className="text-xs font-medium text-slate-600">Minimum %<input type="number" min="0" max="100" step="0.1" value={band.min_percentage} onChange={e=>updateBand(index,'min_percentage',Number(e.target.value))} className="mt-1 block w-full rounded-md border border-slate-300 p-2 text-sm"/></label>
           <label className="text-xs font-medium text-slate-600">Maximum %<input type="number" min="0" max="100" step="0.1" value={band.max_percentage} onChange={e=>updateBand(index,'max_percentage',Number(e.target.value))} className="mt-1 block w-full rounded-md border border-slate-300 p-2 text-sm"/></label>
           <label className="text-xs font-medium text-slate-600">Comment<input value={band.comment} onChange={e=>updateBand(index,'comment',e.target.value)} placeholder="Excellent, Good…" className="mt-1 block w-full rounded-md border border-slate-300 p-2 text-sm"/></label>
           <div className="flex items-end justify-between gap-2"><label className="flex items-center gap-2 pb-2 text-sm text-slate-600"><input type="checkbox" checked={band.is_active} onChange={e=>updateBand(index,'is_active',e.target.checked)}/>Active</label><Button variant="secondary" onClick={()=>setGradeBands(current=>current.filter((_,i)=>i!==index))}>Remove</Button></div>
         </div>)}</div>}
+
+        </>}
+      </Card>
+
       </Card>
 
       <Card className="p-4">
