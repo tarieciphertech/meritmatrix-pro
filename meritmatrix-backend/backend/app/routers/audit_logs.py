@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import require_staff_school_scope
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
 from app.database import get_db
 from app.models.audit_log import AuditLog
@@ -29,6 +30,7 @@ def list_audit_events(
     current_user: User = Depends(require_permission("audit_logs.read")),
 ):
     """List audit events only for a school the administrator can access."""
+    require_staff_school_scope(db, current_user, school_id)
     if SYSTEM_ADMIN_PERMISSION not in _permission_names(current_user) and not UserSchoolService(
         db
     ).is_user_member_of_school(current_user.id, school_id):
