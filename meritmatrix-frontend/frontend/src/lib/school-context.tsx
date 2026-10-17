@@ -62,6 +62,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       setSchools([]);
       if (!user) {
         setSelectedSchoolId(null);
+        localStorage.removeItem(SELECTED_SCHOOL_KEY);
       }
     }
   }, [user, refresh]);
@@ -77,8 +78,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   }, [loading, schools, selectedSchoolId]);
 
   const selectSchool = useCallback((schoolId: string) => {
-    setSelectedSchoolId(schoolId);
-    localStorage.setItem(SELECTED_SCHOOL_KEY, schoolId);
+    const nextSchoolId = schoolId.trim();
+    if (!nextSchoolId) {
+      setSelectedSchoolId(null);
+      localStorage.removeItem(SELECTED_SCHOOL_KEY);
+      return;
+    }
+    setSelectedSchoolId(nextSchoolId);
+    localStorage.setItem(SELECTED_SCHOOL_KEY, nextSchoolId);
   }, []);
 
   const selectedSchool = useMemo(
