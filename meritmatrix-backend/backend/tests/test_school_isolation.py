@@ -80,19 +80,26 @@ class TestSchoolAccessIsolation:
         """Admin A can read School A."""
         headers = auth_headers("adminA@example.com", "StrongPass123")
         response = client.get(f"/api/v1/schools/{school_a}", headers=headers)
-        # Note: Currently schools endpoint doesn't check membership, 
-        # this will pass because SUPER_ADMIN permission is granted
-        # After full implementation, this should check membership
-        assert response.status_code in [200, 403]
+        assert response.status_code == 200, response.text
+        assert response.json()["id"] == str(school_a)
 
     def test_admin_a_cannot_access_school_b(self, client, auth_headers, school_a_admin, school_b):
         """Admin A cannot read School B (IDOR prevention)."""
         headers = auth_headers("adminA@example.com", "StrongPass123")
         response = client.get(f"/api/v1/schools/{school_b}", headers=headers)
-        # Should be 403 after school membership check is enforced on schools endpoint
-        # Currently it may be 200 because schools.read permission is granted
-        # This test documents expected behavior after full implementation
-        pass  # Placeholder - full implementation needed
+        assert response.status_code == 403, response.text
+        assert response.json()["error"]["code"] == "SCHOOL_ACCESS_DENIED"
+
+    def test_school_admin_school_list_contains_only_memberships(
+        self, client, auth_headers, school_a_admin, school_a, school_b
+    ):
+        """The school selector must not leak schools outside the user's membership."""
+        headers = auth_headers("adminA@example.com", "StrongPass123")
+        response = client.get("/api/v1/schools?limit=200", headers=headers)
+        assert response.status_code == 200, response.text
+        school_ids = {row["id"] for row in response.json()}
+        assert school_ids == {str(school_a)}
+        assert str(school_b) not in school_ids
 
 
 # ---- Academic Year Isolation Tests ----
