@@ -5,7 +5,7 @@ import type { ClassResponse } from '../types';
 import { Button, Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
 
 type AttendanceRow = {
- id: string; enrollment_id: string; student_id: string; student_number: string;
+ id: string | null; enrollment_id: string; student_id: string; student_number: string;
  student_name: string; class_id: string; class_name: string; class_code: string;
  status: 'unmarked'|'present'|'absent'|'late'|'excused'|'sick'|'left_early'; notes?: string|null;
 };
@@ -57,8 +57,9 @@ export default function AttendancePage() {
  function note(enrollmentId:string,notes:string){setRows(prev=>prev.map(row=>row.enrollment_id===enrollmentId?{...row,notes}:row));}
  async function save(){
   if(!selectedSchool||!classId)return;
-  const entries=rows.filter(row=>row.status!=='unmarked').map(row=>({enrollment_id:row.enrollment_id,status:row.status,notes:row.notes||null}));
-  if(!entries.length){setError('Mark at least one student before saving.');return;}
+  const entries=rows.map(row=>({enrollment_id:row.enrollment_id,status:row.status,notes:row.notes||null}));
+  const hasMarkedOrSavedRows=rows.some(row=>row.status!=='unmarked'||row.id!==null);
+  if(!hasMarkedOrSavedRows){setError('Mark at least one student before saving.');return;}
   setSaving(true);setError(null);setNotice('');
   try{
    await api.put<AttendanceRow[]>('/api/v1/attendance/register',{attendance_date:day,session,entries},{school_id:selectedSchool.id,class_id:classId});

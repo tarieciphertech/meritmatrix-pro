@@ -62,6 +62,53 @@ def test_attendance_roster_and_register_save(client, make_user, auth_headers, se
     assert len(listed.json()) == 2
 
 
+def test_attendance_can_clear_a_previously_saved_mark(client, make_user, auth_headers, seeded_rbac, db_session):
+    school, year, clazz, enrollments = _setup_register(db_session)
+    make_user(email="attendance-clear@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    headers = auth_headers("attendance-clear@example.com", "StrongPass123")
+    params = {"school_id": str(school.id), "class_id": str(clazz.id)}
+
+    saved = client.put(
+        "/api/v1/attendance/register",
+        headers=headers,
+        params=params,
+        json={
+            "attendance_date": "2026-03-02",
+            "session": "full_day",
+            "entries": [
+                {"enrollment_id": str(enrollments[0].id), "status": "absent"},
+                {"enrollment_id": str(enrollments[1].id), "status": "present"},
+            ],
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    assert len(saved.json()) == 2
+
+    cleared = client.put(
+        "/api/v1/attendance/register",
+        headers=headers,
+        params=params,
+        json={
+            "attendance_date": "2026-03-02",
+            "session": "full_day",
+            "entries": [
+                {"enrollment_id": str(enrollments[0].id), "status": "unmarked"},
+                {"enrollment_id": str(enrollments[1].id), "status": "present"},
+            ],
+        },
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert len(cleared.json()) == 1
+    roster = client.get(
+        "/api/v1/attendance/roster",
+        headers=headers,
+        params={**params, "attendance_date": "2026-03-02"},
+    )
+    assert roster.status_code == 200, roster.text
+    statuses = {row["enrollment_id"]: row["status"] for row in roster.json()}
+    assert statuses[str(enrollments[0].id)] == "unmarked"
+    assert statuses[str(enrollments[1].id)] == "present"
+
 def test_attendance_rejects_duplicate_enrollment_in_same_payload(client, make_user, auth_headers, seeded_rbac, db_session):
     school, year, clazz, enrollments = _setup_register(db_session)
     make_user(email="attendance-dup@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
