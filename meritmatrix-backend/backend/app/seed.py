@@ -103,6 +103,7 @@ DEFAULT_ROLES: dict[str, str] = {
     "SCHOOL_ADMIN": "Manages a single school's students, staff, and academic data",
     "TEACHER": "Manages assigned classes, subjects, and marks",
     "PARENT": "Views linked children's academic records",
+    "GUARDIAN": "Guardian portal access for linked students",
     "STUDENT": "Views their own academic records",
 }
 
