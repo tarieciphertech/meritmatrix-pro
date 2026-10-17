@@ -18,7 +18,7 @@ from app.auth.dependencies import (
     SYSTEM_ADMIN_PERMISSION,
     _permission_names,
 )
-from app.auth.assignment_access import assigned_class_subject_ids, require_class_subject_assignment, deny_linked_staff_management
+from app.auth.assignment_access import assigned_class_subject_ids, require_class_subject_assignment, deny_linked_staff_management, require_staff_school_scope
 from app.database import get_db
 from app.models.class_subject import ClassSubject
 from app.models.clazz import Class
@@ -45,7 +45,8 @@ def _verify_school_membership_for_class(
     if clazz is None:
         from app.utils.errors import NotFoundError
         raise NotFoundError("Class not found.", code="CLASS_NOT_FOUND")
-    
+
+    require_staff_school_scope(db, current_user, clazz.school_id)
     from app.services.user_school_service import UserSchoolService
     service = UserSchoolService(db)
     if not service.is_user_member_of_school(current_user.id, clazz.school_id):
