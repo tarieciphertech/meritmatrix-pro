@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import { useAuth } from '../lib/auth';
@@ -6,7 +6,7 @@ import type { AcademicYearResponse, ClassResponse, ClassSubjectResponse, TermRes
 import { Button, Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
 
 type Assessment = {
-  id: string; title: string; class_subject_id: string; term_id: string;
+  id: string; school_id: string; title: string; class_subject_id: string; term_id: string;
   assessment_type: string; assessment_date: string | null; max_score: number;
   weight_percent: number; is_published: boolean; marks_submitted: boolean; class_name: string; class_code: string;
   subject_name: string; subject_code: string; term_name: string;
@@ -39,9 +39,33 @@ export default function AssessmentsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  const activeClassIdRef = useRef(classId);
+  const activeTermIdRef = useRef(termId);
+  const activeAssessmentIdRef = useRef(assessmentId);
+  activeClassIdRef.current = classId;
+  activeTermIdRef.current = termId;
+  activeAssessmentIdRef.current = assessmentId;
+
+  // Clear all school-scoped academic data immediately on school changes. The
+  // request guards below also prevent a slower previous-school request from
+  // repopulating this screen after the user has switched schools.
+  useEffect(() => {
+    activeSchoolIdRef.current = selectedSchool?.id ?? null;
+    setClasses([]); setTerms([]); setClassSubjects([]);
+    setClassId(''); setTermId(''); setClassSubjectId('');
+    setAssessments([]); setAssessmentId(''); setRoster([]); setResults([]);
+    setGradeBands([]); setTitle(''); setError(null); setNotice('');
+  }, [selectedSchool?.id]);
 
   const loadSetup = useCallback(async () => {
-    if (!selectedSchool) { setClasses([]); setTerms([]); setClassSubjects([]); return; }
+    if (!selectedSchool) {
+      setClasses([]); setTerms([]); setClassSubjects([]); setAssessments([]);
+      setClassId(''); setTermId(''); setClassSubjectId(''); setAssessmentId('');
+      setRoster([]); setResults([]); setGradeBands([]); setLoading(false);
+      return;
+    }
+    const requestSchoolId = selectedSchool.id;
     setLoading(true); setError(null);
     try {
       const [classRows, yearRows, bandRows] = await Promise.all([
@@ -49,50 +73,93 @@ export default function AssessmentsPage() {
         api.get<AcademicYearResponse[]>('/api/v1/academic-years', { school_id: selectedSchool.id }),
         api.get<GradeBand[]>('/api/v1/grading-scales', { school_id: selectedSchool.id }),
       ]);
+      if (activeSchoolIdRef.current !== requestSchoolId) return;
       setGradeBands(bandRows.map(b => ({ ...b, comment: b.comment ?? '' })));
       setClasses(classRows.filter(x => x.is_active));
       const termGroups = await Promise.all(yearRows.map(y => api.get<TermResponse[]>('/api/v1/terms', { academic_year_id: y.id }).catch(() => [] as TermResponse[])));
+      if (activeSchoolIdRef.current !== requestSchoolId) return;
       const allTerms = termGroups.flat().filter(t => t.is_active);
       setTerms(allTerms);
       setClassId(current => classRows.some(x => x.id === current && x.is_active) ? current : classRows.find(x => x.is_active)?.id ?? '');
       setTermId(current => allTerms.some(x => x.id === current) ? current : allTerms.find(x => x.is_current)?.id ?? allTerms[0]?.id ?? '');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load academic setup.'); }
-    finally { setLoading(false); }
+    } catch (e) {
+      if (activeSchoolIdRef.current === requestSchoolId) {
+        setClasses([]); setTerms([]); setClassSubjects([]); setGradeBands([]);
+        setAssessments([]); setAssessmentId(''); setRoster([]); setResults([]);
+        setError(e instanceof Error ? e.message : 'Could not load academic setup.');
+      }
+    } finally {
+      if (activeSchoolIdRef.current === requestSchoolId) setLoading(false);
+    }
   }, [selectedSchool]);
 
   useEffect(() => { void loadSetup(); }, [loadSetup]);
 
   const loadClassSubjects = useCallback(async () => {
-    if (!classId) { setClassSubjects([]); setClassSubjectId(''); return; }
+    if (
+      !selectedSchool || !classId ||
+      !classes.some(clazz => clazz.id === classId && clazz.school_id === selectedSchool.id)
+    ) {
+      setClassSubjects([]); setClassSubjectId(''); return;
+    }
+    const requestSchoolId = selectedSchool.id;
+    const requestClassId = classId;
     try {
-      const rows = await api.get<ClassSubjectResponse[]>('/api/v1/class-subjects', { class_id: classId });
+      const rows = await api.get<ClassSubjectResponse[]>('/api/v1/class-subjects', { class_id: requestClassId });
+      if (activeSchoolIdRef.current !== requestSchoolId || activeClassIdRef.current !== requestClassId) return;
       setClassSubjects(rows);
       setClassSubjectId(current => rows.some(x => x.id === current) ? current : rows[0]?.id ?? '');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load class subjects.'); }
-  }, [classId]);
+    } catch (e) {
+      if (activeSchoolIdRef.current === requestSchoolId) {
+        setClassSubjects([]); setClassSubjectId('');
+        setError(e instanceof Error ? e.message : 'Could not load class subjects.');
+      }
+    }
+  }, [selectedSchool, classes, classId]);
   useEffect(() => { void loadClassSubjects(); }, [loadClassSubjects]);
 
   const loadAssessments = useCallback(async () => {
     if (!selectedSchool || !classId || !termId) { setAssessments([]); setAssessmentId(''); return; }
+    const requestSchoolId = selectedSchool.id;
+    const requestClassId = classId;
+    const requestTermId = termId;
     try {
-      const rows = await api.get<Assessment[]>('/api/v1/assessments', { school_id: selectedSchool.id, class_id: classId, term_id: termId });
+      const rows = await api.get<Assessment[]>('/api/v1/assessments', { school_id: requestSchoolId, class_id: requestClassId, term_id: requestTermId });
+      if (activeSchoolIdRef.current !== requestSchoolId || activeClassIdRef.current !== requestClassId || activeTermIdRef.current !== requestTermId) return;
       setAssessments(rows);
       setAssessmentId(current => rows.some(x => x.id === current) ? current : rows[0]?.id ?? '');
-    } catch (e) { setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not load assessments.'); }
+    } catch (e) {
+      if (activeSchoolIdRef.current === requestSchoolId) {
+        setAssessments([]); setAssessmentId(''); setRoster([]); setResults([]);
+        setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not load assessments.');
+      }
+    }
   }, [selectedSchool, classId, termId]);
   useEffect(() => { void loadAssessments(); }, [loadAssessments]);
 
   const loadRosterAndResults = useCallback(async () => {
     if (!selectedSchool || !classId || !termId) { setRoster([]); setResults([]); return; }
+    const requestSchoolId = selectedSchool.id;
+    const requestClassId = classId;
+    const requestTermId = termId;
+    const requestAssessmentId = assessmentId;
     try {
-      const resultRows = await api.get<ResultRow[]>('/api/v1/results', { school_id: selectedSchool.id, class_id: classId, term_id: termId });
+      const resultRows = await api.get<ResultRow[]>('/api/v1/results', { school_id: requestSchoolId, class_id: requestClassId, term_id: requestTermId });
+      if (activeSchoolIdRef.current !== requestSchoolId || activeClassIdRef.current !== requestClassId || activeTermIdRef.current !== requestTermId) return;
       setResults(resultRows);
-      if (assessmentId) {
-        const rosterRows = await api.get<RosterRow[]>('/api/v1/assessments/' + assessmentId + '/roster');
+      const selectedAssessment = assessments.find(item => item.id === requestAssessmentId && item.school_id === requestSchoolId);
+      if (selectedAssessment && activeAssessmentIdRef.current === requestAssessmentId) {
+        const rosterRows = await api.get<RosterRow[]>('/api/v1/assessments/' + selectedAssessment.id + '/roster');
+        if (activeSchoolIdRef.current !== requestSchoolId || activeClassIdRef.current !== requestClassId || activeTermIdRef.current !== requestTermId || activeAssessmentIdRef.current !== requestAssessmentId) return;
         setRoster(rosterRows);
       } else setRoster([]);
-    } catch (e) { setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not load marks.'); }
-  }, [selectedSchool, classId, termId, assessmentId]);
+    } catch (e) {
+      if (activeSchoolIdRef.current === requestSchoolId) {
+        setRoster([]); setResults([]);
+        setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not load marks.');
+      }
+    }
+  }, [selectedSchool, classId, termId, assessmentId, assessments]);
   useEffect(() => { void loadRosterAndResults(); }, [loadRosterAndResults]);
 
   function updateBand(index: number, field: keyof GradeBand, value: string | number | boolean) {
