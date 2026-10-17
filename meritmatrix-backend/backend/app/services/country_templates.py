@@ -59,7 +59,7 @@ COUNTRY_TEMPLATES = {
             ],
             *[
                 {"code": f"FORM_{n}", "name": f"Form {n}", "stage": "advanced_secondary", "sequence": 230 + n * 10}
-                for n in range(4, 7)
+                for n in range(4, 6)
             ],
         ],
         "calendar_event_types": [
@@ -69,7 +69,7 @@ COUNTRY_TEMPLATES = {
             "The default school pathway is 7 years of primary (Standard 1–7), 3 years of junior secondary (Forms 1–3), and 2 years of senior secondary (Forms 4–5).",
             "Forms 1–3 complete the 10-year basic/universal education cycle; the full 7-3-2 pathway spans 12 school years.",
             "Pre-primary is optional and separate from the 7-3-2 sequence. Tertiary and vocational structures must be configured separately.",
-            "Form 6 is included as an optional school-specific high-school extension and requires local authority confirmation before official use.",
+            "Do not infer that every institution offers every listed level. Allow school-specific extensions, such as Form 6 where applicable, without making them the national default.",
             "Verify current official level labels and examination pathways before production activation. Calendar dates must be approved for each academic year."
         ],
     },
