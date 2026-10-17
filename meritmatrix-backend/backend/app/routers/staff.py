@@ -19,6 +19,7 @@ from app.services.security import WeakPasswordError, hash_password
 from app.utils.errors import ConflictError, AppError
 from app.schemas.staff import StaffAccountCreate, StaffAccountResponse, StaffCreate, StaffResponse, StaffUpdate
 from app.services.staff_service import StaffService
+from app.services.audit_service import record_audit_event
 
 
 router = APIRouter(prefix="/api/v1/staff", tags=["staff"])
@@ -63,6 +64,11 @@ def create_staff(
     
     service = StaffService(db)
     staff = service.create_staff(school_id, payload)
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="staff.created", entity_type="staff", entity_id=staff.id,
+        details={"staff_number": staff.staff_number, "position": staff.job_title},
+    )
     db.commit()
     db.refresh(staff)
     return staff
@@ -99,7 +105,13 @@ def update_staff(
     _verify_school_membership(db, current_user, staff.school_id)
     
     # Update with school_id from the existing staff (prevents school change)
+    changes = payload.model_dump(exclude_unset=True)
     staff = service.update_staff(staff_id, staff.school_id, payload)
+    record_audit_event(
+        db, school_id=staff.school_id, actor_user_id=current_user.id,
+        action="staff.updated", entity_type="staff", entity_id=staff.id,
+        details={"staff_number": staff.staff_number, "changed_fields": sorted(changes.keys())},
+    )
     db.commit()
     db.refresh(staff)
     return staff
@@ -119,6 +131,11 @@ def archive_staff(
     _verify_school_membership(db, current_user, staff.school_id)
     
     service.archive_staff(staff_id, staff.school_id)
+    record_audit_event(
+        db, school_id=staff.school_id, actor_user_id=current_user.id,
+        action="staff.archived", entity_type="staff", entity_id=staff.id,
+        details={"staff_number": staff.staff_number},
+    )
     db.commit()
 
 @router.post("/{staff_id}/account", response_model=StaffAccountResponse, status_code=201)
@@ -169,5 +186,10 @@ def create_staff_account(
 
     db.add(UserSchool(user_id=user.id, school_id=staff.school_id, school_role="TEACHER"))
     staff.user_id = user.id
+    record_audit_event(
+        db, school_id=staff.school_id, actor_user_id=current_user.id,
+        action="staff.account_provisioned", entity_type="staff", entity_id=staff.id,
+        details={"login_user_id": str(user.id), "login_email": email, "role": role.name},
+    )
     db.commit()
     return {"user_id": user.id, "email": email, "role": role.name, "school_id": staff.school_id}

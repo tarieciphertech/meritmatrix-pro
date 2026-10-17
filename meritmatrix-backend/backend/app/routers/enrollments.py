@@ -19,9 +19,24 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.enrollment import EnrollmentCreate, EnrollmentResponse, EnrollmentUpdate
 from app.services.enrollment_service import EnrollmentService
+from app.services.audit_service import record_audit_event
 
 
 router = APIRouter(prefix="/api/v1/enrollments", tags=["enrollments"])
+
+
+def _audit_enrollment(db: Session, actor: User, enrollment, school_id: uuid.UUID, action: str) -> None:
+    status = enrollment.status.value if hasattr(enrollment.status, "value") else str(enrollment.status)
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=actor.id,
+        action=action, entity_type="enrollment", entity_id=enrollment.id,
+        details={
+            "student_id": str(enrollment.student_id),
+            "class_id": str(enrollment.class_id),
+            "academic_year_id": str(enrollment.academic_year_id),
+            "status": status,
+        },
+    )
 
 
 def _verify_school_membership(db: Session, current_user: User, school_id: uuid.UUID) -> None:
@@ -77,6 +92,7 @@ def create_enrollment(
     
     # Create enrollment with school authorization
     enrollment = service.create_enrollment(payload, authorized_school_id=student.school_id)
+    _audit_enrollment(db, current_user, enrollment, student.school_id, "enrollment.created")
     db.commit()
     db.refresh(enrollment)
     return enrollment
@@ -122,6 +138,7 @@ def update_enrollment(
     
     # Update
     enrollment = service.update_enrollment(enrollment_id, school_id, payload)
+    _audit_enrollment(db, current_user, enrollment, school_id, "enrollment.updated")
     db.commit()
     db.refresh(enrollment)
     return enrollment
@@ -144,6 +161,7 @@ def complete_enrollment(
     _verify_school_membership(db, current_user, school_id)
     
     enrollment = service.complete_enrollment(enrollment_id, school_id)
+    _audit_enrollment(db, current_user, enrollment, school_id, "enrollment.completed")
     db.commit()
     db.refresh(enrollment)
     return enrollment
@@ -166,6 +184,7 @@ def withdraw_enrollment(
     _verify_school_membership(db, current_user, school_id)
     
     enrollment = service.withdraw_enrollment(enrollment_id, school_id)
+    _audit_enrollment(db, current_user, enrollment, school_id, "enrollment.withdrawn")
     db.commit()
     db.refresh(enrollment)
     return enrollment
@@ -188,6 +207,7 @@ def cancel_enrollment(
     _verify_school_membership(db, current_user, school_id)
     
     enrollment = service.cancel_enrollment(enrollment_id, school_id)
+    _audit_enrollment(db, current_user, enrollment, school_id, "enrollment.cancelled")
     db.commit()
     db.refresh(enrollment)
     return enrollment
