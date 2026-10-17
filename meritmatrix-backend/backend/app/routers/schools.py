@@ -11,6 +11,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import require_staff_school_scope
 from app.auth.dependencies import (
     get_current_active_user,
     require_permission,
@@ -48,7 +49,17 @@ def list_schools(
     SCHOOL_ADMIN sees only their assigned schools.
     """
     service = SchoolService(db)
-    
+
+    # Linked staff can never widen their school boundary through extra membership rows.
+    from app.models.staff import Staff
+    staff = db.query(Staff).filter(Staff.user_id == current_user.id).first()
+    if staff is not None:
+        require_staff_school_scope(db, current_user, staff.school_id)
+        school = db.get(School, staff.school_id)
+        if school is None or not school.is_active:
+            return []
+        return [school][offset : offset + limit]
+
     # Check if user is SUPER_ADMIN (has system.admin permission)
     from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
     if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
