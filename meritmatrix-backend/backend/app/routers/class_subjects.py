@@ -19,6 +19,9 @@ from app.auth.dependencies import (
     _permission_names,
 )
 from app.database import get_db
+from app.models.class_subject import ClassSubject
+from app.models.clazz import Class
+from app.models.subject import Subject
 from app.models.user import User
 from app.schemas.class_subject import ClassSubjectCreate, ClassSubjectResponse
 from app.services.class_subject_service import ClassSubjectService
