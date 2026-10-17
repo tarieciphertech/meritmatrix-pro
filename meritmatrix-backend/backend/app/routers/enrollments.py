@@ -6,8 +6,7 @@ All operations verify that student, academic_year, and class belong to the same 
 import uuid
 from typing import List
 
-from app.auth.assignment_access import require_staff_school_scope
-from app.auth.assignment_access import assigned_student_ids, require_student_assignment, deny_linked_staff_management
+from app.auth.assignment_access import require_staff_school_scope, assigned_student_ids, require_student_assignment, deny_linked_staff_management
 from app.models.enrollment import Enrollment
 from app.models.student import Student
 
