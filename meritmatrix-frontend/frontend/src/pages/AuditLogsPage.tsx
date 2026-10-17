@@ -29,6 +29,21 @@ const ACTIONS = [
   'grading_scale.replaced',
   'fees.charge_created',
   'fees.payment_recorded',
+  'student.created',
+  'student.updated',
+  'student.archived',
+  'staff.created',
+  'staff.updated',
+  'staff.archived',
+  'staff.account_provisioned',
+  'enrollment.created',
+  'enrollment.updated',
+  'enrollment.completed',
+  'enrollment.withdrawn',
+  'enrollment.cancelled',
+  'teaching_assignment.created',
+  'teaching_assignment.updated',
+  'teaching_assignment.deactivated',
 ];
 
 function readable(value: string) {
@@ -86,13 +101,13 @@ export default function AuditLogsPage() {
         <label className="text-sm font-medium text-slate-700">Record type
           <Select className="mt-1" value={entityType} onChange={e => changeEntityType(e.target.value)}>
             <option value="">All record types</option>
-            {['attendance_register', 'assessment', 'grading_scale', 'fee_charge', 'fee_payment'].map(item => <option key={item} value={item}>{readable(item)}</option>)}
+            {['attendance_register', 'assessment', 'grading_scale', 'fee_charge', 'fee_payment', 'student', 'staff', 'enrollment', 'teaching_assignment'].map(item => <option key={item} value={item}>{readable(item)}</option>)}
           </Select>
         </label>
       </div>
     </Card>
     <Card className="p-0">
-      {loading ? <Spinner label="Loading audit history…" /> : events.length === 0 ? <EmptyState title="No audit events found" hint="Activity appears here when supported attendance, assessment, grading, or fee operations are performed." /> : (
+      {loading ? <Spinner label="Loading audit history…" /> : events.length === 0 ? <EmptyState title="No audit events found" hint="Activity appears here when supported student, staff, enrollment, teaching assignment, attendance, assessment, grading, or fee operations are performed." /> : (
         <Table headers={['Date and time', 'Action', 'Record', 'Actor', 'Details']}>
           {events.map(event => <tr key={event.id}>
             <Td className="min-w-44">{event.created_at ? new Date(event.created_at).toLocaleString() : '—'}</Td>
