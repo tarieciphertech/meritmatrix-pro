@@ -16,6 +16,7 @@ from app.models.term import Term
 from app.models.user import User
 from app.schemas.fee import FeeChargeCreate, FeeChargeResponse, FeePaymentCreate, FeePaymentResponse
 from app.services.user_school_service import UserSchoolService
+from app.services.audit_service import record_audit_event
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/fees", tags=["fees"])
@@ -89,6 +90,12 @@ def create_charge(
         raise NotFoundError("Choose an active student, academic year and optional term from this school.", code="FEE_TARGET_NOT_FOUND")
     charge = FeeCharge(school_id=school_id, created_by_user_id=current_user.id, **payload.model_dump())
     db.add(charge)
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="fees.charge_created", entity_type="fee_charge",
+        entity_id=charge.id,
+        details={"student_id": str(student.id), "amount": str(payload.amount), "description": payload.description},
+    )
     db.commit()
     db.refresh(charge)
     return _charge_response(charge)
@@ -128,6 +135,16 @@ def create_payment(
         **payload.model_dump(),
     )
     db.add(payment)
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="fees.payment_recorded", entity_type="fee_payment",
+        entity_id=payment.id,
+        details={
+            "student_id": str(charge.student_id), "charge_id": str(charge.id),
+            "amount": str(payload.amount), "payment_date": payload.payment_date.isoformat(),
+            "method": payload.method,
+        },
+    )
     try:
         db.commit()
     except IntegrityError:

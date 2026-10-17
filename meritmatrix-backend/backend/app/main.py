@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.logging_config import configure_logging
 from app.routers import (
-    academic_years, attendance, auth, calendar_events, class_subjects, classes,
+    academic_years, attendance, auth, audit_logs, calendar_events, class_subjects, classes,
     country_configurations, enrollments, guardian_accounts, guardian_portal,
     guardians, health, schools, staff, student_guardians, students, subjects,
     teaching_assignments, terms, users, assessments, fees,
@@ -22,6 +22,7 @@ def create_app() -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins_list, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
     register_exception_handlers(app)
     app.include_router(health.router)
+    app.include_router(audit_logs.router)
     app.include_router(auth.router)
     app.include_router(users.router)
     app.include_router(country_configurations.router)

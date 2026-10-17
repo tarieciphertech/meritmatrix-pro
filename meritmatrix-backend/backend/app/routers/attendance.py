@@ -18,6 +18,7 @@ from app.models.student import Student
 from app.models.user import User
 from app.schemas.attendance_record import AttendanceRecordResponse, AttendanceRegisterCreate
 from app.services.user_school_service import UserSchoolService
+from app.services.audit_service import record_audit_event
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/attendance", tags=["attendance"])
@@ -179,6 +180,21 @@ def save_register(
                 )
                 db.add(record)
             saved.append(record)
+        from collections import Counter
+        record_audit_event(
+            db,
+            school_id=school_id,
+            actor_user_id=current_user.id,
+            action="attendance.register_saved",
+            entity_type="attendance_register",
+            entity_id=class_id,
+            details={
+                "attendance_date": payload.attendance_date.isoformat(),
+                "session": payload.session,
+                "entries_count": len(saved),
+                "status_counts": dict(Counter(entry.status for entry in payload.entries)),
+            },
+        )
         db.commit()
         for record in saved:
             db.refresh(record)
