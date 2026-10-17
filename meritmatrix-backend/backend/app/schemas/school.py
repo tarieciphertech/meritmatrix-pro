@@ -97,3 +97,14 @@ class SchoolAdminAccountResponse(BaseModel):
     email: EmailStr
     role: str
     must_change_password: bool
+
+
+class SchoolOnboardCreate(BaseModel):
+    """Create a school and its first school administrator in one transaction."""
+    school: SchoolCreate
+    admin: SchoolAdminCreate
+
+
+class SchoolOnboardResponse(BaseModel):
+    school: SchoolResponse
+    admin: SchoolAdminAccountResponse

@@ -228,3 +228,65 @@ def test_school_admin_role_cannot_be_granted_to_a_multi_school_member(
         service.update_school_role(memberships[0].id, "SCHOOL_ADMIN")
     assert exc.value.code == "SCHOOL_ADMIN_SINGLE_SCHOOL"
     assert memberships[0].school_role == "TEACHER"
+
+
+
+def test_school_onboarding_creates_school_and_admin_as_one_operation(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    """The normal school creation path must not leave a new school without its admin."""
+    from app.models.school import School
+    from app.models.user import User
+    from app.models.user_school import UserSchool
+
+    make_user(email="onboarding-super@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    headers = auth_headers("onboarding-super@example.com", "StrongPass123")
+    payload = {
+        "school": {
+            "name": "Onboarded Academy",
+            "code": "ONBOARD-001",
+            "city": "Gaborone",
+            "country": "Botswana",
+            "country_code": "BW",
+            "institution_type": "secondary",
+        },
+        "admin": {
+            "first_name": "Mpho",
+            "last_name": "Admin",
+            "email": "mpho.admin@example.com",
+            "password": "TemporarySchoolAdmin123!",
+        },
+    }
+
+    response = client.post("/api/v1/schools/onboard", headers=headers, json=payload)
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["school"]["name"] == "Onboarded Academy"
+    assert body["admin"]["school_id"] == body["school"]["id"]
+    assert body["admin"]["role"] == "SCHOOL_ADMIN"
+    assert body["admin"]["must_change_password"] is True
+
+    admin = db_session.query(User).filter(User.email == "mpho.admin@example.com").one()
+    memberships = db_session.query(UserSchool).filter(UserSchool.user_id == admin.id).all()
+    assert len(memberships) == 1
+    assert str(memberships[0].school_id) == body["school"]["id"]
+    assert memberships[0].school_role == "SCHOOL_ADMIN"
+
+    # A duplicate admin email must not create a second school as a side effect.
+    schools_before = db_session.query(School).count()
+    duplicate = client.post(
+        "/api/v1/schools/onboard",
+        headers=headers,
+        json={
+            "school": {"name": "Should Not Persist", "code": "ONBOARD-002"},
+            "admin": {
+                "first_name": "Duplicate",
+                "last_name": "Admin",
+                "email": "mpho.admin@example.com",
+                "password": "TemporarySchoolAdmin123!",
+            },
+        },
+    )
+    assert duplicate.status_code == 409, duplicate.text
+    assert duplicate.json()["error"]["code"] == "ACCOUNT_EMAIL_EXISTS"
+    assert db_session.query(School).count() == schools_before
