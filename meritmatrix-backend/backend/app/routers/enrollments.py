@@ -6,6 +6,8 @@ All operations verify that student, academic_year, and class belong to the same 
 import uuid
 from typing import List
 
+from app.auth.assignment_access import assigned_student_ids, require_student_assignment
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -63,7 +65,11 @@ def list_enrollments(
     _verify_school_membership(db, current_user, school_id)
     
     service = EnrollmentService(db)
-    return service.get_enrollments_by_school(school_id, limit=limit, offset=offset)
+    enrollments = service.get_enrollments_by_school(school_id, limit=limit, offset=offset)
+    allowed_student_ids = assigned_student_ids(db, current_user, school_id)
+    if allowed_student_ids is not None:
+        enrollments = [row for row in enrollments if row.student_id in allowed_student_ids]
+    return enrollments
 
 
 @router.post("", response_model=EnrollmentResponse, status_code=201)
@@ -113,9 +119,10 @@ def read_enrollment(
     # Get school from student
     school_id = enrollment.student.school_id
     
-    # Verify membership
+    # Verify membership and restrict linked staff to students in currently assigned classes.
     _verify_school_membership(db, current_user, school_id)
-    
+    require_student_assignment(db, current_user, school_id, enrollment.student_id)
+
     return enrollment
 
 
