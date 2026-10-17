@@ -136,3 +136,28 @@ def test_only_super_admin_can_provision_school_admin(
         },
     )
     assert response.status_code == 403
+
+
+
+def test_school_admin_with_multiple_school_memberships_is_denied(
+    make_user, seeded_rbac, db_session
+):
+    from app.models.school import School
+    from app.models.user_school import UserSchool
+    from app.services.user_school_service import UserSchoolService
+
+    admin = make_user(email="multi-school-admin@example.com", role_name="SCHOOL_ADMIN")
+    school_a = School(name="Multi Admin A", code="MULTI-A", city="Gaborone", country="Botswana")
+    school_b = School(name="Multi Admin B", code="MULTI-B", city="Gaborone", country="Botswana")
+    db_session.add_all([school_a, school_b])
+    db_session.flush()
+    db_session.add_all([
+        UserSchool(user_id=admin.id, school_id=school_a.id, school_role="SCHOOL_ADMIN"),
+        UserSchool(user_id=admin.id, school_id=school_b.id, school_role="SCHOOL_ADMIN"),
+    ])
+    db_session.commit()
+
+    service = UserSchoolService(db_session)
+    assert service.is_user_member_of_school(admin.id, school_a.id) is False
+    assert service.is_user_member_of_school(admin.id, school_b.id) is False
+    assert service.get_schools_for_user(admin.id) == []
