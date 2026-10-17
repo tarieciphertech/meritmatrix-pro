@@ -7,6 +7,8 @@ type AuditEvent = {
   id: string;
   school_id: string | null;
   actor_user_id: string | null;
+  actor_name: string;
+  actor_identifier: string | null;
   action: string;
   entity_type: string;
   entity_id: string | null;
@@ -96,7 +98,7 @@ export default function AuditLogsPage() {
             <Td className="min-w-44">{event.created_at ? new Date(event.created_at).toLocaleString() : '—'}</Td>
             <Td><span className="font-medium text-slate-900">{readable(event.action)}</span></Td>
             <Td><p className="font-medium text-slate-800">{readable(event.entity_type)}</p><p className="text-xs text-slate-500">{event.entity_id ?? '—'}</p></Td>
-            <Td><span className="font-mono text-xs">{event.actor_user_id ?? 'System'}</span></Td>
+            <Td><p className="font-medium text-slate-800">{event.actor_name}</p><p className="text-xs text-slate-500">{event.actor_identifier ?? event.actor_user_id ?? ''}</p></Td>
             <Td><pre className="max-w-md whitespace-pre-wrap break-words text-xs text-slate-600">{JSON.stringify(event.details, null, 2)}</pre></Td>
           </tr>)}
         </Table>
