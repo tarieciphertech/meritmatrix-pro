@@ -76,6 +76,8 @@ export default function StudentsPage() {
       setStudents([]);
       return;
     }
+    // Never leave the previous school's student data visible during a school switch.
+    setStudents([]);
     setLoading(true);
     setError(null);
     try {
@@ -85,6 +87,7 @@ export default function StudentsPage() {
       });
       setStudents(list);
     } catch (err) {
+      setStudents([]);
       setError(err instanceof Error ? err.message : 'Failed to load students');
     } finally {
       setLoading(false);
@@ -94,6 +97,14 @@ export default function StudentsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setModalOpen(false);
+    setEditingStudent(null);
+    setForm(emptyForm);
+    setGuardianStudent(null);
+    setViewingStudent(null);
+  }, [selectedSchool?.id]);
 
   function openCreate() {
     setEditingStudent(null);
