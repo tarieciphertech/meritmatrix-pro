@@ -24,7 +24,8 @@ from app.models.school import School
 from app.models.role import Role
 from app.models.user_school import UserSchool
 from app.schemas.school import (
-    SchoolAdminAccountResponse, SchoolAdminCreate, SchoolCreate, SchoolResponse, SchoolUpdate,
+    SchoolAdminAccountResponse, SchoolAdminCreate, SchoolCreate, SchoolOnboardCreate,
+    SchoolOnboardResponse, SchoolResponse, SchoolUpdate,
 )
 from app.services.school_service import SchoolService
 from app.services.security import WeakPasswordError, hash_password
@@ -145,6 +146,83 @@ def create_school_admin_account(
         "user_id": user.id, "school_id": school.id, "school_name": school.name,
         "first_name": user.first_name, "last_name": user.last_name,
         "email": user.email, "role": role.name, "must_change_password": user.must_change_password,
+    }
+
+
+@router.post("/onboard", response_model=SchoolOnboardResponse, status_code=201)
+def onboard_school(
+    payload: SchoolOnboardCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("system.admin")),
+):
+    """Create a school and its first dedicated SCHOOL_ADMIN atomically."""
+    email = str(payload.admin.email).strip().lower()
+    if db.query(User).filter(User.email == email).first():
+        raise ConflictError("An account already uses this email address.", code="ACCOUNT_EMAIL_EXISTS")
+
+    role = db.query(Role).filter(Role.name == "SCHOOL_ADMIN").first()
+    if role is None:
+        raise AppError(
+            "The SCHOOL_ADMIN role is not configured.",
+            code="SCHOOL_ADMIN_ROLE_NOT_CONFIGURED",
+            status_code=409,
+        )
+    try:
+        password_hash = hash_password(payload.admin.password)
+    except WeakPasswordError as exc:
+        raise AppError(str(exc), code="WEAK_PASSWORD", status_code=422) from exc
+
+    # All records are committed together: if account creation fails, the school
+    # must not be left active without its required administrator.
+    school = SchoolService(db).create_school(payload.school)
+    db.flush()
+    user = User(
+        email=email,
+        password_hash=password_hash,
+        first_name=payload.admin.first_name.strip(),
+        last_name=payload.admin.last_name.strip(),
+        is_active=True,
+        is_verified=False,
+        must_change_password=True,
+    )
+    user.roles.append(role)
+    db.add(user)
+    db.flush()
+    membership = UserSchool(user_id=user.id, school_id=school.id, school_role="SCHOOL_ADMIN")
+    db.add(membership)
+    record_audit_event(
+        db,
+        school_id=school.id,
+        actor_user_id=current_user.id,
+        action="school.created",
+        entity_type="school",
+        entity_id=school.id,
+        details={"code": school.code, "created_with_admin": True},
+    )
+    record_audit_event(
+        db,
+        school_id=school.id,
+        actor_user_id=current_user.id,
+        action="school.admin_account_created",
+        entity_type="school_admin",
+        entity_id=user.id,
+        details={"email": email, "role": "SCHOOL_ADMIN"},
+    )
+    db.commit()
+    db.refresh(school)
+    db.refresh(user)
+    return {
+        "school": school,
+        "admin": {
+            "user_id": user.id,
+            "school_id": school.id,
+            "school_name": school.name,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "role": role.name,
+            "must_change_password": user.must_change_password,
+        },
     }
 
 
