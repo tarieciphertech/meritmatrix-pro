@@ -16,6 +16,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.student import StudentCreate, StudentResponse, StudentUpdate
 from app.services.student_service import StudentService
+from app.services.audit_service import record_audit_event
 
 
 router = APIRouter(prefix="/api/v1/students", tags=["students"])
@@ -64,6 +65,11 @@ def create_student(
     
     service = StudentService(db)
     student = service.create_student(school_id, payload)
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="student.created", entity_type="student", entity_id=student.id,
+        details={"student_number": student.student_number},
+    )
     db.commit()
     db.refresh(student)
     return student
@@ -102,7 +108,13 @@ def update_student(
     require_student_assignment(db, current_user, student.school_id, student.id)
     
     # Update with school_id from the existing student (prevents school change)
+    changes = payload.model_dump(exclude_unset=True)
     student = service.update_student(student_id, student.school_id, payload)
+    record_audit_event(
+        db, school_id=student.school_id, actor_user_id=current_user.id,
+        action="student.updated", entity_type="student", entity_id=student.id,
+        details={"student_number": student.student_number, "changed_fields": sorted(changes.keys())},
+    )
     db.commit()
     db.refresh(student)
     return student
