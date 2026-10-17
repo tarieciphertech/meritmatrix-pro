@@ -112,6 +112,8 @@ def create_enrollment(
     
     # Verify user has access to the school
     _verify_school_membership(db, current_user, student.school_id)
+
+    deny_linked_staff_management(db, current_user, "create or change enrollments")
     
     # Create enrollment with school authorization
     enrollment = service.create_enrollment(payload, authorized_school_id=student.school_id)
@@ -159,6 +161,8 @@ def update_enrollment(
     
     # Verify membership
     _verify_school_membership(db, current_user, school_id)
+
+    deny_linked_staff_management(db, current_user, "create or change enrollments")
     
     # Update
     enrollment = service.update_enrollment(enrollment_id, school_id, payload)
@@ -183,6 +187,8 @@ def complete_enrollment(
     
     # Verify membership
     _verify_school_membership(db, current_user, school_id)
+
+    deny_linked_staff_management(db, current_user, "complete enrollments")
     
     enrollment = service.complete_enrollment(enrollment_id, school_id)
     _audit_enrollment(db, current_user, enrollment, school_id, "enrollment.completed")
@@ -206,6 +212,8 @@ def withdraw_enrollment(
     
     # Verify membership
     _verify_school_membership(db, current_user, school_id)
+
+    deny_linked_staff_management(db, current_user, "withdraw enrollments")
     
     enrollment = service.withdraw_enrollment(enrollment_id, school_id)
     _audit_enrollment(db, current_user, enrollment, school_id, "enrollment.withdrawn")
@@ -229,6 +237,8 @@ def cancel_enrollment(
     
     # Verify membership
     _verify_school_membership(db, current_user, school_id)
+
+    deny_linked_staff_management(db, current_user, "cancel enrollments")
     
     enrollment = service.cancel_enrollment(enrollment_id, school_id)
     _audit_enrollment(db, current_user, enrollment, school_id, "enrollment.cancelled")
