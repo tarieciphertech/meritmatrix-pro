@@ -26,7 +26,7 @@ const navItems = [
 function navClasses({ isActive }: { isActive: boolean }) { return `block rounded-md px-3 py-2 text-sm font-medium transition-colors ${isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`; }
 export default function AppLayout() {
   const { user, logout } = useAuth();
-  const isGuardian = (user?.roles ?? []).some((role) => role.name === 'GUARDIAN');
+  const isGuardian = (user?.roles ?? []).some((role) => ['GUARDIAN', 'PARENT'].includes(role.name));
   const isTeacher = (user?.roles ?? []).some((role) => role.name === 'TEACHER');
   const isAuditAdmin = (user?.roles ?? []).some((role) => ['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(role.name));
   const { schools, selectedSchool, selectSchool } = useSchool();

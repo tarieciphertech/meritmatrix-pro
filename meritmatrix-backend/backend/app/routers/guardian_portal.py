@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import get_current_active_user
+from app.auth.dependencies import require_any_role
 from app.database import get_db
 from app.models.academic_year import AcademicYear
 from app.models.assessment import Assessment, AssessmentMark
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/api/v1/guardian-portal", tags=["guardian-portal"])
 @router.get("/schools", response_model=List[dict])
 def list_my_schools(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_any_role("GUARDIAN", "PARENT")),
 ):
     """Return only schools where this guardian has at least one active linked student."""
     if current_user.guardian_id:
@@ -65,7 +65,7 @@ def list_my_schools(
 def list_my_students(
     school_id: Optional[uuid.UUID] = Query(default=None, description="Optional school chosen from the guardian's linked schools"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_any_role("GUARDIAN", "PARENT")),
 ):
     """Return linked students and the academic structure currently recorded for each."""
     if current_user.guardian_id:

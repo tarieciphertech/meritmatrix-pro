@@ -209,3 +209,72 @@ def test_guardian_portal_shows_only_published_results_attendance_and_fee_balance
     assert record["fee_summary"]["charges_total"] == 1000.0
     assert record["fee_summary"]["payments_total"] == 400.0
     assert record["fee_summary"]["balance"] == 600.0
+
+
+def test_non_guardian_account_cannot_use_legacy_email_matching(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    """Email equality alone must not turn a staff account into a guardian portal session."""
+    school = School(name="Email Collision School", code="ECS001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    guardian = Guardian(
+        school_id=school.id, first_name="Parent", last_name="Record",
+        phone="+26775555555", email="staff-parent@example.com", is_active=True,
+    )
+    student = Student(
+        school_id=school.id, student_number="ECS-STU-1",
+        first_name="Private", last_name="Student", status="active", is_active=True,
+    )
+    db_session.add_all([guardian, student])
+    db_session.flush()
+    db_session.add(StudentGuardian(
+        student_id=student.id, guardian_id=guardian.id, relationship_type="mother",
+    ))
+    make_user(
+        email="staff-parent@example.com", password="StrongPass123",
+        role_name="TEACHER", first_name="Staff", last_name="Account",
+    )
+    db_session.commit()
+
+    headers = auth_headers("staff-parent@example.com", "StrongPass123")
+    schools_response = client.get("/api/v1/guardian-portal/schools", headers=headers)
+    students_response = client.get("/api/v1/guardian-portal/students", headers=headers)
+
+    assert schools_response.status_code == 403, schools_response.text
+    assert schools_response.json()["error"]["code"] == "ROLE_DENIED"
+    assert students_response.status_code == 403, students_response.text
+    assert students_response.json()["error"]["code"] == "ROLE_DENIED"
+
+
+def test_legacy_parent_role_keeps_email_linked_portal_access(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    """Legacy PARENT users remain in the guardian portal while accounts are migrated."""
+    school = School(name="Legacy Parent School", code="LPS001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    guardian = Guardian(
+        school_id=school.id, first_name="Legacy", last_name="Parent",
+        phone="+26776666666", email="legacy-parent@example.com", is_active=True,
+    )
+    student = Student(
+        school_id=school.id, student_number="LPS-STU-1",
+        first_name="Linked", last_name="Student", status="active", is_active=True,
+    )
+    db_session.add_all([guardian, student])
+    db_session.flush()
+    db_session.add(StudentGuardian(
+        student_id=student.id, guardian_id=guardian.id, relationship_type="guardian",
+    ))
+    make_user(
+        email="legacy-parent@example.com", password="StrongPass123",
+        role_name="PARENT", first_name="Legacy", last_name="Parent",
+    )
+    db_session.commit()
+
+    headers = auth_headers("legacy-parent@example.com", "StrongPass123")
+    response = client.get("/api/v1/guardian-portal/students", headers=headers)
+
+    assert response.status_code == 200, response.text
+    assert [row["student_number"] for row in response.json()] == ["LPS-STU-1"]

@@ -53,6 +53,8 @@ export default function GuardianPortalPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadStudents = useCallback(async () => {
+    // Clear prior-school student information before loading a new selection.
+    setStudents([]);
     setLoading(true);
     setError(null);
     try {
@@ -67,6 +69,7 @@ export default function GuardianPortalPage() {
         : [];
       setStudents(linked);
     } catch (err) {
+      setStudents([]);
       setError(
         err instanceof ApiError
           ? err.message
