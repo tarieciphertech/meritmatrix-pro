@@ -127,6 +127,8 @@ def update_assignment(
     if not assignment:
         raise NotFoundError("Teaching assignment not found.", code="TEACHING_ASSIGNMENT_NOT_FOUND")
     _verify_school_access(db, current_user, assignment.school_id)
+
+    deny_linked_staff_management(db, current_user, "edit teaching assignments")
     changes = payload.model_dump(exclude_unset=True)
     for field, value in changes.items():
         setattr(assignment, field, value)
@@ -151,6 +153,8 @@ def deactivate_assignment(
     if not assignment:
         raise NotFoundError("Teaching assignment not found.", code="TEACHING_ASSIGNMENT_NOT_FOUND")
     _verify_school_access(db, current_user, assignment.school_id)
+
+    deny_linked_staff_management(db, current_user, "end teaching assignments")
     assignment.is_active = False
     assignment.end_date = assignment.end_date or date.today()
     record_audit_event(
