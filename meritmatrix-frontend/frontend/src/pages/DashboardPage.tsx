@@ -3,7 +3,7 @@
 // to the max page size and report what was returned — clearly labelled to
 // avoid implying exact totals beyond the page cap).
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -37,21 +37,35 @@ export default function DashboardPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
+  const requestIdRef = useRef(0);
+  activeSchoolIdRef.current = selectedSchool?.id ?? null;
+
+  useEffect(() => {
+    requestIdRef.current += 1;
+    setCounts({ students: null, guardians: null, staff: null, enrollments: null });
+    setError(null);
+    setLoading(false);
+  }, [selectedSchool?.id]);
 
   const loadCounts = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     if (!selectedSchool) {
       setCounts({ students: null, guardians: null, staff: null, enrollments: null });
+      setLoading(false);
       return;
     }
+    const requestSchoolId = selectedSchool.id;
     setLoading(true);
     setError(null);
-    const query = { school_id: selectedSchool.id, limit: MAX_COUNT_FETCH };
+    const query = { school_id: requestSchoolId, limit: MAX_COUNT_FETCH };
     const [students, guardians, staff, enrollments] = await Promise.allSettled([
       api.get<StudentResponse[]>('/api/v1/students', query),
       api.get<GuardianResponse[]>('/api/v1/guardians', query),
       api.get<StaffResponse[]>('/api/v1/staff', query),
       api.get<EnrollmentResponse[]>('/api/v1/enrollments', query),
     ]);
+    if (activeSchoolIdRef.current !== requestSchoolId || requestIdRef.current !== requestId) return;
     setCounts({
       students: students.status === 'fulfilled' ? students.value.length : null,
       guardians: guardians.status === 'fulfilled' ? guardians.value.length : null,
