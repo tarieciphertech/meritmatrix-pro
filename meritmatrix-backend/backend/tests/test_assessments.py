@@ -321,3 +321,17 @@ def test_only_school_administrators_can_manage_school_grading(seeded_rbac, make_
 
     assert _is_school_administrator(db_session, teacher, school_id) is False
     assert _is_school_administrator(db_session, school_admin, school_id) is True
+
+
+def test_grading_scale_rejects_zero_width_active_range(client, make_user, auth_headers, seeded_rbac):
+    make_user(email="zero-width-grading-admin@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    headers = auth_headers("zero-width-grading-admin@example.com", "StrongPass123")
+    response = client.put(
+        f"/api/v1/grading-scales?school_id={uuid4()}",
+        headers=headers,
+        json={"bands": [
+            {"grade_label": "A", "min_percentage": 0, "max_percentage": 0, "is_active": True},
+        ]},
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
