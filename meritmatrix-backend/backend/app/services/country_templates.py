@@ -13,7 +13,7 @@ COUNTRY_TEMPLATES = {
         "status": "starter",
         "timezone": "Africa/Harare",
         "currency": "USD",
-        "institution_types": ["primary", "secondary", "combined", "tertiary"],
+        "institution_types": ["primary", "secondary", "high_school", "combined", "tertiary"],
         "levels": [
             {"code": "ECD_A", "name": "ECD A", "stage": "early_childhood", "sequence": 10},
             {"code": "ECD_B", "name": "ECD B", "stage": "early_childhood", "sequence": 20},
@@ -46,7 +46,7 @@ COUNTRY_TEMPLATES = {
         "status": "starter_requires_authority_review",
         "timezone": "Africa/Gaborone",
         "currency": "BWP",
-        "institution_types": ["early_childhood", "primary", "secondary", "combined", "tertiary"],
+        "institution_types": ["early_childhood", "primary", "secondary", "high_school", "combined", "tertiary"],
         "levels": [
             {"code": "PRE_PRIMARY", "name": "Pre-primary / Early Childhood (optional)", "stage": "early_childhood", "sequence": 10},
             *[

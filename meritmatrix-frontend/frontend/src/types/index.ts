@@ -6,12 +6,13 @@ export interface RoleResponse { id: string; name: string; description?: string |
 export interface UserResponse { id: string; email?: string | null; username?: string | null; first_name: string; last_name: string; is_active: boolean; is_verified: boolean; must_change_password?: boolean; last_login_at?: string | null; created_at: string; roles: RoleResponse[]; }
 
 export type CountryCode = 'ZW' | 'BW';
-export type InstitutionType = 'early_childhood' | 'primary' | 'secondary' | 'combined' | 'tertiary';
+export type InstitutionType = 'early_childhood' | 'primary' | 'secondary' | 'high_school' | 'combined' | 'tertiary';
 export const COUNTRY_CODES: CountryCode[] = ['ZW', 'BW'];
 export const INSTITUTION_TYPES: { value: InstitutionType; label: string }[] = [
   { value: 'early_childhood', label: 'Early childhood / Kindergarten' },
-  { value: 'primary', label: 'Primary school' },
-  { value: 'secondary', label: 'Secondary school' },
+  { value: 'primary', label: 'Primary school (ECG–Grade 7)' },
+  { value: 'secondary', label: 'Secondary school (Form 1–4)' },
+  { value: 'high_school', label: 'High school (Form 1–6)' },
   { value: 'combined', label: 'Combined school' },
   { value: 'tertiary', label: 'Tertiary / college' },
 ];
