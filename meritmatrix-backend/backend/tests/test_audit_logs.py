@@ -49,3 +49,27 @@ def test_teachers_cannot_read_audit_history(
 
     assert response.status_code == 403, response.text
     assert response.json()["error"]["code"] == "PERMISSION_DENIED"
+
+
+
+def test_student_creation_is_written_to_audit_history(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    school = School(name="Student Audit School", code="SAS001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.commit()
+    make_user(email="student-audit-admin@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    headers = auth_headers("student-audit-admin@example.com", "StrongPass123")
+
+    created = client.post(
+        f"/api/v1/students?school_id={school.id}",
+        headers=headers,
+        json={"student_number": "SAS-STU-1", "first_name": "Audit", "last_name": "Student"},
+    )
+    assert created.status_code == 201, created.text
+
+    history = client.get(f"/api/v1/audit-logs?school_id={school.id}", headers=headers)
+    assert history.status_code == 200, history.text
+    event = next(row for row in history.json() if row["action"] == "student.created")
+    assert event["entity_id"] == created.json()["id"]
+    assert event["details"]["student_number"] == "SAS-STU-1"
