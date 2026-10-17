@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
+import { useAuth } from '../lib/auth';
 import type { StudentCreate, StudentResponse, StudentStatus, StudentUpdate } from '../types';
 import { STUDENT_STATUSES } from '../types';
 import StudentGuardiansModal from './StudentGuardiansModal';
@@ -55,6 +56,9 @@ const statusTone: Record<StudentStatus, 'green' | 'slate' | 'amber' | 'red' | 'i
 
 export default function StudentsPage() {
   const { selectedSchool } = useSchool();
+  const { user } = useAuth();
+  const isTeacher = (user?.roles ?? []).some((role) => role.name === 'TEACHER');
+  const canManageStudents = !isTeacher && (user?.roles ?? []).some((role) => ['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(role.name));
   const [students, setStudents] = useState<StudentResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,12 +69,15 @@ export default function StudentsPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [guardianStudent, setGuardianStudent] = useState<StudentResponse | null>(null);
+  const [viewingStudent, setViewingStudent] = useState<StudentResponse | null>(null);
 
   const load = useCallback(async () => {
     if (!selectedSchool) {
       setStudents([]);
       return;
     }
+    // Never leave the previous school's student data visible during a school switch.
+    setStudents([]);
     setLoading(true);
     setError(null);
     try {
@@ -80,6 +87,7 @@ export default function StudentsPage() {
       });
       setStudents(list);
     } catch (err) {
+      setStudents([]);
       setError(err instanceof Error ? err.message : 'Failed to load students');
     } finally {
       setLoading(false);
@@ -89,6 +97,14 @@ export default function StudentsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setModalOpen(false);
+    setEditingStudent(null);
+    setForm(emptyForm);
+    setGuardianStudent(null);
+    setViewingStudent(null);
+  }, [selectedSchool?.id]);
 
   function openCreate() {
     setEditingStudent(null);
@@ -191,8 +207,8 @@ export default function StudentsPage() {
     <div>
       <PageHeader
         title="Students"
-        subtitle={`Managing students for ${selectedSchool.name}`}
-        actions={<Button onClick={openCreate}>+ New Student</Button>}
+        subtitle={`${isTeacher ? 'Viewing students assigned to you at' : 'Managing students for'} ${selectedSchool.name}`}
+        actions={canManageStudents ? <Button onClick={openCreate}>+ New Student</Button> : undefined}
       />
 
       {error && <ErrorBanner message={error} onRetry={load} />}
@@ -205,7 +221,7 @@ export default function StudentsPage() {
         </Card>
       ) : (
         <Card>
-          <Table headers={['Student #', 'Name', 'Gender', 'Status', 'Admission Date', 'Actions']}>
+          <Table headers={['Student #', 'Name', 'Gender', 'Status', 'Admission Date', canManageStudents ? 'Actions' : 'Details']}>
             {students.map((s) => (
               <tr key={s.id} className="hover:bg-slate-50">
                 <Td className="font-medium text-slate-900">{s.student_number}</Td>
@@ -218,21 +234,27 @@ export default function StudentsPage() {
                 </Td>
                 <Td>{s.admission_date ?? '—'}</Td>
                 <Td>
-                  <div className="flex items-center gap-2">
-                    <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => setGuardianStudent(s)}>
-                      Guardians
+                  {canManageStudents ? (
+                    <div className="flex items-center gap-2">
+                      <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => setGuardianStudent(s)}>
+                        Guardians
+                      </Button>
+                      <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(s)}>
+                        Edit
+                      </Button>
+                      <Button
+                        variant="danger"
+                        className="!px-2 !py-1 text-xs"
+                        onClick={() => handleArchive(s)}
+                      >
+                        Archive
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => setViewingStudent(s)}>
+                      View details
                     </Button>
-                    <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(s)}>
-                      Edit
-                    </Button>
-                    <Button
-                      variant="danger"
-                      className="!px-2 !py-1 text-xs"
-                      onClick={() => handleArchive(s)}
-                    >
-                      Archive
-                    </Button>
-                  </div>
+                  )}
                 </Td>
               </tr>
             ))}
@@ -395,6 +417,35 @@ export default function StudentsPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!viewingStudent}
+        title="Student details"
+        onClose={() => setViewingStudent(null)}
+      >
+        {viewingStudent && <div className="space-y-4 text-sm">
+          <div className="rounded-md bg-slate-50 p-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Student</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{[viewingStudent.first_name, viewingStudent.middle_name, viewingStudent.last_name].filter(Boolean).join(' ')}</p>
+            <p className="text-slate-600">{viewingStudent.student_number}</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><p className="text-slate-500">Preferred name</p><p className="font-medium">{viewingStudent.preferred_name || '—'}</p></div>
+            <div><p className="text-slate-500">Status</p><p className="font-medium">{viewingStudent.status}</p></div>
+            <div><p className="text-slate-500">Date of birth</p><p className="font-medium">{viewingStudent.date_of_birth || '—'}</p></div>
+            <div><p className="text-slate-500">Gender</p><p className="font-medium">{viewingStudent.gender || '—'}</p></div>
+            <div><p className="text-slate-500">Nationality</p><p className="font-medium">{viewingStudent.nationality || '—'}</p></div>
+            <div><p className="text-slate-500">Admission date</p><p className="font-medium">{viewingStudent.admission_date || '—'}</p></div>
+            <div><p className="text-slate-500">Email</p><p className="font-medium break-words">{viewingStudent.email || '—'}</p></div>
+            <div><p className="text-slate-500">Phone</p><p className="font-medium">{viewingStudent.phone || '—'}</p></div>
+            <div className="sm:col-span-2"><p className="text-slate-500">Address</p><p className="font-medium">{viewingStudent.address || '—'}</p></div>
+            <div><p className="text-slate-500">Emergency contact</p><p className="font-medium">{viewingStudent.emergency_contact_name || '—'}</p></div>
+            <div><p className="text-slate-500">Emergency contact phone</p><p className="font-medium">{viewingStudent.emergency_contact_phone || '—'}</p></div>
+            <div className="sm:col-span-2"><p className="text-slate-500">Notes</p><p className="whitespace-pre-wrap font-medium">{viewingStudent.notes || '—'}</p></div>
+          </div>
+          <div className="flex justify-end"><Button variant="secondary" onClick={() => setViewingStudent(null)}>Close</Button></div>
+        </div>}
       </Modal>
 
       <StudentGuardiansModal
