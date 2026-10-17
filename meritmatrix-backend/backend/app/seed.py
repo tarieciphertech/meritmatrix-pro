@@ -134,13 +134,13 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "fees.read", "fees.create", "audit_logs.read",
     ],
     "TEACHER": [
-        "users.read", "schools.read", "academic_years.read", "terms.read", "classes.read",
+        "schools.read", "academic_years.read", "terms.read", "classes.read",
         "subjects.read", "class_subjects.read", "students.read", "enrollments.read",
         "attendance.read", "attendance.create", "assessments.read",
         "assessments.create", "assessments.update",
     ],
-    "PARENT": ["users.read"],
-    "STUDENT": ["users.read"],
+    "PARENT": [],
+    "STUDENT": [],
 }
 
 # Demo/dev users: one per role. Passwords are sourced from environment
