@@ -18,7 +18,7 @@ from app.auth.dependencies import (
     SYSTEM_ADMIN_PERMISSION,
     _permission_names,
 )
-from app.auth.assignment_access import assigned_class_subject_ids
+from app.auth.assignment_access import assigned_class_subject_ids, require_class_subject_assignment
 from app.database import get_db
 from app.models.class_subject import ClassSubject
 from app.models.clazz import Class
@@ -168,11 +168,15 @@ def read_class_subject(
     current_user: User = Depends(require_permission("class_subjects.read")),
 ):
     """Read a class-subject assignment. Requires membership in the owning school."""
-    # Verify membership
+    # Verify membership and assignment scope for linked teacher accounts.
     _verify_school_membership_for_class_subject(db, current_user, class_subject_id)
-    
+
     service = ClassSubjectService(db)
-    return service.get_class_subject(class_subject_id)
+    class_subject = service.get_class_subject(class_subject_id)
+    require_class_subject_assignment(
+        db, current_user, class_subject.clazz.school_id, class_subject.id
+    )
+    return class_subject
 
 
 @router.delete("/{class_subject_id}", status_code=204)
