@@ -110,7 +110,7 @@ export default function AssessmentsPage() {
       setClassSubjects(rows);
       setClassSubjectId(current => rows.some(x => x.id === current) ? current : rows[0]?.id ?? '');
     } catch (e) {
-      if (activeSchoolIdRef.current === requestSchoolId) {
+      if (activeSchoolIdRef.current === requestSchoolId && activeClassIdRef.current === requestClassId) {
         setClassSubjects([]); setClassSubjectId('');
         setError(e instanceof Error ? e.message : 'Could not load class subjects.');
       }
@@ -129,7 +129,7 @@ export default function AssessmentsPage() {
       setAssessments(rows);
       setAssessmentId(current => rows.some(x => x.id === current) ? current : rows[0]?.id ?? '');
     } catch (e) {
-      if (activeSchoolIdRef.current === requestSchoolId) {
+      if (activeSchoolIdRef.current === requestSchoolId && activeClassIdRef.current === requestClassId && activeTermIdRef.current === requestTermId) {
         setAssessments([]); setAssessmentId(''); setRoster([]); setResults([]);
         setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not load assessments.');
       }
@@ -154,7 +154,7 @@ export default function AssessmentsPage() {
         setRoster(rosterRows);
       } else setRoster([]);
     } catch (e) {
-      if (activeSchoolIdRef.current === requestSchoolId) {
+      if (activeSchoolIdRef.current === requestSchoolId && activeClassIdRef.current === requestClassId && activeTermIdRef.current === requestTermId && activeAssessmentIdRef.current === requestAssessmentId) {
         setRoster([]); setResults([]);
         setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not load marks.');
       }
