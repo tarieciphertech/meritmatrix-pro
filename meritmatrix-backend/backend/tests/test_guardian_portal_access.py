@@ -265,7 +265,7 @@ def test_legacy_parent_role_keeps_email_linked_portal_access(
     db_session.add_all([guardian, student])
     db_session.flush()
     db_session.add(StudentGuardian(
-        student_id=student.id, guardian_id=guardian.id, relationship_type="parent",
+        student_id=student.id, guardian_id=guardian.id, relationship_type="guardian",
     ))
     make_user(
         email="legacy-parent@example.com", password="StrongPass123",
