@@ -118,6 +118,9 @@ def test_assignment_access_denies_unassigned_class_subject():
         def filter(self, *args, **kwargs):
             return self
 
+        def join(self, *args, **kwargs):
+            return self
+
         def distinct(self):
             return self
 
