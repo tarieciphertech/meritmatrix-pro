@@ -110,6 +110,16 @@ def test_super_admin_provisions_school_admin_and_school_admin_is_tenant_scoped(
     assert outside_staff.status_code == 403
     assert outside_staff.json()["error"]["code"] == "SCHOOL_ACCESS_DENIED"
 
+    # Platform-wide school creation and administrator directory remain super-admin-only.
+    create_other_school = client.post(
+        "/api/v1/schools",
+        headers=admin_headers,
+        json={"name": "Unauthorized School", "code": "UNAUTHORIZED", "city": "Gaborone", "country": "Botswana"},
+    )
+    assert create_other_school.status_code == 403
+    admin_directory = client.get("/api/v1/schools/admin-accounts", headers=admin_headers)
+    assert admin_directory.status_code == 403
+
     # Global user endpoints are not available to a school admin.
     users = client.get("/api/v1/users", headers=admin_headers)
     assert users.status_code == 403
