@@ -62,6 +62,8 @@ def create_student(
 ):
     """Create a student for a school. Requires membership in that school."""
     _verify_school_membership(db, current_user, school_id)
+
+    deny_linked_staff_management(db, current_user, "create student profiles")
     
     service = StudentService(db)
     student = service.create_student(school_id, payload)
@@ -105,6 +107,8 @@ def update_student(
     
     # Verify membership
     _verify_school_membership(db, current_user, student.school_id)
+
+    deny_linked_staff_management(db, current_user, "edit student profiles")
     require_student_assignment(db, current_user, student.school_id, student.id)
     
     # Update with school_id from the existing student (prevents school change)
@@ -132,6 +136,8 @@ def archive_student(
     
     # Verify membership
     _verify_school_membership(db, current_user, student.school_id)
+
+    deny_linked_staff_management(db, current_user, "archive student profiles")
     require_student_assignment(db, current_user, student.school_id, student.id)
     
     service.archive_student(student_id, student.school_id)
