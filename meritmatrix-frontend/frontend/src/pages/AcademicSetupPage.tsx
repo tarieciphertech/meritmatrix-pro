@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
-import type { AcademicYearResponse, ClassResponse, ClassSubjectResponse, SubjectResponse, TermResponse } from '../types';
+import type { AcademicYearResponse, ClassResponse, ClassSubjectResponse, InstitutionType, SubjectResponse, TermResponse } from '../types';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Input, Modal, PageHeader, Select, Spinner, Table, Td } from '../components/ui';
 
 type Tab = 'years' | 'terms' | 'classes' | 'subjects' | 'class-subjects';
@@ -15,8 +15,27 @@ const emptyTerm: TermForm = {name:'',term_number:'1',start_date:'',end_date:'',i
 const emptyClass: ClassForm = {name:'',code:'',level:'',stream:'',description:''};
 const emptySubject: SubjectForm = {name:'',code:'',description:''};
 
+type ClassTemplate = { name: string; code: string; level: number; description: string };
+function getClassTemplates(institutionType?: InstitutionType | null): ClassTemplate[] {
+ const primary: ClassTemplate[] = [
+  {name:'ECG',code:'ECG',level:0,description:'Early childhood group'},
+  ...Array.from({length:7},(_,i)=>({name:'Grade '+(i+1),code:'G'+(i+1),level:i+1,description:'Primary grade '+(i+1)})),
+ ];
+ const secondary: ClassTemplate[] = Array.from({length:4},(_,i)=>({name:'Form '+(i+1),code:'F'+(i+1),level:i+1,description:'Secondary form '+(i+1)}));
+ const high: ClassTemplate[] = Array.from({length:6},(_,i)=>({name:'Form '+(i+1),code:'F'+(i+1),level:i+1,description:'High school form '+(i+1)}));
+ switch(institutionType){
+  case 'early_childhood': return primary.slice(0,1);
+  case 'primary': return primary;
+  case 'secondary': return secondary;
+  case 'high_school': return high;
+  case 'combined': return [...primary,...high];
+  default: return [];
+ }
+}
+
 export default function AcademicSetupPage() {
  const {selectedSchool}=useSchool();
+ const classTemplates=getClassTemplates(selectedSchool?.institution_type);
  const [tab,setTab]=useState<Tab>('years');
  const [years,setYears]=useState<AcademicYearResponse[]>([]);
  const [terms,setTerms]=useState<TermResponse[]>([]);
@@ -78,6 +97,33 @@ export default function AcademicSetupPage() {
    .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:'Could not load class subjects');});
   return ()=>{cancelled=true;};
  },[selectedClassId,selectedSchool?.id]);
+ async function applyClassTemplate(){
+  if(!selectedSchool)return;
+  if(classTemplates.length===0){
+   setError('Set this school\'s institution type in Schools before generating standard classes.');
+   return;
+  }
+  const existing=new Set(classes.flatMap(item=>[item.code.trim().toUpperCase(),item.name.trim().toUpperCase()]));
+  const missing=classTemplates.filter(item=>!existing.has(item.code.toUpperCase())&&!existing.has(item.name.toUpperCase()));
+  if(missing.length===0){
+   setError(null);
+   window.alert('All standard classes for this school type already exist.');
+   return;
+  }
+  if(!window.confirm('Create '+missing.length+' missing standard classes for '+selectedSchool.name+'? Existing classes will be kept.'))return;
+  setSaving(true);setError(null);
+  try{
+   for(const item of missing){
+    await api.post('/api/v1/classes',{name:item.name,code:item.code,level:item.level,description:item.description},{school_id:selectedSchool.id});
+   }
+   await load();
+   setTab('classes');
+  }catch(e){
+   setError(e instanceof Error?e.message:'Could not generate standard classes. Any classes already created were kept; retry to add the remaining ones.');
+   await load();
+  }finally{setSaving(false);}
+ }
+
  async function assignSubject(){
   if(!selectedClassId||!selectedSubjectId)return;
   setAssigning(true);setError(null);
@@ -139,6 +185,7 @@ export default function AcademicSetupPage() {
  return <div>
   <PageHeader title="Academic Setup" subtitle={selectedSchool?'Configure the academic structure for '+selectedSchool.name:'Select a school to continue'} actions={selectedSchool&&tab!=='class-subjects'&&<Button onClick={create}>+ Add {tab==='years'?'Academic Year':tab==='terms'?'Term':tab==='classes'?'Class':'Subject'}</Button>}/>
   <div className="mb-5 flex flex-wrap gap-2">{tabs.map(x=><Button key={x.id} variant={tab===x.id?'primary':'secondary'} onClick={()=>{setTab(x.id);setOpen(false);setEditingId(null);}}>{x.label}</Button>)}</div>
+  {selectedSchool&&<Card><div className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium text-slate-900">Standard class structure</p><p className="mt-1 text-sm text-slate-600">{selectedSchool.institution_type==='primary'?'Primary: ECG and Grade 1–7':selectedSchool.institution_type==='secondary'?'Secondary: Form 1–4':selectedSchool.institution_type==='high_school'?'High school: Form 1–6':selectedSchool.institution_type==='combined'?'Combined: ECG, Grade 1–7 and Form 1–6':selectedSchool.institution_type==='early_childhood'?'Early childhood: ECG':'Choose the school type in Schools to enable the recommended class structure.'}</p></div><Button variant="secondary" disabled={saving||classTemplates.length===0} onClick={()=>void applyClassTemplate()}>{saving?'Applying…':'Add missing standard classes'}</Button></div></Card>}
   {!selectedSchool&&<Card><EmptyState title="No school selected" hint="Choose a school from the selector in the header."/></Card>}
   {selectedSchool&&error&&<ErrorBanner message={error} onRetry={load}/>}
   {selectedSchool&&loading&&<Spinner label="Loading academic setup…"/>}
