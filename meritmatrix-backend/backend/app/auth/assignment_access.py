@@ -159,7 +159,7 @@ def assigned_class_subject_ids(
     """Return active class-subject assignments; None means this is not a linked staff login."""
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if staff is None:
-        return None
+        return set() if _is_teacher(user) else None
     if not staff.is_active or staff.employment_status != "active" or staff.school_id != school_id:
         return set()
 
