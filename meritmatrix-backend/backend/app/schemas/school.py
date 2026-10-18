@@ -1,5 +1,6 @@
 """Pydantic schemas for schools."""
 import uuid
+import re
 from datetime import datetime
 from typing import Optional, Literal
 
@@ -22,9 +23,20 @@ class SchoolCreate(BaseModel):
     phone: Optional[str] = Field(default=None, max_length=50)
     email: Optional[EmailStr] = None
     website: Optional[str] = Field(default=None, max_length=255)
-    logo_url: Optional[str] = Field(default=None, max_length=500)
+    logo_url: Optional[str] = Field(default=None, max_length=360_000)
     timezone: Optional[str] = Field(default=None, max_length=100)
     currency: Optional[str] = Field(default=None, max_length=10)
+
+    @field_validator("logo_url")
+    @classmethod
+    def validate_logo_url(cls, value):
+        if value is None or not value.startswith("data:"):
+            return value
+        if len(value) > 360_000 or not re.fullmatch(
+            r"data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}", value
+        ):
+            raise ValueError("Uploaded logos must be PNG, JPEG, or WebP images under 256 KB.")
+        return value
 
     @field_validator("country_code")
     @classmethod
