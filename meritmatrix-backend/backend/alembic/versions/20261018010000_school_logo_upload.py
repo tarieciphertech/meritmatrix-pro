@@ -2,7 +2,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "school_logo_upload"
-down_revision = "guardian_in_app_notifications"
+down_revision = "merge_school_admin_migrations"
 branch_labels = None
 depends_on = None
 
