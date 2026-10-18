@@ -26,6 +26,22 @@ def _is_teacher(user: User) -> bool:
     return any(role.name == "TEACHER" for role in user.roles)
 
 
+def require_teacher_employment_profile(db: Session, user: User) -> None:
+    """Fail closed when a teacher login is not linked to active school employment."""
+    if SYSTEM_ADMIN_PERMISSION in _permission_names(user) or not _is_teacher(user):
+        return
+    staff = db.query(Staff).filter(Staff.user_id == user.id).first()
+    if staff is None:
+        raise ForbiddenError(
+            "Teacher access requires an active staff profile linked to the employing school.",
+            code="STAFF_EMPLOYMENT_REQUIRED",
+        )
+    if not staff.is_active or staff.employment_status != "active":
+        raise ForbiddenError(
+            "Only currently employed staff can access school records.",
+            code="STAFF_SCHOOL_SCOPE_DENIED",
+        )
+
 def require_staff_school_scope(db: Session, user: User, school_id: uuid.UUID) -> None:
     """Enforce the employing-school boundary for every linked staff account.
 
@@ -34,13 +50,9 @@ def require_staff_school_scope(db: Session, user: User, school_id: uuid.UUID) ->
     """
     if SYSTEM_ADMIN_PERMISSION in _permission_names(user):
         return
+    require_teacher_employment_profile(db, user)
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if staff is None:
-        if _is_teacher(user):
-            raise ForbiddenError(
-                "Teacher access requires an active staff profile linked to the employing school.",
-                code="STAFF_EMPLOYMENT_REQUIRED",
-            )
         return
     if (
         not staff.is_active
