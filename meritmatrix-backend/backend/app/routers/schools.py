@@ -216,6 +216,12 @@ def reset_school_admin_password(
             code="SCHOOL_ADMIN_AMBIGUOUS",
         )
     _, admin = rows[0]
+    from app.services.user_school_service import UserSchoolService
+    if not UserSchoolService(db).is_user_member_of_school(admin.id, school_id):
+        raise ConflictError(
+            "This administrator is linked to multiple schools. Resolve the school assignments before resetting the account.",
+            code="SCHOOL_ADMIN_AMBIGUOUS",
+        )
     if not admin.is_active:
         raise ConflictError(
             "This administrator account is inactive. Reactivate it before resetting its password.",
