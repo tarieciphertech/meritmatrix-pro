@@ -53,3 +53,13 @@ def test_template_results_are_copies():
     first = get_country_template("ZW")
     first["levels"].clear()
     assert get_country_template("ZW")["levels"]
+
+
+def test_zimbabwe_secondary_curriculum_distinguishes_o_and_a_level():
+    template = get_country_template("ZW")
+    cycles = {cycle["code"]: cycle for cycle in template["curriculum_cycles"]}
+    assert cycles["O_LEVEL"]["levels"] == ["FORM_1", "FORM_2", "FORM_3", "FORM_4"]
+    assert cycles["A_LEVEL"]["levels"] == ["FORM_5", "FORM_6"]
+    assert template["curriculum_guidance"]["authority"] == "Zimbabwe School Examinations Council (ZIMSEC)"
+    assert template["curriculum_guidance"]["syllabi_url"] == "https://www5.zimsec.co.zw/syllabi/"
+    assert "do not automatically assign" in template["curriculum_guidance"]["subject_setup"]
