@@ -116,7 +116,7 @@ export default function SchoolConfigurationPage() {
     <Card className="space-y-4 p-5">
       <h2 className="text-base font-semibold text-slate-900">School identity and contact details</h2>
       <p className="text-sm text-slate-600">These details belong only to {selectedSchool.name}. The logo is used on printed report cards.</p>
-      {profile.logo_url && <div className="flex items-center gap-3 rounded-md border border-slate-200 p-3"><img src={profile.logo_url} alt={selectedSchool.name + ' logo preview'} className="h-16 w-16 object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><span className="text-sm text-slate-600">Logo preview</span></div>}
+      {profile.logo_url && <div className="flex items-center gap-3 rounded-md border border-slate-200 p-3"><img src={profile.logo_url} alt={selectedSchool.name + ' logo preview'} className="h-16 w-16 object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><div className="min-w-0 flex-1"><p className="font-medium text-slate-900">{selectedSchool.name}</p><p className="text-sm text-slate-600">Logo preview · prints with the school name</p></div><Button type="button" variant="secondary" onClick={() => { setProfile(v => ({ ...v, logo_url: '' })); setSuccess('Logo removal selected. Save configuration to apply it.'); }}>Remove</Button></div>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Registration number"><Input value={profile.registration_number} onChange={(e) => setProfile(v => ({ ...v, registration_number: e.target.value }))} /></Field>
         <Field label="Phone"><Input value={profile.phone} onChange={(e) => setProfile(v => ({ ...v, phone: e.target.value }))} /></Field>
