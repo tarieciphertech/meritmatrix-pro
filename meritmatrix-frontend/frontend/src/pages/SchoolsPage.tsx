@@ -2,7 +2,7 @@
 // Uses GET /api/v1/schools, POST /api/v1/schools, PATCH /api/v1/schools/{id},
 // DELETE /api/v1/schools/{id} (deactivate).
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { INSTITUTION_TYPES, type InstitutionType, type SchoolCreate, type SchoolResponse, type SchoolUpdate } from '../types';
@@ -55,6 +55,8 @@ export default function SchoolsPage() {
   const [editingSchool, setEditingSchool] = useState<SchoolResponse | null>(null);
   const [form, setForm] = useState<SchoolCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [logoLoading, setLogoLoading] = useState(false);
+  const logoRequestId = useRef(0);
   const [formError, setFormError] = useState<string | null>(null);
   const [adminAccounts, setAdminAccounts] = useState<SchoolAdminStatus[]>([]);
   const [creatingAdminFor, setCreatingAdminFor] = useState<SchoolResponse | null>(null);
@@ -85,6 +87,8 @@ export default function SchoolsPage() {
   }, [load]);
 
   function openCreate() {
+    logoRequestId.current += 1;
+    setLogoLoading(false);
     setEditingSchool(null);
     setForm(emptyForm);
     setAdminForm(emptyAdminForm);
@@ -92,7 +96,9 @@ export default function SchoolsPage() {
     setModalOpen(true);
   }
 
-  function openEdit(school: SchoolResponse) {
+  async function openEdit(school: SchoolResponse) {
+    const requestId = ++logoRequestId.current;
+    setLogoLoading(true);
     setEditingSchool(school);
     setForm({
       name: school.name,
@@ -112,6 +118,21 @@ export default function SchoolsPage() {
     });
     setFormError(null);
     setModalOpen(true);
+    try {
+      // List responses intentionally omit embedded data-URI logos to stay small.
+      // Fetch the selected school's logo separately so editing other fields never
+      // accidentally clears its existing logo.
+      const result = await api.get<{ logo_url: string | null }>(`/api/v1/schools/${school.id}/logo`);
+      if (logoRequestId.current === requestId) {
+        setForm((current) => ({ ...current, logo_url: result.logo_url ?? '' }));
+      }
+    } catch {
+      if (logoRequestId.current === requestId) {
+        setForm((current) => ({ ...current, logo_url: school.logo_url ?? '' }));
+      }
+    } finally {
+      if (logoRequestId.current === requestId) setLogoLoading(false);
+    }
   }
 
   function setField(key: keyof SchoolCreate, value: string) {
@@ -288,7 +309,7 @@ export default function SchoolsPage() {
       <Modal
         open={modalOpen}
         title={editingSchool ? 'Edit School' : 'New School'}
-        onClose={() => setModalOpen(false)}
+        onClose={() => { logoRequestId.current += 1; setLogoLoading(false); setModalOpen(false); }}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {formError && (
@@ -454,8 +475,8 @@ export default function SchoolsPage() {
             <Button variant="secondary" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : editingSchool ? 'Save Changes' : 'Create School'}
+            <Button type="submit" disabled={saving || logoLoading}>
+              {logoLoading ? 'Loading school logo…' : saving ? 'Saving…' : editingSchool ? 'Save Changes' : 'Create School'}
             </Button>
           </div>
         </form>
