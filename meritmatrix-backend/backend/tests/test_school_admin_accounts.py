@@ -111,7 +111,7 @@ def test_super_admin_provisions_school_admin_and_school_admin_is_tenant_scoped(
         f"/api/v1/staff?school_id={school_b['id']}", headers=admin_headers
     )
     assert outside_staff.status_code == 403
-    assert outside_staff.json()["error"]["code"] == "SCHOOL_ACCESS_DENIED"
+    assert outside_staff.json()["error"]["code"] == "SCHOOL_ADMIN_SCOPE_DENIED"
 
     # Platform-wide school creation and administrator directory remain super-admin-only.
     create_other_school = client.post(

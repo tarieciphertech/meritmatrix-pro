@@ -4,6 +4,7 @@ import uuid
 import pytest
 
 from app.models.school import School
+from app.models.user_school import UserSchool
 from app.schemas.school import SchoolCreate
 
 
@@ -29,15 +30,20 @@ def test_create_school(client, make_user, auth_headers, seeded_rbac, db_session)
     assert data["is_active"] is True
 
 
-def test_list_schools(client, make_user, auth_headers, seeded_rbac):
-    """Users with schools.read can list schools."""
-    make_user(email="reader@example.com", password="StrongPass123", role_name="SCHOOL_ADMIN")
+def test_list_schools(client, make_user, auth_headers, seeded_rbac, db_session):
+    """A school administrator can list only their single assigned school."""
+    user = make_user(email="reader@example.com", password="StrongPass123", role_name="SCHOOL_ADMIN")
+    school = School(name="Assigned School", code="ASSIGNED001", city="City", country="Country")
+    other_school = School(name="Other School", code="OTHER001", city="City", country="Country")
+    db_session.add_all([school, other_school])
+    db_session.flush()
+    db_session.add(UserSchool(user_id=user.id, school_id=school.id, school_role="SCHOOL_ADMIN"))
+    db_session.commit()
     headers = auth_headers("reader@example.com", "StrongPass123")
 
     response = client.get("/api/v1/schools", headers=headers)
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
+    assert response.status_code == 200, response.text
+    assert [row["id"] for row in response.json()] == [str(school.id)]
 
 def test_read_school(client, make_user, auth_headers, seeded_rbac, db_session):
     """Users with schools.read can read a school."""

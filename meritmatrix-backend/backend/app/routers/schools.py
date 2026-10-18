@@ -76,6 +76,31 @@ def list_schools(
         return [{**SchoolResponse.model_validate(item).model_dump(), "logo_url": None}
                 if item.logo_url and item.logo_url.startswith("data:image/") else item for item in page]
     
+    # A school administrator is a single-school account, not a generic
+    # multi-school membership user. Fail closed if its membership data is malformed.
+    is_school_admin = any(role.name == "SCHOOL_ADMIN" for role in getattr(current_user, "roles", []))
+    if is_school_admin:
+        memberships = {
+            row[0]
+            for row in db.query(UserSchool.school_id)
+            .filter(UserSchool.user_id == current_user.id)
+            .distinct()
+            .all()
+        }
+        if len(memberships) != 1:
+            raise ForbiddenError(
+                "School administrator accounts must be assigned to exactly one school. "
+                "Contact the platform super administrator to correct this account.",
+                code="SCHOOL_ADMIN_SCOPE_DENIED",
+            )
+        school = db.get(School, next(iter(memberships)))
+        if school is None or not school.is_active:
+            return []
+        if offset > 0:
+            return []
+        return [{**SchoolResponse.model_validate(school).model_dump(), "logo_url": None}
+                if school.logo_url and school.logo_url.startswith("data:image/") else school]
+
     # Filter the complete membership set before applying pagination. Paginating
     # the global school list first can hide a user's assigned school when it falls
     # outside the first global page.

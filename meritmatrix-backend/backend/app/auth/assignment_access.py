@@ -17,6 +17,7 @@ from app.models.subject import Subject
 from app.models.student import Student
 from app.models.teaching_assignment import TeachingAssignment
 from app.models.user import User
+from app.models.user_school import UserSchool
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
 from app.utils.errors import ForbiddenError
 
@@ -43,18 +44,19 @@ def require_teacher_employment_profile(db: Session, user: User) -> None:
         )
 
 def require_staff_school_scope(db: Session, user: User, school_id: uuid.UUID) -> None:
-    """Enforce the employing-school boundary for every linked staff account.
+    """Enforce employing-school scope for staff and single-school scope for SCHOOL_ADMIN.
 
-    A user-school membership row alone must never let a teacher inspect another
-    school's records. Only a platform super-admin can override this boundary.
+    Only a platform super-admin may cross school boundaries. Membership rows must
+    not expand a teacher's employing school or a school administrator's tenant.
     """
     if SYSTEM_ADMIN_PERMISSION in _permission_names(user):
         return
+
+    is_school_admin = any(role.name == "SCHOOL_ADMIN" for role in getattr(user, "roles", []))
     require_teacher_employment_profile(db, user)
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
-    if staff is None:
-        return
-    if (
+
+    if staff is not None and (
         not staff.is_active
         or staff.employment_status != "active"
         or staff.school_id != school_id
@@ -63,6 +65,21 @@ def require_staff_school_scope(db: Session, user: User, school_id: uuid.UUID) ->
             "Staff accounts can only access records for their active employing school.",
             code="STAFF_SCHOOL_SCOPE_DENIED",
         )
+
+    if is_school_admin:
+        memberships = {
+            row[0]
+            for row in db.query(UserSchool.school_id)
+            .filter(UserSchool.user_id == user.id)
+            .distinct()
+            .all()
+        }
+        if len(memberships) != 1 or school_id not in memberships:
+            raise ForbiddenError(
+                "School administrator accounts are restricted to exactly one assigned school. "
+                "Contact the platform super administrator to correct this account's school assignment.",
+                code="SCHOOL_ADMIN_SCOPE_DENIED",
+            )
 
 
 def assigned_class_ids(

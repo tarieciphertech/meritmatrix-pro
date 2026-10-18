@@ -409,3 +409,28 @@ def test_school_admin_membership_service_rejects_a_second_school(
     assert exc.value.code == "SCHOOL_ADMIN_SINGLE_SCHOOL"
     assert service.is_user_member_of_school(admin.id, school_a) is True
     assert service.is_user_member_of_school(admin.id, school_b) is False
+
+
+def test_malformed_school_admin_cannot_cross_or_list_multiple_schools(
+    client, auth_headers, make_user, seeded_rbac, school_a, school_b, db_session
+):
+    """A bad second membership must not widen a school administrator's access."""
+    from app.models.user import User
+    from app.models.user_school import UserSchool
+
+    make_user(email="multi-school-admin@example.com", password="StrongPass123", role_name="SCHOOL_ADMIN")
+    admin = db_session.query(User).filter(User.email == "multi-school-admin@example.com").one()
+    db_session.add_all([
+        UserSchool(user_id=admin.id, school_id=school_a, school_role="SCHOOL_ADMIN"),
+        UserSchool(user_id=admin.id, school_id=school_b, school_role="SCHOOL_ADMIN"),
+    ])
+    db_session.commit()
+    headers = auth_headers("multi-school-admin@example.com", "StrongPass123")
+
+    cross_school = client.get(f"/api/v1/schools/{school_b}", headers=headers)
+    assert cross_school.status_code == 403, cross_school.text
+    assert cross_school.json()["error"]["code"] == "SCHOOL_ACCESS_DENIED"
+
+    school_list = client.get("/api/v1/schools?limit=200", headers=headers)
+    assert school_list.status_code == 403, school_list.text
+    assert school_list.json()["error"]["code"] == "SCHOOL_ADMIN_SCOPE_DENIED"
