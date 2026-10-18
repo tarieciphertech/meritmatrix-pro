@@ -255,16 +255,14 @@ def test_teacher_ec_number_is_normalized_and_unique_across_schools(
     headers = auth_headers("ec-admin@example.com", "StrongPass123")
 
     first = client.post(
-        f"/api/v1/staff?school_id={school_a.id}",
-        headers=headers,
+        f"/api/v1/staff?school_id={school_a.id}", headers=headers,
         json={"staff_number": "EC001", "first_name": "Tariro", "last_name": "Moyo", "ec_number": " ab123c "},
     )
     assert first.status_code == 201, first.text
     assert first.json()["ec_number"] == "AB123C"
 
     duplicate = client.post(
-        f"/api/v1/staff?school_id={school_b.id}",
-        headers=headers,
+        f"/api/v1/staff?school_id={school_b.id}", headers=headers,
         json={"staff_number": "EC002", "first_name": "Tendai", "last_name": "Ncube", "ec_number": "AB123C"},
     )
     assert duplicate.status_code == 409, duplicate.text
@@ -276,10 +274,7 @@ def test_staff_ec_number_can_be_cleared(client, make_user, auth_headers, seeded_
     school = School(name="EC Clear School", code="ECCLEAR1", city="City", country="Zimbabwe")
     db_session.add(school)
     db_session.commit()
-    staff = Staff(
-        school_id=school.id, staff_number="EC003", first_name="Rudo",
-        last_name="Dube", ec_number="ZX123",
-    )
+    staff = Staff(school_id=school.id, staff_number="EC003", first_name="Rudo", last_name="Dube", ec_number="ZX123")
     db_session.add(staff)
     db_session.commit()
 
