@@ -88,7 +88,7 @@ class TestSchoolAccessIsolation:
         headers = auth_headers("adminA@example.com", "StrongPass123")
         response = client.get(f"/api/v1/schools/{school_b}", headers=headers)
         assert response.status_code == 403, response.text
-        assert response.json()["error"]["code"] == "SCHOOL_ACCESS_DENIED"
+        assert response.json()["error"]["code"] == "SCHOOL_ADMIN_SCOPE_DENIED"
 
     def test_school_admin_school_list_contains_only_memberships(
         self, client, auth_headers, school_a_admin, school_a, school_b
@@ -301,7 +301,7 @@ def test_super_admin_can_provision_school_admin_and_scope_is_enforced(
     assert own_school.status_code == 200, own_school.text
     other_school = client.get(f"/api/v1/schools/{school_b}", headers=admin_headers)
     assert other_school.status_code == 403, other_school.text
-    assert other_school.json()["error"]["code"] == "SCHOOL_ACCESS_DENIED"
+    assert other_school.json()["error"]["code"] == "SCHOOL_ADMIN_SCOPE_DENIED"
 
     school_list = client.get("/api/v1/schools?limit=200", headers=admin_headers)
     assert school_list.status_code == 200, school_list.text
