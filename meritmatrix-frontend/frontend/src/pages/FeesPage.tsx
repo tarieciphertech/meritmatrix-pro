@@ -15,6 +15,8 @@ export default function FeesPage() {
   const [terms, setTerms] = useState<TermResponse[]>([]);
   const [charges, setCharges] = useState<Charge[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [schoolLogoUrl, setSchoolLogoUrl] = useState<string | null>(null);
+  const [receiptPayment, setReceiptPayment] = useState<Payment | null>(null);
   const [studentId, setStudentId] = useState('');
   const [yearId, setYearId] = useState('');
   const [termId, setTermId] = useState('');
@@ -82,6 +84,23 @@ export default function FeesPage() {
     setError(null); setNotice('');
   }, [selectedSchool?.id]);
 
+  useEffect(() => {
+    setSchoolLogoUrl(null);
+    setReceiptPayment(null);
+    if (!selectedSchool) return;
+    let cancelled = false;
+    api.get<{ logo_url: string | null }>(`/api/v1/schools/${selectedSchool.id}/logo`)
+      .then(result => { if (!cancelled) setSchoolLogoUrl(result.logo_url); })
+      .catch(() => { if (!cancelled) setSchoolLogoUrl(null); });
+    return () => { cancelled = true; };
+  }, [selectedSchool?.id]);
+
+  useEffect(() => {
+    if (!receiptPayment) return;
+    const frame = window.requestAnimationFrame(() => window.print());
+    return () => window.cancelAnimationFrame(frame);
+  }, [receiptPayment]);
+
   useEffect(() => { void load(); }, [load]);
 
   async function createCharge() {
@@ -121,6 +140,27 @@ export default function FeesPage() {
   if (!selectedSchool) return <div><PageHeader title="Fees & Payments" subtitle="Select a school to manage its fee ledger."/><Card className="p-6">Choose a school from the selector above.</Card></div>;
 
   return <div className="space-y-5">
+    {receiptPayment && <style>{`@media print { body * { visibility: hidden !important; } #payment-receipt, #payment-receipt * { visibility: visible !important; } #payment-receipt { position: absolute; left: 0; top: 0; width: 100%; max-width: none !important; border: 0 !important; box-shadow: none !important; } }`}</style>}
+    {receiptPayment && <Card id="payment-receipt" className="mx-auto max-w-2xl border border-slate-200 bg-white p-8 print:max-w-none print:p-0">
+      <div className="mb-5 flex justify-end gap-2 print:hidden"><Button variant="secondary" onClick={() => setReceiptPayment(null)}>Close receipt</Button><Button onClick={() => window.print()}>Print / Save PDF</Button></div>
+      <header className="border-b border-slate-200 pb-5 text-center">
+        {schoolLogoUrl && <img src={schoolLogoUrl} alt={selectedSchool.name + ' logo'} className="mx-auto mb-3 max-h-24 max-w-40 object-contain" onError={event => { event.currentTarget.style.display = 'none'; }} />}
+        <h1 className="text-2xl font-bold uppercase tracking-wide text-slate-900">{selectedSchool.name}</h1>
+        <p className="mt-1 text-sm text-slate-600">{[selectedSchool.address, selectedSchool.city, selectedSchool.country].filter(Boolean).join(' · ')}</p>
+        <p className="mt-1 text-sm text-slate-600">{[selectedSchool.phone, selectedSchool.email].filter(Boolean).join(' · ')}</p>
+        <h2 className="mt-5 text-xl font-semibold text-slate-900">OFFICIAL PAYMENT RECEIPT</h2>
+      </header>
+      <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+        <div><p className="text-slate-500">Receipt number</p><p className="font-semibold text-slate-900">{receiptPayment.reference || receiptPayment.id.slice(0, 8).toUpperCase()}</p></div>
+        <div><p className="text-slate-500">Payment date</p><p className="font-semibold text-slate-900">{receiptPayment.payment_date}</p></div>
+        <div><p className="text-slate-500">Received from</p><p className="font-semibold text-slate-900">{receiptPayment.student_name}</p><p className="text-slate-600">{receiptPayment.student_number}</p></div>
+        <div><p className="text-slate-500">Payment method</p><p className="font-semibold capitalize text-slate-900">{receiptPayment.method.replaceAll('_', ' ')}</p></div>
+      </div>
+      <table className="mt-6 w-full text-sm"><thead><tr className="border-b border-slate-300 text-left"><th className="py-3">Description</th><th className="py-3 text-right">Amount received</th></tr></thead><tbody><tr className="border-b border-slate-200"><td className="py-4">{receiptPayment.charge_description}</td><td className="py-4 text-right font-semibold">{currency}{Number(receiptPayment.amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td></tr></tbody></table>
+      <p className="mt-6 text-sm text-slate-600">This receipt confirms that the payment above has been recorded in the school fee ledger.</p>
+      <div className="mt-12 grid grid-cols-2 gap-8 text-sm text-slate-600"><p className="border-t border-slate-300 pt-2">Authorized signature</p><p className="border-t border-slate-300 pt-2">School stamp</p></div>
+    </Card>}
+    <div className={receiptPayment ? 'print:hidden space-y-5' : 'space-y-5'}>
     <PageHeader title="Fees & Payments" subtitle={'Record student charges, payments and balances for ' + selectedSchool.name + '.'} actions={<Button variant="secondary" onClick={() => void load()}>Refresh</Button>} />
     {error && <ErrorBanner message={error} onRetry={() => void load()} />}
     {notice && <div role="status" className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
@@ -157,8 +197,9 @@ export default function FeesPage() {
       </Card>
       <Card className="overflow-hidden">
         <div className="border-b border-slate-200 p-4"><h2 className="font-semibold text-slate-900">Recent payments</h2></div>
-        {payments.length===0?<p className="p-6 text-sm text-slate-500">No payments recorded yet.</p>:<div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr>{['Date','Student','Charge','Method','Reference','Amount'].map(x=><th key={x} className="px-3 py-3 text-left font-semibold text-slate-600">{x}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{payments.map(p=><tr key={p.id}><td className="px-3 py-3">{p.payment_date}</td><td className="px-3 py-3">{p.student_name}</td><td className="px-3 py-3">{p.charge_description}</td><td className="px-3 py-3">{p.method.replaceAll('_',' ')}</td><td className="px-3 py-3">{p.reference||'—'}</td><td className="px-3 py-3 font-semibold">{currency}{p.amount}</td></tr>)}</tbody></table></div>}
+        {payments.length===0?<p className="p-6 text-sm text-slate-500">No payments recorded yet.</p>:<div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr>{['Date','Student','Charge','Method','Reference','Amount','Receipt'].map(x=><th key={x} className="px-3 py-3 text-left font-semibold text-slate-600">{x}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{payments.map(p=><tr key={p.id}><td className="px-3 py-3">{p.payment_date}</td><td className="px-3 py-3">{p.student_name}</td><td className="px-3 py-3">{p.charge_description}</td><td className="px-3 py-3">{p.method.replaceAll('_',' ')}</td><td className="px-3 py-3">{p.reference||'—'}</td><td className="px-3 py-3 font-semibold">{currency}{p.amount}</td><td className="px-3 py-3"><Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={()=>setReceiptPayment(p)}>Print receipt</Button></td></tr>)}</tbody></table></div>}
       </Card>
     </>}
+    </div>
   </div>;
 }
