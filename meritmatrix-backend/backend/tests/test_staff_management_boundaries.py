@@ -127,15 +127,19 @@ def test_inactive_or_terminated_staff_cannot_access_employing_school(
 
 
 def test_teacher_without_employment_profile_cannot_use_school_membership(
-    make_user, seeded_rbac, db_session
+    client, make_user, auth_headers, seeded_rbac, db_session
 ):
     """A TEACHER role and a stray membership cannot substitute for employment."""
     school = School(name="Unlinked Teacher School", code="UNLINKED01", city="Gaborone", country="Botswana")
     db_session.add(school)
     db_session.flush()
-    teacher = make_user(email="unlinked-teacher@example.com", role_name="TEACHER")
+    teacher = make_user(email="unlinked-teacher@example.com", password="StrongPass123", role_name="TEACHER")
     db_session.add(UserSchool(user_id=teacher.id, school_id=school.id))
     db_session.commit()
+
+    response = client.get("/api/v1/schools?limit=200", headers=auth_headers("unlinked-teacher@example.com", "StrongPass123"))
+    assert response.status_code == 403, response.text
+    assert response.json()["error"]["code"] == "STAFF_EMPLOYMENT_REQUIRED"
 
     with pytest.raises(ForbiddenError) as exc:
         require_staff_school_scope(db_session, teacher, school.id)
