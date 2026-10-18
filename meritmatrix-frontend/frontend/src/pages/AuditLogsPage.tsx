@@ -44,7 +44,9 @@ const ACTIONS = [
   'teaching_assignment.created',
   'teaching_assignment.updated',
   'teaching_assignment.deactivated',
+  'school.created',
   'school.configuration_updated',
+  'school.deactivated',
   'school.admin_account_created',
 ];
 
