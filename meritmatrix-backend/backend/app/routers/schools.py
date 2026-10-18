@@ -25,10 +25,11 @@ from app.models.school import School
 from app.models.role import Role
 from app.models.user_school import UserSchool
 from app.schemas.school import (
-    SchoolAdminAccountResponse, SchoolAdminCreate, SchoolCreate, SchoolOnboardCreate,
+    SchoolAdminAccountResponse, SchoolAdminCreate, SchoolAdminPasswordReset, SchoolCreate, SchoolOnboardCreate,
     SchoolOnboardResponse, SchoolResponse, SchoolUpdate,
 )
 from app.services.school_service import SchoolService
+from app.services.auth_service import AuthService
 from app.services.security import WeakPasswordError, hash_password
 from app.services.audit_service import record_audit_event
 from app.utils.errors import AppError, ConflictError, ForbiddenError
@@ -178,6 +179,59 @@ def create_school_admin_account(
         "user_id": user.id, "school_id": school.id, "school_name": school.name,
         "first_name": user.first_name, "last_name": user.last_name,
         "email": user.email, "role": role.name, "must_change_password": user.must_change_password,
+    }
+
+
+@router.post("/{school_id}/admin-account/reset-password", response_model=dict)
+def reset_school_admin_password(
+    school_id: uuid.UUID,
+    payload: SchoolAdminPasswordReset,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("system.admin")),
+):
+    """Reset the dedicated school administrator's password; super-admin only."""
+    school = SchoolService(db).get_school(school_id)
+    row = (
+        db.query(UserSchool, User)
+        .join(User, User.id == UserSchool.user_id)
+        .filter(
+            UserSchool.school_id == school_id,
+            User.roles.any(Role.name == "SCHOOL_ADMIN"),
+        )
+        .first()
+    )
+    if row is None:
+        raise ConflictError(
+            "This school does not have a configured administrator account.",
+            code="SCHOOL_ADMIN_NOT_CONFIGURED",
+        )
+    _, admin = row
+    if not admin.is_active:
+        raise ConflictError(
+            "This administrator account is inactive. Reactivate it before resetting its password.",
+            code="SCHOOL_ADMIN_INACTIVE",
+        )
+    try:
+        admin.password_hash = hash_password(payload.password)
+    except WeakPasswordError as exc:
+        raise AppError(str(exc), code="WEAK_PASSWORD", status_code=422) from exc
+    admin.must_change_password = True
+    AuthService(db).revoke_user_sessions(admin.id)
+    record_audit_event(
+        db,
+        school_id=school_id,
+        actor_user_id=current_user.id,
+        action="school.admin_password_reset",
+        entity_type="school_admin",
+        entity_id=admin.id,
+        details={"email": admin.email, "must_change_password": True},
+    )
+    db.commit()
+    return {
+        "school_id": str(school.id),
+        "school_name": school.name,
+        "email": admin.email,
+        "must_change_password": True,
     }
 
 
