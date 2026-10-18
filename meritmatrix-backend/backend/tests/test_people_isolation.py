@@ -87,7 +87,7 @@ def test_school_admin_cannot_access_other_school_student(client, make_user, auth
     # Should NOT be able to access other school's student
     response = client.get(f"/api/v1/students/{entities['student_b'].id}", headers=headers)
     assert response.status_code == 403
-    assert response.json()["error"]["code"] == "SCHOOL_ACCESS_DENIED"
+    assert response.json()["error"]["code"] == "SCHOOL_ADMIN_SCOPE_DENIED"
 
 
 def test_school_admin_cannot_access_other_school_guardian(client, make_user, auth_headers, seeded_rbac, db_session):
