@@ -1,7 +1,12 @@
 """Defense-in-depth tests for staff-linked account management boundaries."""
 import pytest
 
-from app.auth.assignment_access import deny_linked_staff_management, require_staff_school_scope
+from app.auth.assignment_access import (
+    assigned_class_ids,
+    assigned_class_subject_ids,
+    deny_linked_staff_management,
+    require_staff_school_scope,
+)
 from app.models.school import School
 from app.models.staff import Staff
 from app.models.user_school import UserSchool
@@ -118,3 +123,29 @@ def test_inactive_or_terminated_staff_cannot_access_employing_school(
         require_staff_school_scope(db_session, teacher, school.id)
 
     assert exc.value.code == "STAFF_SCHOOL_SCOPE_DENIED"
+
+
+
+def test_teacher_without_employment_profile_cannot_use_school_membership(
+    make_user, seeded_rbac, db_session
+):
+    """A TEACHER role and a stray membership cannot substitute for employment."""
+    school = School(name="Unlinked Teacher School", code="UNLINKED01", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    teacher = make_user(email="unlinked-teacher@example.com", role_name="TEACHER")
+    db_session.add(UserSchool(user_id=teacher.id, school_id=school.id))
+    db_session.commit()
+
+    with pytest.raises(ForbiddenError) as exc:
+        require_staff_school_scope(db_session, teacher, school.id)
+    assert exc.value.code == "STAFF_EMPLOYMENT_REQUIRED"
+
+    # Assignment-aware endpoints must fail closed rather than treat this account
+    # as an unrestricted non-staff user.
+    assert assigned_class_ids(db_session, teacher, school.id) == set()
+    assert assigned_class_subject_ids(db_session, teacher, school.id) == set()
+
+    with pytest.raises(ForbiddenError) as management_exc:
+        deny_linked_staff_management(db_session, teacher, "edit student profiles")
+    assert management_exc.value.code == "STAFF_EMPLOYMENT_REQUIRED"
