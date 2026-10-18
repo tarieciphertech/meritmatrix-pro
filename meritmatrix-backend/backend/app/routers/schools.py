@@ -252,6 +252,11 @@ def create_school(
     """Create a new school. Requires schools.create permission."""
     service = SchoolService(db)
     school = service.create_school(payload)
+    record_audit_event(
+        db, school_id=school.id, actor_user_id=_current_user.id,
+        action="school.created", entity_type="school", entity_id=school.id,
+        details={"code": school.code, "created_with_admin": False},
+    )
     db.commit()
     db.refresh(school)
     return school
