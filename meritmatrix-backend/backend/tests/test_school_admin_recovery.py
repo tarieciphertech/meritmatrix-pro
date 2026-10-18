@@ -11,7 +11,6 @@ def test_super_admin_can_reset_school_admin_password_and_force_rotation(
     school = School(name="Recovery Academy", code="RECOVERY-1", country="Zimbabwe")
     db_session.add(school)
     db_session.flush()
-    school = School(name="Recovery Academy", code="RECOVERY-1", country="Zimbabwe")
     db_session.add(school)
     db_session.flush()
     admin = make_user(
