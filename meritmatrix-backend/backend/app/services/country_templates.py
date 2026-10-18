@@ -30,10 +30,30 @@ COUNTRY_TEMPLATES = {
                 for n in range(5, 7)
             ],
         ],
+        "curriculum_cycles": [
+            {
+                "code": "O_LEVEL",
+                "name": "Ordinary Level (O-Level)",
+                "levels": ["FORM_1", "FORM_2", "FORM_3", "FORM_4"],
+                "description": "Forms 1–4. Configure the school's approved core learning areas and elective subject options for its own syllabus and timetable.",
+            },
+            {
+                "code": "A_LEVEL",
+                "name": "Advanced Level (A-Level)",
+                "levels": ["FORM_5", "FORM_6"],
+                "description": "Forms 5–6. Configure each learner's approved subject combination and the school's available elective pathways.",
+            },
+        ],
+        "curriculum_guidance": {
+            "authority": "Zimbabwe School Examinations Council (ZIMSEC)",
+            "syllabi_url": "https://www5.zimsec.co.zw/syllabi/",
+            "subject_setup": "Core learning areas and elective pathways are school- and syllabus-specific. Configure actual subjects and combinations explicitly; do not automatically assign an assumed national subject list.",
+        },
         "calendar_event_types": [
             "public_holiday", "school_holiday", "exam_period", "school_closure"
         ],
         "notes": [
+            "O-Level covers Forms 1–4 and A-Level covers Forms 5–6; confirm current examination requirements against the relevant ZIMSEC syllabus.",
             "School-specific offerings must be selected during setup.",
             "Tertiary programmes require a separate configurable structure.",
             "Calendar dates and exam rules must be reviewed for each academic year."
