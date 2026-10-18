@@ -39,6 +39,15 @@ export default function SchoolConfigurationPage() {
     });
   }, [selectedSchool?.id, selectedSchool?.country_code, selectedSchool?.institution_type, selectedSchool?.registration_number, selectedSchool?.address, selectedSchool?.city, selectedSchool?.country, selectedSchool?.phone, selectedSchool?.email, selectedSchool?.website, selectedSchool?.logo_url, selectedSchool?.timezone, selectedSchool?.currency]);
   useEffect(() => {
+    if (!selectedSchool) return;
+    let cancelled = false;
+    api.get<{ logo_url: string | null }>(`/api/v1/schools/${selectedSchool.id}/logo`)
+      .then(result => { if (!cancelled) setProfile(current => ({ ...current, logo_url: result.logo_url ?? '' })); })
+      .catch(() => { /* Existing logo is optional; the rest of configuration remains usable. */ });
+    return () => { cancelled = true; };
+  }, [selectedSchool?.id]);
+
+  useEffect(() => {
     if (!countryCode) { setTemplate(null); return; }
     let cancelled = false; setLoading(true);
     api.get<CountryTemplate>(`/api/v1/country-configurations/${countryCode}`)
@@ -55,6 +64,16 @@ export default function SchoolConfigurationPage() {
     if (institutionType === 'tertiary') return [];
     return template.levels.filter((level) => stageByType[institutionType].includes(level.stage));
   }, [template, institutionType]);
+
+  async function uploadLogo(file?: File) {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { setError('Use a PNG, JPEG, or WebP logo.'); return; }
+    if (file.size > 256 * 1024) { setError('Logo must be 256 KB or smaller.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => { if (typeof reader.result === 'string') { setProfile(p => ({ ...p, logo_url: reader.result as string })); setError(null); setSuccess('Logo selected. Save the configuration to apply it.'); } };
+    reader.onerror = () => setError('Could not read the selected image.');
+    reader.readAsDataURL(file);
+  }
 
   async function save() {
     if (!selectedSchool || !countryCode || !institutionType) { setError('Choose a school, country, and institution type before saving.'); return; }
@@ -97,7 +116,7 @@ export default function SchoolConfigurationPage() {
     <Card className="space-y-4 p-5">
       <h2 className="text-base font-semibold text-slate-900">School identity and contact details</h2>
       <p className="text-sm text-slate-600">These details belong only to {selectedSchool.name}. The logo is used on printed report cards.</p>
-      {profile.logo_url && <div className="flex items-center gap-3 rounded-md border border-slate-200 p-3"><img src={profile.logo_url} alt={selectedSchool.name + ' logo preview'} className="h-16 w-16 object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><span className="text-sm text-slate-600">Logo preview</span></div>}
+      {profile.logo_url && <div className="flex items-center gap-3 rounded-md border border-slate-200 p-3"><img src={profile.logo_url} alt={selectedSchool.name + ' logo preview'} className="h-16 w-16 object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><div className="min-w-0 flex-1"><p className="font-medium text-slate-900">{selectedSchool.name}</p><p className="text-sm text-slate-600">Logo preview · prints with the school name</p></div><Button type="button" variant="secondary" onClick={() => { setProfile(v => ({ ...v, logo_url: '' })); setSuccess('Logo removal selected. Save configuration to apply it.'); }}>Remove</Button></div>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Registration number"><Input value={profile.registration_number} onChange={(e) => setProfile(v => ({ ...v, registration_number: e.target.value }))} /></Field>
         <Field label="Phone"><Input value={profile.phone} onChange={(e) => setProfile(v => ({ ...v, phone: e.target.value }))} /></Field>
@@ -106,7 +125,7 @@ export default function SchoolConfigurationPage() {
         <Field label="Address"><Input value={profile.address} onChange={(e) => setProfile(v => ({ ...v, address: e.target.value }))} /></Field>
         <Field label="City / town"><Input value={profile.city} onChange={(e) => setProfile(v => ({ ...v, city: e.target.value }))} /></Field>
         <Field label="Country"><Input value={profile.country} onChange={(e) => setProfile(v => ({ ...v, country: e.target.value }))} /></Field>
-        <Field label="School logo URL"><Input type="url" value={profile.logo_url} onChange={(e) => setProfile(v => ({ ...v, logo_url: e.target.value }))} placeholder="https://example.com/logo.png" /></Field>
+        <Field label="Upload school logo"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { void uploadLogo(e.target.files?.[0]); e.currentTarget.value = ''; }} className="block w-full text-sm" /><span className="text-xs text-slate-500">PNG, JPEG or WebP; maximum 256 KB. The logo appears beside the school name on report cards.</span></Field>
         <Field label="Timezone"><Input value={profile.timezone} onChange={(e) => setProfile(v => ({ ...v, timezone: e.target.value }))} placeholder="Africa/Gaborone" /></Field>
         <Field label="Currency"><Input value={profile.currency} onChange={(e) => setProfile(v => ({ ...v, currency: e.target.value }))} placeholder="BWP" /></Field>
       </div>

@@ -23,7 +23,7 @@ class School(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     website: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    logo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    logo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     timezone: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     currency: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

@@ -18,6 +18,7 @@ export default function ReportCardsPage() {
   const [studentId, setStudentId] = useState('');
   const [termId, setTermId] = useState('');
   const [rows, setRows] = useState<ResultRow[]>([]);
+  const [schoolLogoUrl, setSchoolLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
@@ -29,6 +30,16 @@ export default function ReportCardsPage() {
     setupRequestIdRef.current += 1;
     resultsRequestIdRef.current += 1;
     setStudents([]); setTerms([]); setRows([]); setStudentId(''); setTermId(''); setError(null);
+  }, [selectedSchool?.id]);
+
+  useEffect(() => {
+    if (!selectedSchool) { setSchoolLogoUrl(null); return; }
+    let cancelled = false;
+    setSchoolLogoUrl(null);
+    api.get<{ logo_url: string | null }>(`/api/v1/schools/${selectedSchool.id}/logo`)
+      .then(result => { if (!cancelled) setSchoolLogoUrl(result.logo_url); })
+      .catch(() => { if (!cancelled) setSchoolLogoUrl(null); });
+    return () => { cancelled = true; };
   }, [selectedSchool?.id]);
 
   const loadSetup = useCallback(async () => {
@@ -107,7 +118,7 @@ export default function ReportCardsPage() {
     {loading ? <Card className="p-6"><Spinner label="Preparing report card…"/></Card> : !student || !term ? <Card className="p-6 text-sm text-slate-500">Choose a student and term to generate a report card.</Card> : (
       <div id="report-card" className="mx-auto max-w-4xl border border-slate-200 bg-white p-6 shadow-sm print:max-w-none print:border-0 print:p-0 print:shadow-none">
         <header className="border-b-2 border-slate-800 pb-4 text-center">
-          {selectedSchool.logo_url && <img src={selectedSchool.logo_url} alt={selectedSchool.name + ' logo'} className="mx-auto mb-3 max-h-24 max-w-40 object-contain print:max-h-20" loading="eager" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.style.display = 'none'; }} />}
+          {schoolLogoUrl && <img src={schoolLogoUrl} alt={selectedSchool.name + ' logo'} className="mx-auto mb-3 max-h-24 max-w-40 object-contain print:max-h-20" loading="eager" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.style.display = 'none'; }} />}
           <h1 className="text-2xl font-bold uppercase tracking-wide text-slate-900">{selectedSchool.name}</h1>
           <p className="mt-1 text-sm text-slate-600">{[selectedSchool.address, selectedSchool.city, selectedSchool.country].filter(Boolean).join(' · ')}</p>
           <p className="mt-1 text-sm text-slate-600">{[selectedSchool.registration_number ? 'Reg: ' + selectedSchool.registration_number : '', selectedSchool.phone, selectedSchool.email, selectedSchool.website].filter(Boolean).join(' · ')}</p>
