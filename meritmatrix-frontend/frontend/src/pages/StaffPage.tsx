@@ -314,12 +314,18 @@ export default function StaffPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Staff Number" required>
-          <Field label="EC Number (optional)" value={form.ec_number ?? ''} onChange={(value) => setField('ec_number', value)} placeholder="e.g. 123456A" />
               <Input
                 required
                 value={form.staff_number}
                 onChange={(e) => setField('staff_number', e.target.value)}
                 disabled={!!editingStaff}
+              />
+            </Field>
+            <Field label="EC Number (optional)">
+              <Input
+                value={form.ec_number ?? ''}
+                onChange={(e) => setField('ec_number', e.target.value)}
+                placeholder="e.g. 123456A"
               />
             </Field>
             <Field label="Job Title">
