@@ -2,7 +2,7 @@
 // Uses GET /api/v1/schools, POST /api/v1/schools, PATCH /api/v1/schools/{id},
 // DELETE /api/v1/schools/{id} (deactivate).
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { INSTITUTION_TYPES, type InstitutionType, type SchoolCreate, type SchoolResponse, type SchoolUpdate } from '../types';
@@ -55,6 +55,8 @@ export default function SchoolsPage() {
   const [editingSchool, setEditingSchool] = useState<SchoolResponse | null>(null);
   const [form, setForm] = useState<SchoolCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [logoLoading, setLogoLoading] = useState(false);
+  const logoRequestId = useRef(0);
   const [formError, setFormError] = useState<string | null>(null);
   const [adminAccounts, setAdminAccounts] = useState<SchoolAdminStatus[]>([]);
   const [creatingAdminFor, setCreatingAdminFor] = useState<SchoolResponse | null>(null);
@@ -85,6 +87,8 @@ export default function SchoolsPage() {
   }, [load]);
 
   function openCreate() {
+    logoRequestId.current += 1;
+    setLogoLoading(false);
     setEditingSchool(null);
     setForm(emptyForm);
     setAdminForm(emptyAdminForm);
@@ -92,7 +96,9 @@ export default function SchoolsPage() {
     setModalOpen(true);
   }
 
-  function openEdit(school: SchoolResponse) {
+  async function openEdit(school: SchoolResponse) {
+    const requestId = ++logoRequestId.current;
+    setLogoLoading(true);
     setEditingSchool(school);
     setForm({
       name: school.name,
@@ -112,10 +118,48 @@ export default function SchoolsPage() {
     });
     setFormError(null);
     setModalOpen(true);
+    try {
+      // List responses intentionally omit embedded data-URI logos to stay small.
+      // Fetch the selected school's logo separately so editing other fields never
+      // accidentally clears its existing logo.
+      const result = await api.get<{ logo_url: string | null }>(`/api/v1/schools/${school.id}/logo`);
+      if (logoRequestId.current === requestId) {
+        setForm((current) => ({ ...current, logo_url: result.logo_url ?? '' }));
+      }
+    } catch {
+      if (logoRequestId.current === requestId) {
+        setForm((current) => ({ ...current, logo_url: school.logo_url ?? '' }));
+      }
+    } finally {
+      if (logoRequestId.current === requestId) setLogoLoading(false);
+    }
   }
 
   function setField(key: keyof SchoolCreate, value: string) {
     setForm((prev) => ({ ...prev, [key]: value } as SchoolCreate));
+  }
+
+  function handleLogoUpload(file?: File) {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setFormError('Use a PNG, JPEG, or WebP school logo.');
+      return;
+    }
+    if (file.size > 256 * 1024) {
+      setFormError('School logos must be 256 KB or smaller.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        setFormError('Could not read that logo file. Try another image.');
+        return;
+      }
+      setForm((prev) => ({ ...prev, logo_url: reader.result as string }));
+      setFormError(null);
+    };
+    reader.onerror = () => setFormError('Could not read that logo file. Try another image.');
+    reader.readAsDataURL(file);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -265,7 +309,7 @@ export default function SchoolsPage() {
       <Modal
         open={modalOpen}
         title={editingSchool ? 'Edit School' : 'New School'}
-        onClose={() => setModalOpen(false)}
+        onClose={() => { logoRequestId.current += 1; setLogoLoading(false); setModalOpen(false); }}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {formError && (
@@ -344,15 +388,40 @@ export default function SchoolsPage() {
             />
           </Field>
 
-          <Field label="School logo URL">
-            <Input
-              type="url"
-              value={form.logo_url ?? ''}
-              onChange={(e) => setField('logo_url', e.target.value)}
-              placeholder="https://example.com/school-logo.png"
-            />
-            <p className="mt-1 text-xs text-slate-500">Use a publicly accessible image URL. It will appear on printed report cards.</p>
-          </Field>
+          <div className="space-y-3 rounded-lg border border-slate-200 p-3">
+            <Field label="Upload school logo">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => { handleLogoUpload(e.target.files?.[0]); e.currentTarget.value = ''; }}
+                className="block w-full text-sm"
+              />
+              <p className="mt-1 text-xs text-slate-500">PNG, JPEG, or WebP; maximum 256 KB. The logo is saved with this school and printed with its name on report cards.</p>
+            </Field>
+            <Field label="Or use a public logo URL">
+              <Input
+                type="url"
+                value={(form.logo_url ?? '').startsWith('data:image/') ? '' : (form.logo_url ?? '')}
+                onChange={(e) => setField('logo_url', e.target.value)}
+                placeholder="https://example.com/school-logo.png"
+              />
+            </Field>
+            {form.logo_url && (
+              <div className="flex items-center gap-3 rounded-md bg-slate-50 p-3">
+                <img
+                  src={form.logo_url}
+                  alt={(form.name.trim() || 'School') + ' logo preview'}
+                  className="h-16 w-16 shrink-0 object-contain"
+                  onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-slate-900">{form.name.trim() || 'School name preview'}</p>
+                  <p className="text-xs text-slate-600">This logo and school name will appear together on printed report cards.</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => setField('logo_url', '')}>Remove logo</Button>
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Website">
@@ -406,8 +475,8 @@ export default function SchoolsPage() {
             <Button variant="secondary" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : editingSchool ? 'Save Changes' : 'Create School'}
+            <Button type="submit" disabled={saving || logoLoading}>
+              {logoLoading ? 'Loading school logo…' : saving ? 'Saving…' : editingSchool ? 'Save Changes' : 'Create School'}
             </Button>
           </div>
         </form>
