@@ -196,7 +196,11 @@ export default function AcademicSetupPage() {
   const templates=getSubjectTemplates(selectedSchool.institution_type,selectedSchool.country_code);
   if(templates.length===0){setError('Choose a supported school type in School Configuration before adding recommended subjects.');return;}
   const existing=new Set(subjects.flatMap(item=>[item.code.trim().toUpperCase(),item.name.trim().toUpperCase()]));
-  const missing=templates.filter(item=>!existing.has(item.code.toUpperCase())&&!existing.has(item.name.toUpperCase()));
+  const missing=templates.filter(item=>{
+   const code=item.code.toUpperCase(),name=item.name.toUpperCase();
+   if(existing.has(code)||existing.has(name))return false;
+   existing.add(code);existing.add(name);return true;
+  });
   if(missing.length===0){setError(null);window.alert('All recommended subjects already exist for this school. No duplicates were created.');return;}
   if(!window.confirm('Add '+missing.length+' recommended subjects to '+selectedSchool.name+'? Existing subjects will be kept. Review the list against the school\'s approved curriculum afterwards.'))return;
   setSaving(true);setError(null);
