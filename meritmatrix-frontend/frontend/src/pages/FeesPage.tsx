@@ -141,7 +141,7 @@ export default function FeesPage() {
 
   return <div className="space-y-5">
     {receiptPayment && <style>{`@media print { body * { visibility: hidden !important; } #payment-receipt, #payment-receipt * { visibility: visible !important; } #payment-receipt { position: absolute; left: 0; top: 0; width: 100%; max-width: none !important; border: 0 !important; box-shadow: none !important; } }`}</style>}
-    {receiptPayment && <Card id="payment-receipt" className="mx-auto max-w-2xl border border-slate-200 bg-white p-8 print:max-w-none print:p-0">
+    {receiptPayment && <div id="payment-receipt" className="mx-auto max-w-2xl print:max-w-none"><Card className="border border-slate-200 bg-white p-8 print:border-0 print:p-0 print:shadow-none">
       <div className="mb-5 flex justify-end gap-2 print:hidden"><Button variant="secondary" onClick={() => setReceiptPayment(null)}>Close receipt</Button><Button onClick={() => window.print()}>Print / Save PDF</Button></div>
       <header className="border-b border-slate-200 pb-5 text-center">
         {schoolLogoUrl && <img src={schoolLogoUrl} alt={selectedSchool.name + ' logo'} className="mx-auto mb-3 max-h-24 max-w-40 object-contain" onError={event => { event.currentTarget.style.display = 'none'; }} />}
@@ -159,7 +159,7 @@ export default function FeesPage() {
       <table className="mt-6 w-full text-sm"><thead><tr className="border-b border-slate-300 text-left"><th className="py-3">Description</th><th className="py-3 text-right">Amount received</th></tr></thead><tbody><tr className="border-b border-slate-200"><td className="py-4">{receiptPayment.charge_description}</td><td className="py-4 text-right font-semibold">{currency}{Number(receiptPayment.amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td></tr></tbody></table>
       <p className="mt-6 text-sm text-slate-600">This receipt confirms that the payment above has been recorded in the school fee ledger.</p>
       <div className="mt-12 grid grid-cols-2 gap-8 text-sm text-slate-600"><p className="border-t border-slate-300 pt-2">Authorized signature</p><p className="border-t border-slate-300 pt-2">School stamp</p></div>
-    </Card>}
+    </Card></div>}
     <div className={receiptPayment ? 'print:hidden space-y-5' : 'space-y-5'}>
     <PageHeader title="Fees & Payments" subtitle={'Record student charges, payments and balances for ' + selectedSchool.name + '.'} actions={<Button variant="secondary" onClick={() => void load()}>Refresh</Button>} />
     {error && <ErrorBanner message={error} onRetry={() => void load()} />}
