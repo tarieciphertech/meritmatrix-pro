@@ -11,7 +11,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.auth.assignment_access import require_staff_school_scope
+from app.auth.assignment_access import require_staff_school_scope, require_teacher_employment_profile
 from app.auth.dependencies import (
     get_current_active_user,
     require_permission,
@@ -54,6 +54,9 @@ def list_schools(
     from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
     if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
         return service.list_schools(limit=limit, offset=offset)
+
+    # Teacher accounts must have an active employment record; membership alone is insufficient.
+    require_teacher_employment_profile(db, current_user)
 
     # Linked staff can never widen their school boundary through extra membership rows.
     from app.models.staff import Staff
