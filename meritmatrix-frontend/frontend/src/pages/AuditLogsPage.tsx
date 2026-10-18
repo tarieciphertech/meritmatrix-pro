@@ -44,6 +44,8 @@ const ACTIONS = [
   'teaching_assignment.created',
   'teaching_assignment.updated',
   'teaching_assignment.deactivated',
+  'school.configuration_updated',
+  'school.admin_account_created',
 ];
 
 function readable(value: string) {
@@ -116,7 +118,7 @@ export default function AuditLogsPage() {
         <label className="text-sm font-medium text-slate-700">Record type
           <Select className="mt-1" value={entityType} onChange={e => changeEntityType(e.target.value)}>
             <option value="">All record types</option>
-            {['attendance_register', 'assessment', 'grading_scale', 'fee_charge', 'fee_payment', 'student', 'staff', 'enrollment', 'teaching_assignment'].map(item => <option key={item} value={item}>{readable(item)}</option>)}
+            {['school', 'school_admin', 'attendance_register', 'assessment', 'grading_scale', 'fee_charge', 'fee_payment', 'student', 'staff', 'enrollment', 'teaching_assignment'].map(item => <option key={item} value={item}>{readable(item)}</option>)}
           </Select>
         </label>
       </div>
@@ -129,7 +131,22 @@ export default function AuditLogsPage() {
             <Td><span className="font-medium text-slate-900">{readable(event.action)}</span></Td>
             <Td><p className="font-medium text-slate-800">{readable(event.entity_type)}</p><p className="text-xs text-slate-500">{event.entity_id ?? '—'}</p></Td>
             <Td><p className="font-medium text-slate-800">{event.actor_name}</p><p className="text-xs text-slate-500">{event.actor_identifier ?? event.actor_user_id ?? ''}</p></Td>
-            <Td><pre className="max-w-md whitespace-pre-wrap break-words text-xs text-slate-600">{JSON.stringify(event.details, null, 2)}</pre></Td>
+            <Td>
+              {Array.isArray(event.details?.changed_fields) ? (
+                <div className="max-w-md">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Changed fields</p>
+                  <div className="flex flex-wrap gap-1">
+                    {(event.details.changed_fields as unknown[]).map((field, index) => (
+                      <span key={String(field) + '-' + index} className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                        {readable(String(field))}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : Object.keys(event.details ?? {}).length ? (
+                <pre className="max-w-md whitespace-pre-wrap break-words text-xs text-slate-600">{JSON.stringify(event.details, null, 2)}</pre>
+              ) : <span className="text-xs text-slate-400">No additional details</span>}
+            </Td>
           </tr>)}
         </Table>
       )}
