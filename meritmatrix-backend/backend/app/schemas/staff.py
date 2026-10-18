@@ -3,13 +3,23 @@ import uuid
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.staff import EmploymentStatus
 
 
 class StaffBase(BaseModel):
     """Base schema for staff data."""
+    ec_number: Optional[str] = Field(None, min_length=1, max_length=50)
+
+    @field_validator("ec_number", mode="before")
+    @classmethod
+    def normalize_ec_number(cls, value):
+        if value is None:
+            return None
+        normalized = str(value).strip().upper()
+        return normalized or None
+
     first_name: str = Field(..., min_length=1, max_length=100)
     middle_name: Optional[str] = Field(None, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
