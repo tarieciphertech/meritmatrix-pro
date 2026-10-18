@@ -64,6 +64,10 @@ export default function SchoolsPage() {
   const [adminSaving, setAdminSaving] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
   const [adminSuccess, setAdminSuccess] = useState<string | null>(null);
+  const [resettingAdminFor, setResettingAdminFor] = useState<SchoolResponse | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const canManage = hasRole('SUPER_ADMIN');
 
@@ -210,6 +214,31 @@ export default function SchoolsPage() {
     setCreatingAdminFor(school); setAdminForm(emptyAdminForm); setAdminError(null);
   }
 
+  async function handleResetAdminPassword(e: FormEvent) {
+    e.preventDefault();
+    if (!resettingAdminFor) return;
+    if (resetPassword.length < 12) {
+      setResetError('Use a temporary password of at least 12 characters.');
+      return;
+    }
+    setResetSaving(true);
+    setResetError(null);
+    try {
+      const result = await api.post<{ school_name: string; email: string; must_change_password: boolean }>(
+        `/api/v1/schools/${resettingAdminFor.id}/admin-account/reset-password`,
+        { password: resetPassword },
+      );
+      setAdminSuccess(`Login reset for ${result.school_name} (${result.email}). All existing sessions were revoked; the administrator must change the temporary password at next sign-in.`);
+      setResettingAdminFor(null);
+      setResetPassword('');
+      await load();
+    } catch (err) {
+      setResetError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not reset the school administrator login.');
+    } finally {
+      setResetSaving(false);
+    }
+  }
+
   async function handleCreateAdmin(e: FormEvent) {
     e.preventDefault();
     if (!creatingAdminFor) return;
@@ -275,7 +304,7 @@ export default function SchoolsPage() {
                   {(() => {
                     const admin = adminAccounts.find((item) => item.school_id === s.id);
                     if (!admin) return <span className="text-sm text-slate-500">Not configured</span>;
-                    return <div className="text-sm"><p className="font-medium text-slate-800">{admin.first_name} {admin.last_name}</p><p className="text-slate-500">{admin.email}</p><p className={admin.is_active ? 'text-emerald-700' : 'text-red-700'}>{admin.is_active ? 'Active' : 'Inactive'}{admin.must_change_password ? ' · Password change required' : ''}</p></div>;
+                    return <div className="space-y-2 text-sm"><p className="font-medium text-slate-800">{admin.first_name} {admin.last_name}</p><p className="text-slate-500">{admin.email}</p><p className={admin.is_active ? 'text-emerald-700' : 'text-red-700'}>{admin.is_active ? 'Active' : 'Inactive'}{admin.must_change_password ? ' · Password change required' : ''}</p>{admin.is_active && <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => { setResettingAdminFor(s); setResetPassword(''); setResetError(null); }}>Reset login</Button>}</div>;
                   })()}
                 </Td>}
                 <Td>
@@ -478,6 +507,20 @@ export default function SchoolsPage() {
             <Button type="submit" disabled={saving || logoLoading}>
               {logoLoading ? 'Loading school logo…' : saving ? 'Saving…' : editingSchool ? 'Save Changes' : 'Create School'}
             </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(resettingAdminFor)} title="Reset School Administrator Login" onClose={() => { if (!resetSaving) { setResettingAdminFor(null); setResetPassword(''); setResetError(null); } }}>
+        <form onSubmit={handleResetAdminPassword} className="space-y-4">
+          <p className="text-sm text-slate-600">Reset the administrator password for {resettingAdminFor?.name ?? 'this school'}. All current sessions for that account will be revoked, and the administrator will be required to choose a new password at next sign-in.</p>
+          {resetError && <div role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{resetError}</div>}
+          <Field label="Temporary password (12+ characters)" required>
+            <Input type="password" required minLength={12} maxLength={128} value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} autoComplete="new-password" />
+          </Field>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" type="button" onClick={() => { setResettingAdminFor(null); setResetPassword(''); setResetError(null); }} disabled={resetSaving}>Cancel</Button>
+            <Button type="submit" disabled={resetSaving}>{resetSaving ? 'Resetting…' : 'Reset administrator login'}</Button>
           </div>
         </form>
       </Modal>
