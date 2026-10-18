@@ -131,3 +131,9 @@ class SchoolOnboardCreate(BaseModel):
 class SchoolOnboardResponse(BaseModel):
     school: SchoolResponse
     admin: SchoolAdminAccountResponse
+
+
+
+class SchoolAdminPasswordReset(BaseModel):
+    """Set a temporary password for an existing school administrator."""
+    password: str = Field(min_length=12, max_length=128)
