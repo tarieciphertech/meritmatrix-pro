@@ -1,5 +1,6 @@
 """Regression tests for school administrator login recovery."""
 from app.models.user_school import UserSchool
+from app.models.school import School
 from app.services.security import verify_password
 
 
@@ -7,6 +8,9 @@ def test_super_admin_can_reset_school_admin_password_and_force_rotation(
     client, make_user, auth_headers, seeded_rbac, db_session
 ):
     make_user(email="platform-reset@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    school = School(name="Recovery Academy", code="RECOVERY-1", country="Zimbabwe")
+    db_session.add(school)
+    db_session.flush()
     admin = make_user(
         email="school-reset@example.com",
         password="InitialPassword123!",
@@ -33,7 +37,6 @@ def test_super_admin_can_reset_school_admin_password_and_force_rotation(
 def test_school_admin_cannot_reset_its_own_or_another_school_admin_password(
     client, make_user, auth_headers, seeded_rbac, db_session
 ):
-    from app.models.school import School
     from app.models.user import User
 
     school_a = School(name="Scoped Academy A", code="SCOPED-A")
