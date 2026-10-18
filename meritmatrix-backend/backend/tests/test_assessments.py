@@ -248,10 +248,26 @@ def test_marks_must_be_submitted_for_review_before_publication(
     assert submitted.json()["marks_submitted"] is True
     assert submitted.json()["is_published"] is False
 
+    from app.models.staff import Staff
+    from app.models.teaching_assignment import TeachingAssignment
     from app.models.user_school import UserSchool
 
     teacher = make_user(email="review-teacher@example.com", password="StrongPass123", role_name="TEACHER")
-    db_session.add(UserSchool(user_id=teacher.id, school_id=school.id))
+    teacher_staff = Staff(
+        school_id=school.id, staff_number="REV-TEACHER-1",
+        first_name="Review", last_name="Teacher", email=teacher.email,
+        user_id=teacher.id, employment_status="active", is_active=True,
+    )
+    db_session.add(teacher_staff)
+    db_session.flush()
+    db_session.add_all([
+        UserSchool(user_id=teacher.id, school_id=school.id),
+        TeachingAssignment(
+            school_id=school.id, staff_id=teacher_staff.id,
+            class_subject_id=class_subject.id, start_date=date(2026, 1, 1),
+            end_date=None, is_primary=True, is_active=True,
+        ),
+    ])
     db_session.commit()
     teacher_headers = auth_headers("review-teacher@example.com", "StrongPass123")
 
