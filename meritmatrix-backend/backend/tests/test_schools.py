@@ -4,6 +4,7 @@ import uuid
 import pytest
 
 from app.models.school import School
+from app.models.user_school import UserSchool
 from app.schemas.school import SchoolCreate
 
 
