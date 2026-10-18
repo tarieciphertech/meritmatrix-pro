@@ -33,6 +33,7 @@ interface StaffForm extends StaffCreate {
 
 const emptyForm: StaffForm = {
   staff_number: '',
+  ec_number: '',
   first_name: '',
   middle_name: '',
   last_name: '',
@@ -121,6 +122,7 @@ export default function StaffPage() {
     setEditingStaff(staff);
     setForm({
       staff_number: staff.staff_number,
+      ec_number: staff.ec_number ?? '',
       first_name: staff.first_name,
       middle_name: staff.middle_name ?? '',
       last_name: staff.last_name,
@@ -251,10 +253,11 @@ export default function StaffPage() {
         </Card>
       ) : (
         <Card>
-          <Table headers={['Staff #', 'Name', 'Job Title', 'Status', 'Hire Date', 'Actions']}>
+          <Table headers={['Staff #', 'EC Number', 'Name', 'Job Title', 'Status', 'Hire Date', 'Actions']}>
             {staffList.map((s) => (
               <tr key={s.id} className="hover:bg-slate-50">
                 <Td className="font-medium text-slate-900">{s.staff_number}</Td>
+                <Td>{s.ec_number ?? '—'}</Td>
                 <Td>
                   {s.first_name} {s.middle_name ? `${s.middle_name} ` : ''}{s.last_name}
                 </Td>
@@ -311,6 +314,7 @@ export default function StaffPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Staff Number" required>
+          <Field label="EC Number (optional)" value={form.ec_number ?? ''} onChange={(value) => setField('ec_number', value)} placeholder="e.g. 123456A" />
               <Input
                 required
                 value={form.staff_number}
