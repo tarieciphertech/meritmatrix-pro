@@ -15,6 +15,73 @@ const emptyTerm: TermForm = {name:'',term_number:'1',start_date:'',end_date:'',i
 const emptyClass: ClassForm = {name:'',code:'',level:'',stream:'',description:''};
 const emptySubject: SubjectForm = {name:'',code:'',description:''};
 
+type SubjectTemplate = { name: string; code: string; description: string };
+
+function getSubjectTemplates(institutionType?: InstitutionType | null, countryCode?: string | null): SubjectTemplate[] {
+ const early: SubjectTemplate[] = [
+  {name:'Language and Literacy',code:'LIT',description:'Early language development and communication'},
+  {name:'Mathematics and Numeracy',code:'NUM',description:'Early mathematical concepts and numeracy'},
+  {name:'Environmental Awareness',code:'ENV',description:'Awareness of the natural and social environment'},
+  {name:'Creative Arts',code:'ART',description:'Creative expression, music and art'},
+  {name:'Physical Development',code:'PHYDEV',description:'Movement, coordination and physical development'},
+  {name:'Social and Emotional Learning',code:'SEL',description:'Social skills and emotional development'},
+ ];
+ const primary: SubjectTemplate[] = countryCode === 'BW' ? [
+  {name:'English',code:'ENG',description:'English language and literacy'},
+  {name:'Setswana',code:'SETS',description:'Setswana language and literacy'},
+  {name:'Mathematics',code:'MATH',description:'Primary mathematics and numeracy'},
+  {name:'Science',code:'SCI',description:'Primary science'},
+  {name:'Social Studies',code:'SOC',description:'People, society and environment'},
+  {name:'Agriculture',code:'AGRI',description:'Primary agriculture'},
+  {name:'Religious Education',code:'RE',description:'Religious and moral education'},
+  {name:'Creative and Performing Arts',code:'CPA',description:'Visual arts, music and performance'},
+  {name:'Physical Education',code:'PE',description:'Physical education and wellbeing'},
+  {name:'Information and Communications Technology',code:'ICT',description:'Digital literacy and computing'},
+ ] : [
+  {name:'English Language',code:'ENG',description:'English language and literacy'},
+  {name:'Mathematics',code:'MATH',description:'Primary mathematics and numeracy'},
+  {name:'Indigenous Language',code:'LANG',description:'School-selected indigenous language (for example Shona, Ndebele or Tonga)'},
+  {name:'Environmental Science',code:'ENVSCI',description:'Primary environmental science'},
+  {name:'Heritage and Social Studies',code:'HSS',description:'Heritage, citizenship, history and social studies'},
+  {name:'Agriculture',code:'AGRI',description:'Primary agriculture'},
+  {name:'Religious and Moral Education',code:'RME',description:'Religious and moral education'},
+  {name:'Physical Education',code:'PE',description:'Physical education and wellbeing'},
+  {name:'Visual and Performing Arts',code:'VPA',description:'Visual arts, music and performance'},
+  {name:'Information and Communications Technology',code:'ICT',description:'Digital literacy and computing'},
+ ];
+ const secondary: SubjectTemplate[] = [
+  {name:'English Language',code:'ENG',description:'English language'},
+  {name:'Mathematics',code:'MATH',description:'Mathematics'},
+  {name:'Indigenous Language',code:'LANG',description:'School-selected indigenous language'},
+  {name:'Combined Science',code:'COMSCI',description:'Integrated science course'},
+  {name:'Biology',code:'BIO',description:'Biology'},
+  {name:'Chemistry',code:'CHEM',description:'Chemistry'},
+  {name:'Physics',code:'PHY',description:'Physics'},
+  {name:'Geography',code:'GEO',description:'Geography'},
+  {name:'History',code:'HIST',description:'History'},
+  {name:'Heritage Studies',code:'HER',description:'Heritage studies and citizenship'},
+  {name:'Commerce',code:'COMM',description:'Commerce and business fundamentals'},
+  {name:'Accounting',code:'ACC',description:'Accounting'},
+  {name:'Computer Science',code:'CS',description:'Computer science and programming'},
+  {name:'Agriculture',code:'AGRI',description:'Agriculture'},
+  {name:'Family and Religious Studies',code:'FRS',description:'Family and religious studies'},
+  {name:'Physical Education',code:'PE',description:'Physical education and wellbeing'},
+ ];
+ const advanced: SubjectTemplate[] = [
+  {name:'Pure Mathematics',code:'PMATH',description:'Advanced level pure mathematics'},
+  {name:'Economics',code:'ECON',description:'Economics'},
+  {name:'Literature in English',code:'LITENG',description:'Literature in English'},
+ ];
+ switch (institutionType) {
+  case 'early_childhood': return early;
+  case 'primary': return primary;
+  case 'secondary': return secondary;
+  case 'high_school': return [...secondary, ...advanced];
+  case 'combined': return [...primary, ...secondary, ...advanced];
+  default: return [];
+ }
+}
+
 type ClassTemplate = { name: string; code: string; level: number; description: string };
 function getClassTemplates(institutionType?: InstitutionType | null): ClassTemplate[] {
  const primary: ClassTemplate[] = [
@@ -124,6 +191,27 @@ export default function AcademicSetupPage() {
   }finally{setSaving(false);}
  }
 
+ async function addRecommendedSubjects(){
+  if(!selectedSchool)return;
+  const templates=getSubjectTemplates(selectedSchool.institution_type,selectedSchool.country_code);
+  if(templates.length===0){setError('Choose a supported school type in School Configuration before adding recommended subjects.');return;}
+  const existing=new Set(subjects.flatMap(item=>[item.code.trim().toUpperCase(),item.name.trim().toUpperCase()]));
+  const missing=templates.filter(item=>{
+   const code=item.code.toUpperCase(),name=item.name.toUpperCase();
+   if(existing.has(code)||existing.has(name))return false;
+   existing.add(code);existing.add(name);return true;
+  });
+  if(missing.length===0){setError(null);window.alert('All recommended subjects already exist for this school. No duplicates were created.');return;}
+  if(!window.confirm('Add '+missing.length+' recommended subjects to '+selectedSchool.name+'? Existing subjects will be kept. Review the list against the school\'s approved curriculum afterwards.'))return;
+  setSaving(true);setError(null);
+  try{
+   for(const item of missing) await api.post('/api/v1/subjects',{name:item.name,code:item.code,description:item.description},{school_id:selectedSchool.id});
+   await load();setTab('subjects');
+   window.alert('Added '+missing.length+' recommended subjects. Review them against the school\'s approved curriculum before assigning them to classes.');
+  }catch(e){setError(e instanceof Error?e.message:'Could not finish adding recommended subjects. Subjects already created were kept; retry to add any remaining subjects.');await load();}
+  finally{setSaving(false);}
+ }
+
  async function assignSubject(){
   if(!selectedClassId||!selectedSubjectId)return;
   setAssigning(true);setError(null);
@@ -193,7 +281,7 @@ export default function AcademicSetupPage() {
   {selectedSchool&&!loading&&tab==='terms'&&<div className="space-y-3"><Card><div className="p-4"><Field label="Academic year" required><Select value={yearId} onChange={e=>setYearId(e.target.value)}><option value="">Select academic year…</option>{activeYears.map(x=><option key={x.id} value={x.id}>{x.name}{x.is_current?' (Current)':''}</option>)}</Select></Field></div></Card><Card>{rows.length===0?<EmptyState title="No terms for this year" hint="Select an academic year and create its first term."/>:<Table headers={['Term','Number','Start','End','Current','Status','Actions']}>{rows.map(x=><tr key={x.id}><Td className="font-medium">{x.name}</Td><Td>{x.term_number}</Td><Td>{x.start_date}</Td><Td>{x.end_date}</Td><Td>{x.is_current?<Badge tone="green">Current</Badge>:'—'}</Td><Td><Badge tone={x.is_active?'green':'slate'}>{x.is_active?'Active':'Inactive'}</Badge></Td><Td><div className="flex gap-2"><Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={()=>editTerm(x)}>Edit</Button>{x.is_active&&<Button variant="danger" className="!px-2 !py-1 text-xs" onClick={()=>void deactivate('terms',x.id,x.name)}>Deactivate</Button>}</div></Td></tr>)}</Table>}</Card></div>}
   {selectedSchool&&!loading&&tab==='classes'&&<Card>{classes.length===0?<EmptyState title="No classes yet" hint="Add classes such as Form 1, Form 2 or Grade 7."/>:<Table headers={['Name','Code','Level','Stream','Status','Actions']}>{classes.map(x=><tr key={x.id}><Td className="font-medium">{x.name}</Td><Td>{x.code}</Td><Td>{x.level??'—'}</Td><Td>{x.stream||'—'}</Td><Td><Badge tone={x.is_active?'green':'slate'}>{x.is_active?'Active':'Inactive'}</Badge></Td><Td><div className="flex gap-2"><Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={()=>editClass(x)}>Edit</Button>{x.is_active&&<Button variant="danger" className="!px-2 !py-1 text-xs" onClick={()=>void deactivate('classes',x.id,x.name)}>Deactivate</Button>}</div></Td></tr>)}</Table>}</Card>}
   {selectedSchool&&!loading&&tab==='class-subjects'&&<div className="space-y-3"><Card><div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-3"><Field label="Class" required><Select value={selectedClassId} onChange={e=>setSelectedClassId(e.target.value)}><option value="">Select class…</option>{classes.filter(x=>x.is_active).map(x=><option key={x.id} value={x.id}>{x.name} ({x.code})</option>)}</Select></Field><Field label="Subject to assign" required><Select value={selectedSubjectId} onChange={e=>setSelectedSubjectId(e.target.value)}><option value="">Select subject…</option>{subjects.filter(x=>x.is_active&&!assignments.some(a=>a.subject_id===x.id)).map(x=><option key={x.id} value={x.id}>{x.name} ({x.code})</option>)}</Select></Field><div className="flex items-end"><Button disabled={!selectedClassId||!selectedSubjectId||assigning} onClick={()=>void assignSubject()}>{assigning?'Assigning…':'Assign subject'}</Button></div></div></Card><Card>{!selectedClassId?<EmptyState title="No classes available" hint="Create a class before assigning subjects."/>:assignments.length===0?<EmptyState title="No subjects assigned" hint="Choose a subject above and assign it to this class."/>:<Table headers={['Subject','Code','Actions']}>{assignments.map(x=><tr key={x.id}><Td className="font-medium">{x.subject_name||subjects.find(s=>s.id===x.subject_id)?.name||'Subject'}</Td><Td>{x.subject_code||subjects.find(s=>s.id===x.subject_id)?.code||'—'}</Td><Td><Button variant="danger" className="!px-2 !py-1 text-xs" onClick={()=>void removeAssignment(x)}>Remove</Button></Td></tr>)}</Table>}</Card></div>}
-  {selectedSchool&&!loading&&tab==='subjects'&&<Card>{subjects.length===0?<EmptyState title="No subjects yet" hint="Add subjects such as Mathematics, English or Science."/>:<Table headers={['Subject','Code','Description','Status','Actions']}>{subjects.map(x=><tr key={x.id}><Td className="font-medium">{x.name}</Td><Td>{x.code}</Td><Td>{x.description||'—'}</Td><Td><Badge tone={x.is_active?'green':'slate'}>{x.is_active?'Active':'Inactive'}</Badge></Td><Td><div className="flex gap-2"><Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={()=>editSubject(x)}>Edit</Button>{x.is_active&&<Button variant="danger" className="!px-2 !py-1 text-xs" onClick={()=>void deactivate('subjects',x.id,x.name)}>Deactivate</Button>}</div></Td></tr>)}</Table>}</Card>}
+  {selectedSchool&&!loading&&tab==='subjects'&&<Card><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><div><p className="font-medium text-slate-900">Subjects for {selectedSchool.name}</p><p className="mt-1 text-sm text-slate-600">Recommended starting list for this school type. Confirm subjects against the approved curriculum before use.</p></div><Button variant="secondary" disabled={saving} onClick={()=>void addRecommendedSubjects()}>{saving?'Adding subjects…':'Add recommended subjects'}</Button></div>{subjects.length===0?<EmptyState title="No subjects yet" hint="Add a recommended starter list, or use + Add Subject to create a subject manually."/>:<Table headers={['Subject','Code','Description','Status','Actions']}>{subjects.map(x=><tr key={x.id}><Td className="font-medium">{x.name}</Td><Td>{x.code}</Td><Td>{x.description||'—'}</Td><Td><Badge tone={x.is_active?'green':'slate'}>{x.is_active?'Active':'Inactive'}</Badge></Td><Td><div className="flex gap-2"><Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={()=>editSubject(x)}>Edit</Button>{x.is_active&&<Button variant="danger" className="!px-2 !py-1 text-xs" onClick={()=>void deactivate('subjects',x.id,x.name)}>Deactivate</Button>}</div></Td></tr>)}</Table>}</Card>}
   <Modal open={open} title={(editingId?'Edit ':'New ')+(tab==='years'?'Academic Year':tab==='terms'?'Term':tab==='classes'?'Class':'Subject')} onClose={()=>setOpen(false)}>
    <form onSubmit={submit} className="space-y-4">{formError&&<ErrorBanner message={formError}/>}
    {tab==='years'&&<><Field label="Academic year name" required><Input required maxLength={100} value={yf.name} onChange={e=>setYf(p=>({...p,name:e.target.value}))} placeholder="2026 Academic Year"/></Field><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label="Start date" required><Input required type="date" value={yf.start_date} onChange={e=>setYf(p=>({...p,start_date:e.target.value}))}/></Field><Field label="End date" required><Input required type="date" min={yf.start_date||undefined} value={yf.end_date} onChange={e=>setYf(p=>({...p,end_date:e.target.value}))}/></Field></div>{editingId&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={yf.is_current} onChange={e=>setYf(p=>({...p,is_current:e.target.checked}))}/> Set as current year</label>}</>}
