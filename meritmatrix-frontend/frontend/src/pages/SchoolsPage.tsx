@@ -118,6 +118,29 @@ export default function SchoolsPage() {
     setForm((prev) => ({ ...prev, [key]: value } as SchoolCreate));
   }
 
+  function handleLogoUpload(file?: File) {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setFormError('Use a PNG, JPEG, or WebP school logo.');
+      return;
+    }
+    if (file.size > 256 * 1024) {
+      setFormError('School logos must be 256 KB or smaller.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        setFormError('Could not read that logo file. Try another image.');
+        return;
+      }
+      setForm((prev) => ({ ...prev, logo_url: reader.result as string }));
+      setFormError(null);
+    };
+    reader.onerror = () => setFormError('Could not read that logo file. Try another image.');
+    reader.readAsDataURL(file);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -344,15 +367,40 @@ export default function SchoolsPage() {
             />
           </Field>
 
-          <Field label="School logo URL">
-            <Input
-              type="url"
-              value={form.logo_url ?? ''}
-              onChange={(e) => setField('logo_url', e.target.value)}
-              placeholder="https://example.com/school-logo.png"
-            />
-            <p className="mt-1 text-xs text-slate-500">Use a publicly accessible image URL. It will appear on printed report cards.</p>
-          </Field>
+          <div className="space-y-3 rounded-lg border border-slate-200 p-3">
+            <Field label="Upload school logo">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => { handleLogoUpload(e.target.files?.[0]); e.currentTarget.value = ''; }}
+                className="block w-full text-sm"
+              />
+              <p className="mt-1 text-xs text-slate-500">PNG, JPEG, or WebP; maximum 256 KB. The logo is saved with this school and printed with its name on report cards.</p>
+            </Field>
+            <Field label="Or use a public logo URL">
+              <Input
+                type="url"
+                value={(form.logo_url ?? '').startsWith('data:image/') ? '' : (form.logo_url ?? '')}
+                onChange={(e) => setField('logo_url', e.target.value)}
+                placeholder="https://example.com/school-logo.png"
+              />
+            </Field>
+            {form.logo_url && (
+              <div className="flex items-center gap-3 rounded-md bg-slate-50 p-3">
+                <img
+                  src={form.logo_url}
+                  alt={(form.name.trim() || 'School') + ' logo preview'}
+                  className="h-16 w-16 shrink-0 object-contain"
+                  onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-slate-900">{form.name.trim() || 'School name preview'}</p>
+                  <p className="text-xs text-slate-600">This logo and school name will appear together on printed report cards.</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => setField('logo_url', '')}>Remove logo</Button>
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Website">
