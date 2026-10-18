@@ -9,7 +9,7 @@ from app.schemas.school import SchoolCreate
 
 # ---- CRUD Tests ----
 
-def test_create_school(client, make_user, auth_headers, seeded_rbac):
+def test_create_school(client, make_user, auth_headers, seeded_rbac, db_session):
     """SUPER_ADMIN can create a school."""
     make_user(email="admin@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
     headers = auth_headers("admin@example.com", "StrongPass123")
