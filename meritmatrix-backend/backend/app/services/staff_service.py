@@ -3,6 +3,7 @@ import uuid
 from datetime import date
 from typing import List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.staff import Staff, EmploymentStatus
@@ -46,7 +47,7 @@ class StaffService:
         """Create a new staff member for a school."""
         # EC numbers identify an employee nationally; enforce uniqueness across schools.
         if payload.ec_number:
-            existing_ec = self.db.query(Staff).filter(Staff.ec_number.ilike(payload.ec_number)).first()
+            existing_ec = self.db.query(Staff).filter(func.upper(Staff.ec_number) == payload.ec_number.upper()).first()
             if existing_ec is not None:
                 raise ConflictError("This EC Number is already assigned to another staff record.", code="DUPLICATE_EC_NUMBER")
 
@@ -104,7 +105,7 @@ class StaffService:
 
         # EC number is unique across all schools when supplied.
         if "ec_number" in update_data and update_data["ec_number"]:
-            existing_ec = self.db.query(Staff).filter(Staff.ec_number.ilike(update_data["ec_number"])).first()
+            existing_ec = self.db.query(Staff).filter(func.upper(Staff.ec_number) == update_data["ec_number"].upper()).first()
             if existing_ec is not None and existing_ec.id != staff_id:
                 raise ConflictError("This EC Number is already assigned to another staff record.", code="DUPLICATE_EC_NUMBER")
 
