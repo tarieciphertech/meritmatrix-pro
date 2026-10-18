@@ -23,7 +23,7 @@ from app.utils.errors import ForbiddenError
 
 def _is_teacher(user: User) -> bool:
     """Identify teacher-role users even when their staff profile is missing."""
-    return any(role.name == "TEACHER" for role in user.roles)
+    return any(role.name == "TEACHER" for role in getattr(user, "roles", []))
 
 
 def require_teacher_employment_profile(db: Session, user: User) -> None:
