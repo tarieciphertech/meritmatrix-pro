@@ -240,3 +240,46 @@ def test_create_staff_login_requires_initial_password_change(client, make_user, 
     account = db_session.query(User).filter(User.id == staff.user_id).one()
     assert account.must_change_password is True
     assert account.is_active is True
+
+
+def test_teacher_ec_number_is_normalized_and_unique_across_schools(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    """EC numbers are normalized and cannot be reused by another school."""
+    school_a = School(name="EC School A", code="ECSCH001", city="City", country="Zimbabwe")
+    school_b = School(name="EC School B", code="ECSCH002", city="City", country="Zimbabwe")
+    db_session.add_all([school_a, school_b])
+    db_session.commit()
+
+    make_user(email="ec-admin@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    headers = auth_headers("ec-admin@example.com", "StrongPass123")
+
+    first = client.post(
+        f"/api/v1/staff?school_id={school_a.id}", headers=headers,
+        json={"staff_number": "EC001", "first_name": "Tariro", "last_name": "Moyo", "ec_number": " ab123c "},
+    )
+    assert first.status_code == 201, first.text
+    assert first.json()["ec_number"] == "AB123C"
+
+    duplicate = client.post(
+        f"/api/v1/staff?school_id={school_b.id}", headers=headers,
+        json={"staff_number": "EC002", "first_name": "Tendai", "last_name": "Ncube", "ec_number": "AB123C"},
+    )
+    assert duplicate.status_code == 409, duplicate.text
+    assert duplicate.json()["error"]["code"] == "DUPLICATE_EC_NUMBER"
+
+
+def test_staff_ec_number_can_be_cleared(client, make_user, auth_headers, seeded_rbac, db_session):
+    """An optional EC number can be removed from an existing staff record."""
+    school = School(name="EC Clear School", code="ECCLEAR1", city="City", country="Zimbabwe")
+    db_session.add(school)
+    db_session.commit()
+    staff = Staff(school_id=school.id, staff_number="EC003", first_name="Rudo", last_name="Dube", ec_number="ZX123")
+    db_session.add(staff)
+    db_session.commit()
+
+    make_user(email="ec-clear-admin@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
+    headers = auth_headers("ec-clear-admin@example.com", "StrongPass123")
+    response = client.patch(f"/api/v1/staff/{staff.id}", headers=headers, json={"ec_number": None})
+    assert response.status_code == 200, response.text
+    assert response.json()["ec_number"] is None

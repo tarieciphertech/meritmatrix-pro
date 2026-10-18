@@ -25,6 +25,7 @@ class Staff(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         GUID(), ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True
     )
     staff_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    ec_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     middle_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)

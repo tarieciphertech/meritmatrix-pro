@@ -3,6 +3,7 @@ import uuid
 from datetime import date
 from typing import List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.staff import Staff, EmploymentStatus
@@ -44,6 +45,12 @@ class StaffService:
 
     def create_staff(self, school_id: uuid.UUID, payload: StaffCreate) -> Staff:
         """Create a new staff member for a school."""
+        # EC numbers identify an employee nationally; enforce uniqueness across schools.
+        if payload.ec_number:
+            existing_ec = self.db.query(Staff).filter(func.upper(Staff.ec_number) == payload.ec_number.upper()).first()
+            if existing_ec is not None:
+                raise ConflictError("This EC Number is already assigned to another staff record.", code="DUPLICATE_EC_NUMBER")
+
         # Check for duplicate staff number within the school
         existing = self.repo.get_by_staff_number(school_id, payload.staff_number)
         if existing is not None:
@@ -64,6 +71,7 @@ class StaffService:
         staff = Staff(
             school_id=school_id,
             staff_number=payload.staff_number,
+            ec_number=payload.ec_number,
             first_name=payload.first_name,
             middle_name=payload.middle_name,
             last_name=payload.last_name,
@@ -95,6 +103,12 @@ class StaffService:
                     code="INVALID_EMPLOYMENT_DATES"
                 )
 
+        # EC number is unique across all schools when supplied.
+        if "ec_number" in update_data and update_data["ec_number"]:
+            existing_ec = self.db.query(Staff).filter(func.upper(Staff.ec_number) == update_data["ec_number"].upper()).first()
+            if existing_ec is not None and existing_ec.id != staff_id:
+                raise ConflictError("This EC Number is already assigned to another staff record.", code="DUPLICATE_EC_NUMBER")
+
         # Check for duplicate email if email is being changed
         if "email" in update_data and update_data["email"]:
             existing = self.repo.get_by_email(school_id, update_data["email"])
@@ -115,7 +129,7 @@ class StaffService:
                     )
 
         for field, value in update_data.items():
-            if value is not None:
+            if value is not None or field == "ec_number":
                 setattr(staff, field, value)
 
         self.repo.update(staff)
