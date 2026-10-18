@@ -10,15 +10,12 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column("staff", sa.Column("ec_number", sa.String(length=50), nullable=True))
-    op.create_index(
-        "uq_staff_ec_number",
-        "staff",
-        [sa.text("upper(ec_number)")],
-        unique=True,
-        postgresql_where=sa.text("ec_number IS NOT NULL"),
+    op.execute(
+        "CREATE UNIQUE INDEX uq_staff_ec_number ON staff (upper(ec_number)) "
+        "WHERE ec_number IS NOT NULL"
     )
 
 
 def downgrade() -> None:
-    op.drop_index("uq_staff_ec_number", table_name="staff")
+    op.execute("DROP INDEX uq_staff_ec_number")
     op.drop_column("staff", "ec_number")
