@@ -39,6 +39,15 @@ export default function SchoolConfigurationPage() {
     });
   }, [selectedSchool?.id, selectedSchool?.country_code, selectedSchool?.institution_type, selectedSchool?.registration_number, selectedSchool?.address, selectedSchool?.city, selectedSchool?.country, selectedSchool?.phone, selectedSchool?.email, selectedSchool?.website, selectedSchool?.logo_url, selectedSchool?.timezone, selectedSchool?.currency]);
   useEffect(() => {
+    if (!selectedSchool) return;
+    let cancelled = false;
+    api.get<{ logo_url: string | null }>(`/api/v1/schools/${selectedSchool.id}/logo`)
+      .then(result => { if (!cancelled) setProfile(current => ({ ...current, logo_url: result.logo_url ?? '' })); })
+      .catch(() => { /* Existing logo is optional; the rest of configuration remains usable. */ });
+    return () => { cancelled = true; };
+  }, [selectedSchool?.id]);
+
+  useEffect(() => {
     if (!countryCode) { setTemplate(null); return; }
     let cancelled = false; setLoading(true);
     api.get<CountryTemplate>(`/api/v1/country-configurations/${countryCode}`)
