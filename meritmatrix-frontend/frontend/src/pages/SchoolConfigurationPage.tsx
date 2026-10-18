@@ -56,6 +56,16 @@ export default function SchoolConfigurationPage() {
     return template.levels.filter((level) => stageByType[institutionType].includes(level.stage));
   }, [template, institutionType]);
 
+  async function uploadLogo(file?: File) {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { setError('Use a PNG, JPEG, or WebP logo.'); return; }
+    if (file.size > 256 * 1024) { setError('Logo must be 256 KB or smaller.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => { if (typeof reader.result === 'string') { setProfile(p => ({ ...p, logo_url: reader.result as string })); setError(null); setSuccess('Logo selected. Save the configuration to apply it.'); } };
+    reader.onerror = () => setError('Could not read the selected image.');
+    reader.readAsDataURL(file);
+  }
+
   async function save() {
     if (!selectedSchool || !countryCode || !institutionType) { setError('Choose a school, country, and institution type before saving.'); return; }
     setSaving(true); setError(null); setSuccess('');
@@ -106,7 +116,7 @@ export default function SchoolConfigurationPage() {
         <Field label="Address"><Input value={profile.address} onChange={(e) => setProfile(v => ({ ...v, address: e.target.value }))} /></Field>
         <Field label="City / town"><Input value={profile.city} onChange={(e) => setProfile(v => ({ ...v, city: e.target.value }))} /></Field>
         <Field label="Country"><Input value={profile.country} onChange={(e) => setProfile(v => ({ ...v, country: e.target.value }))} /></Field>
-        <Field label="School logo URL"><Input type="url" value={profile.logo_url} onChange={(e) => setProfile(v => ({ ...v, logo_url: e.target.value }))} placeholder="https://example.com/logo.png" /></Field>
+        <Field label="Upload school logo"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { void uploadLogo(e.target.files?.[0]); e.currentTarget.value = ''; }} className="block w-full text-sm" /><span className="text-xs text-slate-500">PNG, JPEG or WebP; maximum 256 KB. The logo appears beside the school name on report cards.</span></Field>
         <Field label="Timezone"><Input value={profile.timezone} onChange={(e) => setProfile(v => ({ ...v, timezone: e.target.value }))} placeholder="Africa/Gaborone" /></Field>
         <Field label="Currency"><Input value={profile.currency} onChange={(e) => setProfile(v => ({ ...v, currency: e.target.value }))} placeholder="BWP" /></Field>
       </div>
