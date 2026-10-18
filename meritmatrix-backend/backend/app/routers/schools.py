@@ -191,21 +191,31 @@ def reset_school_admin_password(
 ):
     """Reset the dedicated school administrator's password; super-admin only."""
     school = SchoolService(db).get_school(school_id)
-    row = (
+    if not school.is_active:
+        raise ConflictError(
+            "Reactivate the school before resetting its administrator login.",
+            code="SCHOOL_INACTIVE",
+        )
+    rows = (
         db.query(UserSchool, User)
         .join(User, User.id == UserSchool.user_id)
         .filter(
             UserSchool.school_id == school_id,
             User.roles.any(Role.name == "SCHOOL_ADMIN"),
         )
-        .first()
+        .all()
     )
-    if row is None:
+    if not rows:
         raise ConflictError(
             "This school does not have a configured administrator account.",
             code="SCHOOL_ADMIN_NOT_CONFIGURED",
         )
-    _, admin = row
+    if len(rows) > 1:
+        raise ConflictError(
+            "More than one administrator is linked to this school. Resolve the duplicate accounts before resetting a login.",
+            code="SCHOOL_ADMIN_AMBIGUOUS",
+        )
+    _, admin = rows[0]
     if not admin.is_active:
         raise ConflictError(
             "This administrator account is inactive. Reactivate it before resetting its password.",
