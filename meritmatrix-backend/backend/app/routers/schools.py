@@ -53,7 +53,12 @@ def list_schools(
     # Platform super-admin retains cross-school visibility, even if also linked to a staff record.
     from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
     if SYSTEM_ADMIN_PERMISSION in _permission_names(current_user):
-        return service.list_schools(limit=limit, offset=offset)
+        schools = service.list_schools(limit=limit, offset=offset)
+        return [
+            {**SchoolResponse.model_validate(school).model_dump(), "logo_url": None}
+            if school.logo_url and school.logo_url.startswith("data:image/") else school
+            for school in schools
+        ]
 
     # Teacher accounts must have an active employment record; membership alone is insufficient.
     require_teacher_employment_profile(db, current_user)
@@ -66,7 +71,9 @@ def list_schools(
         school = db.get(School, staff.school_id)
         if school is None or not school.is_active:
             return []
-        return [school][offset : offset + limit]
+        page = [school][offset : offset + limit]
+        return [{**SchoolResponse.model_validate(item).model_dump(), "logo_url": None}
+                if item.logo_url and item.logo_url.startswith("data:image/") else item for item in page]
     
     # Filter the complete membership set before applying pagination. Paginating
     # the global school list first can hide a user's assigned school when it falls
@@ -78,7 +85,12 @@ def list_schools(
         (school for school in user_schools if school.is_active),
         key=lambda school: (school.name.casefold(), str(school.id)),
     )
-    return assigned_schools[offset : offset + limit]
+    page = assigned_schools[offset : offset + limit]
+    return [
+        {**SchoolResponse.model_validate(school).model_dump(), "logo_url": None}
+        if school.logo_url and school.logo_url.startswith("data:image/") else school
+        for school in page
+    ]
 
 
 @router.get("/admin-accounts", response_model=list[dict])
@@ -263,6 +275,19 @@ def create_school(
     db.commit()
     db.refresh(school)
     return school
+
+
+@router.get("/{school_id}/logo", response_model=dict)
+def read_school_logo(
+    school_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("schools.read")),
+    _membership_check: User = Depends(require_school_membership("school_id")),
+):
+    """Fetch the selected school logo separately so school lists stay lightweight."""
+    require_staff_school_scope(db, current_user, school_id)
+    school = SchoolService(db).get_school(school_id)
+    return {"school_id": str(school.id), "logo_url": school.logo_url}
 
 
 @router.get("/{school_id}", response_model=SchoolResponse)
