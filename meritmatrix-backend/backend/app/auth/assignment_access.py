@@ -21,6 +21,11 @@ from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
 from app.utils.errors import ForbiddenError
 
 
+def _is_teacher(user: User) -> bool:
+    """Identify teacher-role users even when their staff profile is missing."""
+    return any(role.name == "TEACHER" for role in user.roles)
+
+
 def require_staff_school_scope(db: Session, user: User, school_id: uuid.UUID) -> None:
     """Enforce the employing-school boundary for every linked staff account.
 
@@ -31,6 +36,11 @@ def require_staff_school_scope(db: Session, user: User, school_id: uuid.UUID) ->
         return
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if staff is None:
+        if _is_teacher(user):
+            raise ForbiddenError(
+                "Teacher access requires an active staff profile linked to the employing school.",
+                code="STAFF_EMPLOYMENT_REQUIRED",
+            )
         return
     if (
         not staff.is_active
@@ -49,7 +59,7 @@ def assigned_class_ids(
     """Return assigned class IDs for a linked staff user; None means not a staff login."""
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if staff is None:
-        return None
+        return set() if _is_teacher(user) else None
     if not staff.is_active or staff.employment_status != "active" or staff.school_id != school_id:
         return set()
 
@@ -198,4 +208,9 @@ def deny_linked_staff_management(
         raise ForbiddenError(
             f"Staff-linked accounts cannot {action}. Use the authorized school administration workflow.",
             code="STAFF_MANAGEMENT_RESTRICTED",
+        )
+    if _is_teacher(user):
+        raise ForbiddenError(
+            "Teacher access requires an active staff profile linked to the employing school.",
+            code="STAFF_EMPLOYMENT_REQUIRED",
         )
