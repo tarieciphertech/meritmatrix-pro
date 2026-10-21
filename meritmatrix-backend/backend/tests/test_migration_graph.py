@@ -51,9 +51,5 @@ def test_school_admin_migration_merge_and_following_features_are_present() -> No
         "school_admin_configuration",
         "school_admin_role_scope",
     }
-    assert script.get_revision("school_logo_upload").down_revision == (
-        "merge_school_admin_migrations"
-    )
-    assert script.get_revision("teacher_ec_number").down_revision == (
-        "school_logo_upload"
-    )
+    assert script.get_revision("school_logo_upload").down_revision == "merge_school_admin_migrations"
+    assert script.get_revision("teacher_ec_number").down_revision == "school_logo_upload"
