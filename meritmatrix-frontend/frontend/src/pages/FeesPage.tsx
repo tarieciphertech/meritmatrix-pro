@@ -147,7 +147,7 @@ export default function FeesPage() {
         {schoolLogoUrl && <img src={schoolLogoUrl} alt={selectedSchool.name + ' logo'} className="mx-auto mb-3 max-h-24 max-w-40 object-contain" onError={event => { event.currentTarget.style.display = 'none'; }} />}
         <h1 className="text-2xl font-bold uppercase tracking-wide text-slate-900">{selectedSchool.name}</h1>
         <p className="mt-1 text-sm text-slate-600">{[selectedSchool.address, selectedSchool.city, selectedSchool.country].filter(Boolean).join(' · ')}</p>
-        <p className="mt-1 text-sm text-slate-600">{[selectedSchool.phone, selectedSchool.email].filter(Boolean).join(' · ')}</p>
+        <p className="mt-1 text-sm text-slate-600">{[selectedSchool.registration_number ? 'Reg: ' + selectedSchool.registration_number : '', selectedSchool.phone, selectedSchool.email, selectedSchool.website].filter(Boolean).join(' · ')}</p>
         <h2 className="mt-5 text-xl font-semibold text-slate-900">OFFICIAL PAYMENT RECEIPT</h2>
       </header>
       <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
