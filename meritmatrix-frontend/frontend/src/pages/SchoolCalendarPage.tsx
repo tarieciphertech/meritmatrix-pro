@@ -17,6 +17,7 @@ const eventTypes: {value: EventType; label: string}[] = [
 export default function SchoolCalendarPage() {
   const { selectedSchool } = useSchool();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [schoolLogoUrl, setSchoolLogoUrl] = useState<string | null>(null);
   const [form, setForm] = useState<EventForm>(blank);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -26,6 +27,16 @@ export default function SchoolCalendarPage() {
   const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
   const loadRequestIdRef = useRef(0);
   activeSchoolIdRef.current = selectedSchool?.id ?? null;
+
+  useEffect(() => {
+    setSchoolLogoUrl(null);
+    if (!selectedSchool) return;
+    let cancelled = false;
+    api.get<{ logo_url: string | null }>(`/api/v1/schools/${selectedSchool.id}/logo`)
+      .then(result => { if (!cancelled) setSchoolLogoUrl(result.logo_url); })
+      .catch(() => { if (!cancelled) setSchoolLogoUrl(null); });
+    return () => { cancelled = true; };
+  }, [selectedSchool?.id]);
 
   useEffect(() => {
     loadRequestIdRef.current += 1;
@@ -86,7 +97,10 @@ export default function SchoolCalendarPage() {
 
   if (!selectedSchool) return <div><PageHeader title="School Calendar" /><Card className="p-6">Select a school from the header first.</Card></div>;
   return <div className="space-y-5">
-    <PageHeader title="School Calendar" subtitle={`Terms, holidays, examinations, and school events for ${selectedSchool.name}`} actions={<Button onClick={() => setShowForm((v) => !v)}>{showForm ? 'Cancel' : '+ Add calendar event'}</Button>} />
+    <style>{`@media print { body * { visibility: hidden !important; } #school-calendar-print, #school-calendar-print * { visibility: visible !important; } #school-calendar-print { position: absolute; left: 0; top: 0; width: 100%; max-width: none !important; } .calendar-print-hide { display: none !important; } }`}</style>
+    <div className="calendar-print-hide">
+      <PageHeader title="School Calendar" subtitle={`Terms, holidays, examinations, and school events for ${selectedSchool.name}`} actions={<div className="flex gap-2"><Button variant="secondary" onClick={() => window.print()} disabled={loading || events.length === 0}>Print calendar</Button><Button onClick={() => setShowForm((v) => !v)}>{showForm ? 'Cancel' : '+ Add calendar event'}</Button></div>} />
+    </div>
     {error && <ErrorBanner message={error} onRetry={load} />}
     {notice && <div role="status" className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
     {showForm && <Card className="p-5"><form onSubmit={submit} className="space-y-4">
@@ -104,7 +118,17 @@ export default function SchoolCalendarPage() {
       <label className="block text-sm font-medium text-slate-700">Notes<textarea rows={2} value={form.notes} onChange={(e) => change('notes', e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2" /></label>
       <div className="flex justify-end"><Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save event for review'}</Button></div>
     </form></Card>}
-    {loading ? <Spinner /> : events.length === 0 ? <Card className="p-8 text-center"><h2 className="font-semibold text-slate-900">No calendar events yet</h2><p className="mt-2 text-sm text-slate-600">Add terms, public holidays, school closures, and examination periods to establish the school calendar.</p></Card> : <Card className="divide-y divide-slate-200">{events.map((event) => <div key={event.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-slate-900">{event.title}</h3><span className={`rounded-full px-2 py-0.5 text-xs ${event.is_approved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{event.is_approved ? 'Approved' : 'Pending review'}</span></div><p className="mt-1 text-sm text-slate-600">{event.start_date === event.end_date ? event.start_date : event.start_date + ' – ' + event.end_date} · {event.event_type.replaceAll('_', ' ')} · {event.source.replaceAll('_', ' ')}</p><p className="mt-1 text-xs text-slate-500">{event.is_instructional ? 'Instructional day(s)' : 'Non-instructional'}</p>{event.source_url && <a href={event.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-indigo-700 underline">View source</a>}{event.notes && <p className="mt-2 text-sm text-slate-600">{event.notes}</p>}</div><div className="flex shrink-0 gap-2"><Button variant="secondary" onClick={() => void approve(event)}>{event.is_approved ? 'Unapprove' : 'Approve'}</Button><Button variant="danger" onClick={() => void remove(event)}>Delete</Button></div></div>)}</Card>}
+    <div id="school-calendar-print" className="mx-auto max-w-5xl bg-white print:max-w-none">
+      <header className="mb-5 border-b-2 border-slate-800 pb-4 text-center">
+        {schoolLogoUrl && <img src={schoolLogoUrl} alt={selectedSchool.name + ' logo'} className="mx-auto mb-3 max-h-20 max-w-36 object-contain" onError={event => { event.currentTarget.style.display = 'none'; }} />}
+        <h1 className="text-2xl font-bold uppercase">{selectedSchool.name}</h1>
+        <p className="mt-1 text-sm">{[selectedSchool.address, selectedSchool.city, selectedSchool.country].filter(Boolean).join(' · ')}</p>
+        <p className="mt-1 text-xs">{[selectedSchool.registration_number ? 'Reg: ' + selectedSchool.registration_number : '', selectedSchool.phone, selectedSchool.email, selectedSchool.website].filter(Boolean).join(' · ')}</p>
+        <h2 className="mt-3 text-lg font-semibold">SCHOOL CALENDAR</h2>
+        <p className="mt-1 text-xs text-slate-500">Generated {new Date().toLocaleDateString()}</p>
+      </header>
+      {loading ? <Spinner /> : events.length === 0 ? <Card className="p-8 text-center"><h2 className="font-semibold text-slate-900">No calendar events yet</h2><p className="mt-2 text-sm text-slate-600">Add terms, public holidays, school closures, and examination periods to establish the school calendar.</p></Card> : <Card className="divide-y divide-slate-200 print:border-0 print:shadow-none">{events.map((event) => <div key={event.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between print:break-inside-avoid"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-slate-900">{event.title}</h3><span className={`rounded-full px-2 py-0.5 text-xs ${event.is_approved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{event.is_approved ? 'Approved' : 'Pending review'}</span></div><p className="mt-1 text-sm text-slate-600">{event.start_date === event.end_date ? event.start_date : event.start_date + ' – ' + event.end_date} · {event.event_type.replaceAll('_', ' ')} · {event.source.replaceAll('_', ' ')}</p><p className="mt-1 text-xs text-slate-500">{event.is_instructional ? 'Instructional day(s)' : 'Non-instructional'}</p>{event.source_url && <a href={event.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-indigo-700 underline">{event.source_url}</a>}{event.notes && <p className="mt-2 text-sm text-slate-600">{event.notes}</p>}</div><div className="calendar-print-hide flex shrink-0 gap-2"><Button variant="secondary" onClick={() => void approve(event)}>{event.is_approved ? 'Unapprove' : 'Approve'}</Button><Button variant="danger" onClick={() => void remove(event)}>Delete</Button></div></div>)}</Card>}
+    </div>
     <Card className="p-4"><p className="text-sm text-slate-600">Calendar safety: events do not automatically mark attendance or close registers yet. Attendance will consume only approved events after its rules are implemented. Public holiday dates must be verified against the official government calendar for the selected country and year.</p></Card>
   </div>;
 }
