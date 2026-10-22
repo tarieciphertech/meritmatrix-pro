@@ -23,6 +23,7 @@ export default function AttendancePage() {
  const [day,setDay]=useState(localToday());
  const [session,setSession]=useState('full_day');
  const [rows,setRows]=useState<AttendanceRow[]>([]);
+ const [schoolLogoUrl,setSchoolLogoUrl]=useState<string|null>(null);
  const [loading,setLoading]=useState(false);
  const [saving,setSaving]=useState(false);
  const [error,setError]=useState<string|null>(null);
@@ -54,6 +55,15 @@ export default function AttendancePage() {
   }
  },[selectedSchool,day]);
  useEffect(()=>{void loadClasses();},[loadClasses]);
+ useEffect(()=>{
+  setSchoolLogoUrl(null);
+  if(!selectedSchool)return;
+  let cancelled=false;
+  api.get<{logo_url:string|null}>(`/api/v1/schools/${selectedSchool.id}/logo`)
+   .then(result=>{if(!cancelled)setSchoolLogoUrl(result.logo_url);})
+   .catch(()=>{if(!cancelled)setSchoolLogoUrl(null);});
+  return ()=>{cancelled=true;};
+ },[selectedSchool?.id]);
  const loadRoster=useCallback(async()=>{
   const requestId=++rosterLoadRequestIdRef.current;
   if(!selectedSchool||!classId||!day){setRows([]);setLoading(false);return;}
@@ -94,14 +104,24 @@ export default function AttendancePage() {
  }
  if(!selectedSchool)return <div><PageHeader title="Daily Attendance"/><Card className="p-6">Select a school first.</Card></div>;
  const marked=rows.filter(r=>r.status!=='unmarked').length;
- return <div className="space-y-5"><PageHeader title="Daily Attendance" subtitle={`Take and review the class register at ${selectedSchool.name}`} actions={<Button onClick={()=>void loadRoster()} disabled={loading||!classId}>Refresh register</Button>}/>
- {error&&<ErrorBanner message={error} onRetry={()=>void loadRoster()}/>}
- {notice&&<div role="status" className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
- <Card className="p-4"><div className="grid gap-3 sm:grid-cols-3">
+ return <div className="space-y-5">
+ <style>{`@media print { body * { visibility:hidden !important; } #attendance-print, #attendance-print * { visibility:visible !important; } #attendance-print { position:absolute; left:0; top:0; width:100%; max-width:none !important; border:0 !important; box-shadow:none !important; } #attendance-print table { width:100%; border-collapse:collapse; } #attendance-print th, #attendance-print td { border:1px solid #cbd5e1; padding:8px; } }`}</style>
+ <div className="print:hidden"><PageHeader title="Daily Attendance" subtitle={`Take and review the class register at ${selectedSchool.name}`} actions={<div className="flex gap-2"><Button variant="secondary" onClick={()=>window.print()} disabled={loading||rows.length===0}>Print register</Button><Button onClick={()=>void loadRoster()} disabled={loading||!classId}>Refresh register</Button></div>}/></div>
+ {error&&<div className="print:hidden"><ErrorBanner message={error} onRetry={()=>void loadRoster()}/></div>}
+ {notice&&<div role="status" className="print:hidden rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
+ <Card className="print:hidden p-4"><div className="grid gap-3 sm:grid-cols-3">
  <label className="text-sm font-medium text-slate-700">Class<select value={classId} onChange={e=>setClassId(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 bg-white p-2" required><option value="">Choose class…</option>{classes.map(c=><option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}</select></label>
  <label className="text-sm font-medium text-slate-700">Attendance date<input type="date" value={day} onChange={e=>setDay(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 bg-white p-2" required/></label>
  <label className="text-sm font-medium text-slate-700">Session<select value={session} onChange={e=>setSession(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 bg-white p-2"><option value="full_day">Full day</option><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="period_1">Period 1</option><option value="period_2">Period 2</option><option value="period_3">Period 3</option></select></label>
  </div><div className="mt-3 text-sm text-slate-500">{rows.length} enrolled student(s) · {marked} marked</div></Card>
- {loading?<Card className="p-8"><Spinner label="Loading register…"/></Card>:rows.length===0?<Card className="p-8 text-center text-sm text-slate-500">{error?'The register could not be loaded. Resolve the error above, then refresh the register.':!classId?'No classes assigned for this date. Check the teaching assignments or select another date.':'No active enrollments found for this class and date. Check the academic year and enrollment setup.'}</Card>:<Card className="overflow-hidden"><div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr><th className="px-4 py-3 text-left font-semibold text-slate-600">Student</th><th className="px-4 py-3 text-left font-semibold text-slate-600">Attendance</th><th className="px-4 py-3 text-left font-semibold text-slate-600">Notes</th></tr></thead><tbody className="divide-y divide-slate-100 bg-white">{rows.map(row=><tr key={row.enrollment_id}><td className="whitespace-nowrap px-4 py-3"><div className="font-medium text-slate-900">{row.student_name}</div><div className="text-xs text-slate-500">{row.student_number}</div></td><td className="px-4 py-3"><select aria-label={`Attendance for ${row.student_name}`} value={row.status} onChange={e=>mark(row.enrollment_id,e.target.value as Status)} className="rounded-md border border-slate-300 bg-white p-2">{statuses.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select></td><td className="px-4 py-3"><input aria-label={`Notes for ${row.student_name}`} value={row.notes??''} onChange={e=>note(row.enrollment_id,e.target.value)} placeholder="Optional note" className="w-full min-w-40 rounded-md border border-slate-300 p-2"/></td></tr>)}</tbody></table></div><div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4"><p className="text-xs text-slate-500">Marked students are saved. Set a saved row to Not marked to remove that attendance record.</p><Button onClick={()=>void save()} disabled={saving||rows.length===0||(marked===0&&!rows.some(row=>row.id!==null))}>{saving?'Saving…':`Save register (${marked})`}</Button></div></Card>}
+ {loading?<Card className="p-8"><Spinner label="Loading register…"/></Card>:rows.length===0?<Card className="p-8 text-center text-sm text-slate-500">{error?'The register could not be loaded. Resolve the error above, then refresh the register.':!classId?'No classes assigned for this date. Check the teaching assignments or select another date.':'No active enrollments found for this class and date. Check the academic year and enrollment setup.'}</Card>:<div id="attendance-print" className="mx-auto max-w-5xl">
+ <header className="mb-5 hidden border-b-2 border-slate-800 pb-4 text-center print:block">
+ {schoolLogoUrl&&<img src={schoolLogoUrl} alt={selectedSchool.name+' logo'} className="mx-auto mb-3 max-h-20 max-w-36 object-contain" onError={event=>{event.currentTarget.style.display='none';}}/>}
+ <h1 className="text-2xl font-bold uppercase">{selectedSchool.name}</h1>
+ <p className="mt-1 text-sm">{[selectedSchool.address,selectedSchool.city,selectedSchool.country].filter(Boolean).join(' · ')}</p>
+ <h2 className="mt-3 text-lg font-semibold">ATTENDANCE REGISTER</h2>
+ <p className="mt-1 text-sm">Class: {classes.find(item=>item.id===classId)?.name??'—'} ({classes.find(item=>item.id===classId)?.code??'—'}) · Date: {day} · Session: {session.replace('_',' ')}</p>
+ </header>
+ <Card className="overflow-hidden print:border-0 print:shadow-none"><div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50 print:bg-white"><tr><th className="px-4 py-3 text-left font-semibold text-slate-600">Student</th><th className="px-4 py-3 text-left font-semibold text-slate-600">Attendance</th><th className="px-4 py-3 text-left font-semibold text-slate-600">Notes</th></tr></thead><tbody className="divide-y divide-slate-100 bg-white">{rows.map(row=><tr key={row.enrollment_id}><td className="whitespace-nowrap px-4 py-3"><div className="font-medium text-slate-900">{row.student_name}</div><div className="text-xs text-slate-500">{row.student_number}</div></td><td className="px-4 py-3"><span className="hidden print:inline">{statuses.find(item=>item.value===row.status)?.label??row.status}</span><select aria-label={`Attendance for ${row.student_name}`} value={row.status} onChange={e=>mark(row.enrollment_id,e.target.value as Status)} className="rounded-md border border-slate-300 bg-white p-2 print:hidden">{statuses.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select></td><td className="px-4 py-3"><span className="hidden print:inline">{row.notes||'—'}</span><input aria-label={`Notes for ${row.student_name}`} value={row.notes??''} onChange={e=>note(row.enrollment_id,e.target.value)} placeholder="Optional note" className="w-full min-w-40 rounded-md border border-slate-300 p-2 print:hidden"/></td></tr>)}</tbody></table></div><div className="print:hidden flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4"><p className="text-xs text-slate-500">Marked students are saved. Set a saved row to Not marked to remove that attendance record.</p><Button onClick={()=>void save()} disabled={saving||rows.length===0||(marked===0&&!rows.some(row=>row.id!==null))}>{saving?'Saving…':`Save register (${marked})`}</Button></div></Card></div>}
  </div>;
 }
