@@ -119,6 +119,7 @@ export default function AttendancePage() {
  {schoolLogoUrl&&<img src={schoolLogoUrl} alt={selectedSchool.name+' logo'} className="mx-auto mb-3 max-h-20 max-w-36 object-contain" onError={event=>{event.currentTarget.style.display='none';}}/>}
  <h1 className="text-2xl font-bold uppercase">{selectedSchool.name}</h1>
  <p className="mt-1 text-sm">{[selectedSchool.address,selectedSchool.city,selectedSchool.country].filter(Boolean).join(' · ')}</p>
+ <p className="mt-1 text-xs">{[selectedSchool.registration_number ? 'Reg: '+selectedSchool.registration_number : '',selectedSchool.phone,selectedSchool.email,selectedSchool.website].filter(Boolean).join(' · ')}</p>
  <h2 className="mt-3 text-lg font-semibold">ATTENDANCE REGISTER</h2>
  <p className="mt-1 text-sm">Class: {classes.find(item=>item.id===classId)?.name??'—'} ({classes.find(item=>item.id===classId)?.code??'—'}) · Date: {day} · Session: {session.replace('_',' ')}</p>
  </header>
