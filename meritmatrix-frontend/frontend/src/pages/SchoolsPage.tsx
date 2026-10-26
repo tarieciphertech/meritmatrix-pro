@@ -446,8 +446,9 @@ export default function SchoolsPage() {
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
+                disabled={logoLoading}
                 onChange={(e) => { handleLogoUpload(e.target.files?.[0]); e.currentTarget.value = ''; }}
-                className="block w-full text-sm"
+                className="block w-full text-sm disabled:opacity-50"
               />
               <p className="mt-1 text-xs text-slate-500">PNG, JPEG, or WebP; maximum 256 KB. The logo is saved with this school and printed with its name on report cards.</p>
             </Field>
