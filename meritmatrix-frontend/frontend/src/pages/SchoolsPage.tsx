@@ -70,6 +70,7 @@ export default function SchoolsPage() {
   const [resetError, setResetError] = useState<string | null>(null);
 
   const canManage = hasRole('SUPER_ADMIN');
+  const canConfigureSchool = canManage || hasRole('SCHOOL_ADMIN');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -181,7 +182,14 @@ export default function SchoolsPage() {
       payload.code = form.code;
 
       if (editingSchool) {
-        const updatePayload: SchoolUpdate = { ...payload };
+        // School administrators may update only school-specific configuration.
+        // Never send platform identity fields (name/code) from their form because
+        // the API deliberately rejects attempts to change those fields.
+        const updatePayload: SchoolUpdate = canManage
+          ? { ...payload }
+          : Object.fromEntries(
+              Object.entries(payload).filter(([key]) => !['name', 'code'].includes(key)),
+            ) as SchoolUpdate;
         await api.patch<SchoolResponse>(`/api/v1/schools/${editingSchool.id}`, updatePayload);
       } else {
         if (!adminForm.first_name.trim() || !adminForm.last_name.trim() || !adminForm.email.trim()) {
@@ -269,7 +277,7 @@ export default function SchoolsPage() {
     <div>
       <PageHeader
         title="Schools"
-        subtitle="Manage schools in the platform"
+        subtitle={canManage ? 'Manage schools, school administrators, and platform-level settings.' : 'Manage configuration and branding for your assigned school.'}
         actions={
           canManage ? (
             <Button onClick={openCreate}>+ New School</Button>
@@ -309,13 +317,13 @@ export default function SchoolsPage() {
                 </Td>}
                 <Td>
                   <div className="flex items-center gap-2">
-                    {canManage && (
+                    {canConfigureSchool && (
                       <>
                         <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(s)}>
-                          Edit
+                          {canManage ? 'Edit' : 'Configure'}
                         </Button>
-                        {!adminAccounts.some((item) => item.school_id === s.id) && s.is_active && <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => openAdminSetup(s)}>Set Admin</Button>}
-                        {s.is_active && (
+                        {canManage && !adminAccounts.some((item) => item.school_id === s.id) && s.is_active && <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => openAdminSetup(s)}>Set Admin</Button>}
+                        {canManage && s.is_active && (
                           <Button
                             variant="danger"
                             className="!px-2 !py-1 text-xs"
@@ -337,7 +345,7 @@ export default function SchoolsPage() {
       {/* Create / Edit modal */}
       <Modal
         open={modalOpen}
-        title={editingSchool ? 'Edit School' : 'New School'}
+        title={editingSchool ? (canManage ? 'Edit School' : 'School Configuration') : 'New School'}
         onClose={() => { logoRequestId.current += 1; setLogoLoading(false); setModalOpen(false); }}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -351,6 +359,7 @@ export default function SchoolsPage() {
             <Field label="Name" required>
               <Input
                 required
+                disabled={Boolean(editingSchool) && !canManage}
                 value={form.name}
                 onChange={(e) => setField('name', e.target.value)}
                 placeholder="Springfield High School"
@@ -359,6 +368,7 @@ export default function SchoolsPage() {
             <Field label="Code" required>
               <Input
                 required
+                disabled={Boolean(editingSchool) && !canManage}
                 value={form.code}
                 onChange={(e) => setField('code', e.target.value)}
                 placeholder="SHS"
@@ -505,7 +515,7 @@ export default function SchoolsPage() {
               Cancel
             </Button>
             <Button type="submit" disabled={saving || logoLoading}>
-              {logoLoading ? 'Loading school logo…' : saving ? 'Saving…' : editingSchool ? 'Save Changes' : 'Create School'}
+              {logoLoading ? 'Loading school logo…' : saving ? 'Saving…' : editingSchool ? (canManage ? 'Save Changes' : 'Save School Configuration') : 'Create School'}
             </Button>
           </div>
         </form>
