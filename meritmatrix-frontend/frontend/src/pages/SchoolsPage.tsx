@@ -170,6 +170,8 @@ export default function SchoolsPage() {
         return;
       }
       setForm((prev) => ({ ...prev, logo_url: reader.result as string }));
+      setLogoTouched(true);
+      setLogoLoadFailed(false);
       setFormError(null);
     };
     reader.onerror = () => setFormError('Could not read that logo file. Try another image.');
