@@ -20,6 +20,9 @@ export default function SchoolConfigurationPage() {
   const [template, setTemplate] = useState<CountryTemplate | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [logoLoading, setLogoLoading] = useState(false);
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+  const [logoTouched, setLogoTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState('');
 
@@ -42,9 +45,19 @@ export default function SchoolConfigurationPage() {
   useEffect(() => {
     if (!selectedSchool) return;
     let cancelled = false;
+    setLogoLoading(true);
+    setLogoLoadFailed(false);
+    setLogoTouched(false);
     api.get<{ logo_url: string | null }>(`/api/v1/schools/${selectedSchool.id}/logo`)
       .then(result => { if (!cancelled) setProfile(current => ({ ...current, logo_url: result.logo_url ?? '' })); })
-      .catch(() => { /* Existing logo is optional; the rest of configuration remains usable. */ });
+      .catch(() => {
+        if (!cancelled) {
+          // A failed logo fetch must not make an existing logo disappear when
+          // someone saves unrelated school settings.
+          setLogoLoadFailed(true);
+        }
+      })
+      .finally(() => { if (!cancelled) setLogoLoading(false); });
     return () => { cancelled = true; };
   }, [selectedSchool?.id]);
 
@@ -71,7 +84,7 @@ export default function SchoolConfigurationPage() {
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { setError('Use a PNG, JPEG, or WebP logo.'); return; }
     if (file.size > 256 * 1024) { setError('Logo must be 256 KB or smaller.'); return; }
     const reader = new FileReader();
-    reader.onload = () => { if (typeof reader.result === 'string') { setProfile(p => ({ ...p, logo_url: reader.result as string })); setError(null); setSuccess('Logo selected. Save the configuration to apply it.'); } };
+    reader.onload = () => { if (typeof reader.result === 'string') { setProfile(p => ({ ...p, logo_url: reader.result as string })); setLogoTouched(true); setLogoLoadFailed(false); setError(null); setSuccess('Logo selected. Save the configuration to apply it.'); } };
     reader.onerror = () => setError('Could not read the selected image.');
     reader.readAsDataURL(file);
   }
@@ -90,7 +103,7 @@ export default function SchoolConfigurationPage() {
         phone: profile.phone.trim() || null,
         email: profile.email.trim() || null,
         website: profile.website.trim() || null,
-        logo_url: profile.logo_url.trim() || null,
+        ...(logoLoadFailed && !logoTouched ? {} : { logo_url: profile.logo_url.trim() || null }),
         timezone: profile.timezone.trim() || template?.timezone || null,
         currency: profile.currency.trim() || template?.currency || null,
         education_template_version: template?.template_version,
@@ -117,7 +130,7 @@ export default function SchoolConfigurationPage() {
     <Card className="space-y-4 p-5">
       <h2 className="text-base font-semibold text-slate-900">School identity and contact details</h2>
       <p className="text-sm text-slate-600">These details belong only to {selectedSchool.name}. The logo is used on printed report cards.</p>
-      {profile.logo_url && <div className="flex items-center gap-3 rounded-md border border-slate-200 p-3"><img src={profile.logo_url} alt={selectedSchool.name + ' logo preview'} className="h-16 w-16 object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><div className="min-w-0 flex-1"><p className="font-medium text-slate-900">{selectedSchool.name}</p><p className="text-sm text-slate-600">Logo preview · prints with the school name</p></div><Button type="button" variant="secondary" onClick={() => { setProfile(v => ({ ...v, logo_url: '' })); setSuccess('Logo removal selected. Save configuration to apply it.'); }}>Remove</Button></div>}
+      {profile.logo_url && <div className="flex items-center gap-3 rounded-md border border-slate-200 p-3"><img src={profile.logo_url} alt={selectedSchool.name + ' logo preview'} className="h-16 w-16 object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><div className="min-w-0 flex-1"><p className="font-medium text-slate-900">{selectedSchool.name}</p><p className="text-sm text-slate-600">Logo preview · prints with the school name</p></div><Button type="button" variant="secondary" onClick={() => { setProfile(v => ({ ...v, logo_url: '' })); setLogoTouched(true); setLogoLoadFailed(false); setSuccess('Logo removal selected. Save configuration to apply it.'); }}>Remove</Button></div>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Registration number"><Input value={profile.registration_number} onChange={(e) => setProfile(v => ({ ...v, registration_number: e.target.value }))} /></Field>
         <Field label="Phone"><Input value={profile.phone} onChange={(e) => setProfile(v => ({ ...v, phone: e.target.value }))} /></Field>
@@ -126,7 +139,7 @@ export default function SchoolConfigurationPage() {
         <Field label="Address"><Input value={profile.address} onChange={(e) => setProfile(v => ({ ...v, address: e.target.value }))} /></Field>
         <Field label="City / town"><Input value={profile.city} onChange={(e) => setProfile(v => ({ ...v, city: e.target.value }))} /></Field>
         <Field label="Country"><Input value={profile.country} onChange={(e) => setProfile(v => ({ ...v, country: e.target.value }))} /></Field>
-        <Field label="Upload school logo"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { void uploadLogo(e.target.files?.[0]); e.currentTarget.value = ''; }} className="block w-full text-sm" /><span className="text-xs text-slate-500">PNG, JPEG or WebP; maximum 256 KB. The logo appears beside the school name on report cards.</span></Field>
+        <Field label="Upload school logo"><input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoLoading} onChange={e => { void uploadLogo(e.target.files?.[0]); e.currentTarget.value = ''; }} className="block w-full text-sm disabled:opacity-50" /><span className="text-xs text-slate-500">{logoLoading ? 'Loading the current school logo… ' : ''}PNG, JPEG or WebP; maximum 256 KB. The logo appears beside the school name on report cards.</span>{logoLoadFailed && !logoTouched && <span role="status" className="block text-xs text-amber-700">Could not load the existing logo. Saving other settings will preserve it; upload or remove the logo to change it.</span>}</Field>
         <Field label="Timezone"><Input value={profile.timezone} onChange={(e) => setProfile(v => ({ ...v, timezone: e.target.value }))} placeholder="Africa/Gaborone" /></Field>
         <Field label="Currency"><Input value={profile.currency} onChange={(e) => setProfile(v => ({ ...v, currency: e.target.value }))} placeholder="BWP" /></Field>
       </div>
@@ -139,7 +152,7 @@ export default function SchoolConfigurationPage() {
         <label className="block text-sm font-medium text-slate-700">Institution type<Select className="mt-1 w-full" value={institutionType} onChange={(e) => { setInstitutionType(e.target.value as InstitutionType | ''); setSuccess(''); }}><option value="">Select institution type…</option>{INSTITUTION_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select></label>
       </div>
       {template && <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold text-slate-900">{template.country_name} education template</p><span className="rounded-full bg-white px-2 py-1 text-xs text-slate-600">Version {template.template_version} · {template.status.replaceAll('_', ' ')}</span></div><p className="mt-2 text-slate-600">Default timezone: {template.timezone} · Currency: {template.currency}</p>{loading ? <Spinner /> : <><h3 className="mt-4 font-medium text-slate-800">Suggested education levels</h3>{levels.length ? <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">{levels.map((level) => <li key={level.code} className="rounded border border-slate-200 bg-white px-3 py-2"><span className="font-medium">{level.name}</span><span className="ml-2 text-xs text-slate-500">{level.stage.replaceAll('_', ' ')}</span>{level.requires_review && <span className="mt-1 block text-xs text-amber-700">Needs authority review</span>}</li>)}</ul> : <p className="mt-2 text-slate-600">Tertiary course and qualification levels must be configured by the institution.</p>}</>}{template.curriculum_cycles && template.curriculum_cycles.length > 0 && <><h3 className="mt-4 font-medium text-slate-800">Secondary curriculum cycles</h3><div className="mt-2 grid gap-3 sm:grid-cols-2">{template.curriculum_cycles.map(cycle => <div key={cycle.code} className="rounded-md border border-slate-200 bg-white p-3"><p className="font-semibold text-slate-900">{cycle.name}</p><p className="mt-1 text-xs text-slate-500">{cycle.levels.map(code => levels.find(level => level.code === code)?.name ?? code).join(' · ')}</p><p className="mt-2 text-sm text-slate-600">{cycle.description}</p></div>)}</div></>}{template.curriculum_guidance && <div className="mt-3 rounded-md border border-slate-200 bg-white p-3"><p className="font-medium text-slate-800">Syllabus and subject setup</p><p className="mt-1 text-sm text-slate-600">{template.curriculum_guidance.subject_setup}</p><a className="mt-2 inline-block text-sm font-medium text-blue-700 underline" href={template.curriculum_guidance.syllabi_url} target="_blank" rel="noreferrer">Open {template.curriculum_guidance.authority} syllabi</a></div>}{template.notes.length > 0 && <><h3 className="mt-4 font-medium text-slate-800">Setup notes</h3><ul className="mt-1 list-disc space-y-1 pl-5 text-slate-600">{template.notes.map((note) => <li key={note}>{note}</li>)}</ul></>}</div>}
-      <div className="flex justify-end"><Button onClick={save} disabled={saving || !countryCode || !institutionType}>{saving ? 'Saving…' : 'Save school configuration'}</Button></div>
+      <div className="flex justify-end"><Button onClick={save} disabled={saving || logoLoading || !countryCode || !institutionType}>{logoLoading ? 'Loading logo…' : saving ? 'Saving…' : 'Save school configuration'}</Button></div>
     </Card>
     <Card className="p-5"><h2 className="font-semibold text-slate-900">Calendar rule</h2><p className="mt-2 text-sm text-slate-600">Country templates are a starting point. Official public holidays, school terms, exam dates, and school-specific closures must be managed separately and verified for the relevant year. Botswana's education-level template remains marked for authority review.</p></Card>
   </div>;

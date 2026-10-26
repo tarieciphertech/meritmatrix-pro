@@ -56,6 +56,8 @@ export default function SchoolsPage() {
   const [form, setForm] = useState<SchoolCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [logoLoading, setLogoLoading] = useState(false);
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+  const [logoTouched, setLogoTouched] = useState(false);
   const logoRequestId = useRef(0);
   const [formError, setFormError] = useState<string | null>(null);
   const [adminAccounts, setAdminAccounts] = useState<SchoolAdminStatus[]>([]);
@@ -70,6 +72,7 @@ export default function SchoolsPage() {
   const [resetError, setResetError] = useState<string | null>(null);
 
   const canManage = hasRole('SUPER_ADMIN');
+  const canConfigureSchool = canManage || hasRole('SCHOOL_ADMIN');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,6 +96,8 @@ export default function SchoolsPage() {
   function openCreate() {
     logoRequestId.current += 1;
     setLogoLoading(false);
+    setLogoLoadFailed(false);
+    setLogoTouched(false);
     setEditingSchool(null);
     setForm(emptyForm);
     setAdminForm(emptyAdminForm);
@@ -103,6 +108,8 @@ export default function SchoolsPage() {
   async function openEdit(school: SchoolResponse) {
     const requestId = ++logoRequestId.current;
     setLogoLoading(true);
+    setLogoLoadFailed(false);
+    setLogoTouched(false);
     setEditingSchool(school);
     setForm({
       name: school.name,
@@ -129,9 +136,11 @@ export default function SchoolsPage() {
       const result = await api.get<{ logo_url: string | null }>(`/api/v1/schools/${school.id}/logo`);
       if (logoRequestId.current === requestId) {
         setForm((current) => ({ ...current, logo_url: result.logo_url ?? '' }));
+        setLogoLoadFailed(false);
       }
     } catch {
       if (logoRequestId.current === requestId) {
+        setLogoLoadFailed(true);
         setForm((current) => ({ ...current, logo_url: school.logo_url ?? '' }));
       }
     } finally {
@@ -140,6 +149,7 @@ export default function SchoolsPage() {
   }
 
   function setField(key: keyof SchoolCreate, value: string) {
+    if (key === 'logo_url') { setLogoTouched(true); setLogoLoadFailed(false); }
     setForm((prev) => ({ ...prev, [key]: value } as SchoolCreate));
   }
 
@@ -160,6 +170,8 @@ export default function SchoolsPage() {
         return;
       }
       setForm((prev) => ({ ...prev, logo_url: reader.result as string }));
+      setLogoTouched(true);
+      setLogoLoadFailed(false);
       setFormError(null);
     };
     reader.onerror = () => setFormError('Could not read that logo file. Try another image.');
@@ -179,9 +191,19 @@ export default function SchoolsPage() {
       // Required fields must not be null.
       payload.name = form.name;
       payload.code = form.code;
+      // If the logo endpoint failed, preserve the current database value unless
+      // the user explicitly selected or removed a logo in this editing session.
+      if (editingSchool && logoLoadFailed && !logoTouched) delete payload.logo_url;
 
       if (editingSchool) {
-        const updatePayload: SchoolUpdate = { ...payload };
+        // School administrators may update only school-specific configuration.
+        // Never send platform identity fields (name/code) from their form because
+        // the API deliberately rejects attempts to change those fields.
+        const updatePayload: SchoolUpdate = canManage
+          ? { ...payload }
+          : Object.fromEntries(
+              Object.entries(payload).filter(([key]) => !['name', 'code'].includes(key)),
+            ) as SchoolUpdate;
         await api.patch<SchoolResponse>(`/api/v1/schools/${editingSchool.id}`, updatePayload);
       } else {
         if (!adminForm.first_name.trim() || !adminForm.last_name.trim() || !adminForm.email.trim()) {
@@ -269,7 +291,7 @@ export default function SchoolsPage() {
     <div>
       <PageHeader
         title="Schools"
-        subtitle="Manage schools in the platform"
+        subtitle={canManage ? 'Manage schools, school administrators, and platform-level settings.' : 'Manage configuration and branding for your assigned school.'}
         actions={
           canManage ? (
             <Button onClick={openCreate}>+ New School</Button>
@@ -309,13 +331,13 @@ export default function SchoolsPage() {
                 </Td>}
                 <Td>
                   <div className="flex items-center gap-2">
-                    {canManage && (
+                    {canConfigureSchool && (
                       <>
                         <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(s)}>
-                          Edit
+                          {canManage ? 'Edit' : 'Configure'}
                         </Button>
-                        {!adminAccounts.some((item) => item.school_id === s.id) && s.is_active && <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => openAdminSetup(s)}>Set Admin</Button>}
-                        {s.is_active && (
+                        {canManage && !adminAccounts.some((item) => item.school_id === s.id) && s.is_active && <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => openAdminSetup(s)}>Set Admin</Button>}
+                        {canManage && s.is_active && (
                           <Button
                             variant="danger"
                             className="!px-2 !py-1 text-xs"
@@ -337,7 +359,7 @@ export default function SchoolsPage() {
       {/* Create / Edit modal */}
       <Modal
         open={modalOpen}
-        title={editingSchool ? 'Edit School' : 'New School'}
+        title={editingSchool ? (canManage ? 'Edit School' : 'School Configuration') : 'New School'}
         onClose={() => { logoRequestId.current += 1; setLogoLoading(false); setModalOpen(false); }}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -351,6 +373,7 @@ export default function SchoolsPage() {
             <Field label="Name" required>
               <Input
                 required
+                disabled={Boolean(editingSchool) && !canManage}
                 value={form.name}
                 onChange={(e) => setField('name', e.target.value)}
                 placeholder="Springfield High School"
@@ -359,6 +382,7 @@ export default function SchoolsPage() {
             <Field label="Code" required>
               <Input
                 required
+                disabled={Boolean(editingSchool) && !canManage}
                 value={form.code}
                 onChange={(e) => setField('code', e.target.value)}
                 placeholder="SHS"
@@ -422,8 +446,9 @@ export default function SchoolsPage() {
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
+                disabled={logoLoading}
                 onChange={(e) => { handleLogoUpload(e.target.files?.[0]); e.currentTarget.value = ''; }}
-                className="block w-full text-sm"
+                className="block w-full text-sm disabled:opacity-50"
               />
               <p className="mt-1 text-xs text-slate-500">PNG, JPEG, or WebP; maximum 256 KB. The logo is saved with this school and printed with its name on report cards.</p>
             </Field>
@@ -505,7 +530,7 @@ export default function SchoolsPage() {
               Cancel
             </Button>
             <Button type="submit" disabled={saving || logoLoading}>
-              {logoLoading ? 'Loading school logo…' : saving ? 'Saving…' : editingSchool ? 'Save Changes' : 'Create School'}
+              {logoLoading ? 'Loading school logo…' : saving ? 'Saving…' : editingSchool ? (canManage ? 'Save Changes' : 'Save School Configuration') : 'Create School'}
             </Button>
           </div>
         </form>
