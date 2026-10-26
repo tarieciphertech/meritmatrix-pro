@@ -56,6 +56,8 @@ export default function SchoolsPage() {
   const [form, setForm] = useState<SchoolCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [logoLoading, setLogoLoading] = useState(false);
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+  const [logoTouched, setLogoTouched] = useState(false);
   const logoRequestId = useRef(0);
   const [formError, setFormError] = useState<string | null>(null);
   const [adminAccounts, setAdminAccounts] = useState<SchoolAdminStatus[]>([]);
@@ -94,6 +96,8 @@ export default function SchoolsPage() {
   function openCreate() {
     logoRequestId.current += 1;
     setLogoLoading(false);
+    setLogoLoadFailed(false);
+    setLogoTouched(false);
     setEditingSchool(null);
     setForm(emptyForm);
     setAdminForm(emptyAdminForm);
@@ -104,6 +108,8 @@ export default function SchoolsPage() {
   async function openEdit(school: SchoolResponse) {
     const requestId = ++logoRequestId.current;
     setLogoLoading(true);
+    setLogoLoadFailed(false);
+    setLogoTouched(false);
     setEditingSchool(school);
     setForm({
       name: school.name,
@@ -130,9 +136,11 @@ export default function SchoolsPage() {
       const result = await api.get<{ logo_url: string | null }>(`/api/v1/schools/${school.id}/logo`);
       if (logoRequestId.current === requestId) {
         setForm((current) => ({ ...current, logo_url: result.logo_url ?? '' }));
+        setLogoLoadFailed(false);
       }
     } catch {
       if (logoRequestId.current === requestId) {
+        setLogoLoadFailed(true);
         setForm((current) => ({ ...current, logo_url: school.logo_url ?? '' }));
       }
     } finally {
@@ -141,6 +149,7 @@ export default function SchoolsPage() {
   }
 
   function setField(key: keyof SchoolCreate, value: string) {
+    if (key === 'logo_url') { setLogoTouched(true); setLogoLoadFailed(false); }
     setForm((prev) => ({ ...prev, [key]: value } as SchoolCreate));
   }
 
@@ -180,6 +189,9 @@ export default function SchoolsPage() {
       // Required fields must not be null.
       payload.name = form.name;
       payload.code = form.code;
+      // If the logo endpoint failed, preserve the current database value unless
+      // the user explicitly selected or removed a logo in this editing session.
+      if (editingSchool && logoLoadFailed && !logoTouched) delete payload.logo_url;
 
       if (editingSchool) {
         // School administrators may update only school-specific configuration.
