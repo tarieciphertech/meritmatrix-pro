@@ -326,7 +326,9 @@ export default function StaffPage() {
                 value={form.ec_number ?? ''}
                 onChange={(e) => setField('ec_number', e.target.value)}
                 placeholder="e.g. 123456A"
+                autoComplete="off"
               />
+              <p className="mt-1 text-xs text-slate-500">For Zimbabwean public-service teachers, enter the EC number as issued by the Public Service Commission. It is normalized to uppercase; leave blank when not applicable.</p>
             </Field>
             <Field label="Job Title">
               <Input
