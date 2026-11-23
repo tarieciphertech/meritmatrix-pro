@@ -1,7 +1,7 @@
 # MeritMatrix Pro 2.0
 
-A production-ready school administration and academic results management
-platform — independent rebuild, first-principles architecture.
+A school administration and academic results management platform built with
+school-scoped access control and an independently designed architecture.
 
 > **Repository status:** The current application includes school-scoped administration, students, guardians, staff, enrollments, teaching assignments, attendance, academic setup, assessments/results, fees/payments, report cards, and audit history. The production release and deployment state must be confirmed from the latest GitHub Actions runs and the live environment; a successful build alone does not prove every workflow is accepted by the school.
 
