@@ -3,12 +3,7 @@
 A production-ready school administration and academic results management
 platform — independent rebuild, first-principles architecture.
 
-> **Status: Milestone 3 complete and hardened (Schools, Academic Structure, Multi-Tenant Isolation).**
-> The foundation (Milestone 1), users, roles, permissions, JWT
-> authentication, refresh-token rotation, RBAC, schools, academic years,
-> terms, classes, subjects, and multi-tenant school isolation are
-> implemented and tested. Students, parents, teachers, assessments,
-> marks, and results are **not yet** implemented — see [Roadmap](#roadmap).
+> **Repository status:** The current application includes school-scoped administration, students, guardians, staff, enrollments, teaching assignments, attendance, academic setup, assessments/results, fees/payments, report cards, and audit history. The production release and deployment state must be confirmed from the latest GitHub Actions runs and the live environment; a successful build alone does not prove every workflow is accepted by the school.
 
 ## Overview
 
@@ -222,20 +217,23 @@ FastAPI's `OAuth2PasswordBearer` security scheme.
 | 1 | Foundation: app bootstrap, DB connectivity, health check, logging, error handling, tests | Implemented |
 | 2 | Users, roles, permissions, authentication, RBAC, refresh-token rotation | Implemented |
 | 3 | Schools, academic years, terms, classes, subjects, multi-tenant isolation | Implemented |
-| 4 | Students, guardians, staff, student relationships, enrollments | Implemented |
-| 5 | Teacher assignments and daily attendance register | Implemented |
-| 6 | Guardian school selection, linked-student portal, attendance and published results | Implemented in repository; live verification pending |
-| 7 | Assessment setup, mark entry, weighted percentage results and publishing | Implemented in repository; CI/migration verification pending |
-| 8 | Fee charges, payment receipts/references and outstanding balances | Implemented in repository; CI/migration verification pending |
-| 9 | Configurable grade bands and printable report cards from published results | Implemented in repository; CI/migration verification pending |
-| 10 | Notifications and full audit trail | Remaining |
-| 11 | Production hardening, deployment/migration execution, security and live smoke tests | Remaining |
+| 4 | Students, guardians, staff, student relationships, enrollments | Implemented in current application |
+| 5 | Teacher assignments and daily attendance register | Implemented in current application |
+| 6 | Guardian school selection, linked-student portal, attendance and published results | Implemented in current application; verify against the live school workflow |
+| 7 | Assessment setup, mark entry, weighted percentage results and publishing | Implemented in current application; verify grading and publishing with approved test records |
+| 8 | Fee charges, payment receipts/references and outstanding balances | Implemented in current application; reconcile against school-approved test transactions |
+| 9 | Configurable grade bands and printable report cards from published results | Implemented in current application; verify calculations and print output |
+| 10 | Notifications and full audit trail | Review scope and availability before promising as part of handover |
+| 11 | Production hardening, deployment/migration execution, security and live smoke tests | Release-specific acceptance required before operational sign-off |
 
-The application is not considered production-ready until CI passes for the
-final commit, database migrations have been applied to the production
-PostgreSQL database, production secrets and CORS are verified, and live
-authentication plus school-isolation smoke tests pass. Do not run the
-development seed script against production.
+For a live school handover, use the release acceptance checklist in
+[PRODUCTION-HANDOVER.md](../docs/PRODUCTION-HANDOVER.md). Confirm the deployed
+commit, CI and Pages deployment, database connectivity, role permissions,
+school isolation, backup readability, and the school's own acceptance tests.
+Do not run the development seed script against production. Do not enter
+real student or financial data until the school has confirmed account access,
+permissions, data-entry procedures, and a named person responsible for
+record corrections and payment reconciliation.
 
 See `docs/database-architecture.md` for schema conventions and the
 planned entity groups.
