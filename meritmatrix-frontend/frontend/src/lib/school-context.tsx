@@ -30,7 +30,8 @@ interface SchoolContextValue {
 const SchoolContext = createContext<SchoolContextValue | null>(null);
 
 export function SchoolProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
+  const isSuperAdmin = hasRole('SUPER_ADMIN');
   const [schools, setSchools] = useState<SchoolResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +68,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   }, [user, refresh]);
 
+  // A non-super-admin with exactly one accessible school should enter it
+  // automatically. Only platform admins (or users assigned to multiple
+  // schools) need to make an explicit selection.
+  useEffect(() => {
+    if (!user || isSuperAdmin || loading || schools.length !== 1) return;
+    const onlySchool = schools[0];
+    if (selectedSchoolId !== onlySchool.id) {
+      setSelectedSchoolId(onlySchool.id);
+      localStorage.setItem(SELECTED_SCHOOL_KEY, onlySchool.id);
+    }
+  }, [user, isSuperAdmin, loading, schools, selectedSchoolId]);
+
   // Persist selection; drop it if the user loses access to that school.
   useEffect(() => {
     if (!loading && selectedSchoolId && schools.length > 0) {
@@ -75,7 +88,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(SELECTED_SCHOOL_KEY);
       }
     }
-  }, [loading, schools, selectedSchoolId]);
+  }, [loading, schools, selectedSchoolId, isSuperAdmin]);
 
   const selectSchool = useCallback((schoolId: string) => {
     const nextSchoolId = schoolId.trim();
