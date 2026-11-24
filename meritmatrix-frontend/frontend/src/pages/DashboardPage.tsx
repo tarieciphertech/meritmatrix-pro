@@ -28,6 +28,8 @@ const MAX_COUNT_FETCH = 200; // backend max limit per request
 export default function DashboardPage() {
   const { user } = useAuth();
   const isTeacher = (user?.roles ?? []).some((role) => role.name === 'TEACHER');
+  const isSuperAdmin = (user?.roles ?? []).some((role) => role.name === 'SUPER_ADMIN');
+  const canChooseSchool = isSuperAdmin || schools.length > 1;
   const { schools, loading: schoolsLoading, selectedSchool, selectSchool, error: schoolError } = useSchool();
   const [counts, setCounts] = useState<Counts>({
     students: null,
@@ -100,9 +102,11 @@ export default function DashboardPage() {
         subtitle={
           selectedSchool
             ? `Viewing data for ${selectedSchool.name}`
-            : 'Choose a school below to open its dashboard and records.'
+            : canChooseSchool
+              ? 'Choose a school below to open its dashboard and records.'
+              : 'Your assigned school is being loaded.'
         }
-        actions={selectedSchool ? <Button variant="secondary" onClick={() => selectSchool('')}>← Back to school selection</Button> : undefined}
+        actions={selectedSchool && canChooseSchool ? <Button variant="secondary" onClick={() => selectSchool('')}>← Back to school selection</Button> : undefined}
       />
 
       {schoolError && <ErrorBanner message={schoolError} />}
@@ -141,6 +145,8 @@ export default function DashboardPage() {
           </div>
           {schoolsLoading ? (
             <Spinner label="Loading your schools…" />
+          ) : schools.length === 1 && !isSuperAdmin ? (
+            <Spinner label="Opening your assigned school…" />
           ) : schools.length === 0 ? (
             <Card className="p-6">
               <p className="text-sm text-slate-600">
