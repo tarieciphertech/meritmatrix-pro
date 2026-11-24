@@ -29,8 +29,8 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const isTeacher = (user?.roles ?? []).some((role) => role.name === 'TEACHER');
   const isSuperAdmin = (user?.roles ?? []).some((role) => role.name === 'SUPER_ADMIN');
-  const canChooseSchool = isSuperAdmin || schools.length > 1;
   const { schools, loading: schoolsLoading, selectedSchool, selectSchool, error: schoolError } = useSchool();
+  const canChooseSchool = isSuperAdmin || schools.length > 1;
   const [counts, setCounts] = useState<Counts>({
     students: null,
     guardians: null,
