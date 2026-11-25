@@ -11,6 +11,7 @@ import SchoolsPage from './pages/SchoolsPage';
 import SchoolConfigurationPage from './pages/SchoolConfigurationPage';
 import SchoolCalendarPage from './pages/SchoolCalendarPage';
 import TeachingAssignmentsPage from './pages/TeachingAssignmentsPage';
+import TimetablePage from './pages/TimetablePage';
 import AttendancePage from './pages/AttendancePage';
 import StudentsPage from './pages/StudentsPage';
 import GuardiansPage from './pages/GuardiansPage';
@@ -28,39 +29,40 @@ import type { ReactNode } from 'react';
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, initializing } = useAuth();
   const location = useLocation();
-  if (initializing) return <div className="flex min-h-screen items-center justify-center bg-slate-50"><Spinner label="Loading…" /></div>;
-  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  if (initializing) return <div className="flex min-h-screen items-center justify-center bg-slate-50"><Spinner label="Loading…"/></div>;
+  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace/>;
   const mustChangePassword = Boolean(user.must_change_password);
-  if (mustChangePassword && location.pathname !== '/change-password') return <Navigate to="/change-password" replace />;
-  if (!mustChangePassword && location.pathname === '/change-password') return <Navigate to="/" replace />;
-  const isGuardian = (user.roles ?? []).some((role) => ['GUARDIAN', 'PARENT'].includes(role.name));
-  if (isGuardian && location.pathname !== '/guardian-portal') return <Navigate to="/guardian-portal" replace />;
+  if (mustChangePassword && location.pathname !== '/change-password') return <Navigate to="/change-password" replace/>;
+  if (!mustChangePassword && location.pathname === '/change-password') return <Navigate to="/" replace/>;
+  const isGuardian = (user.roles ?? []).some(role => ['GUARDIAN','PARENT'].includes(role.name));
+  if (isGuardian && location.pathname !== '/guardian-portal') return <Navigate to="/guardian-portal" replace/>;
   return <>{children}</>;
 }
 
 export default function App() {
   return <AuthProvider><SchoolProvider><Routes>
-    <Route path="/login" element={<LoginPage />} />
-    <Route path="/activate-guardian" element={<GuardianActivationPage />} />
-    <Route path="/change-password" element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />
-    <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
-      <Route path="/" element={<DashboardPage />} />
-      <Route path="/schools" element={<SchoolsPage />} />
-      <Route path="/school-configuration" element={<SchoolConfigurationPage />} />
-      <Route path="/school-calendar" element={<SchoolCalendarPage />} />
-      <Route path="/teaching-assignments" element={<TeachingAssignmentsPage />} />
-      <Route path="/attendance" element={<AttendancePage />} />
-      <Route path="/students" element={<StudentsPage />} />
-      <Route path="/guardians" element={<GuardiansPage />} />
-      <Route path="/guardian-portal" element={<GuardianPortalPage />} />
-      <Route path="/staff" element={<StaffPage />} />
-      <Route path="/enrollments" element={<EnrollmentsPage />} />
-      <Route path="/academic-setup" element={<AcademicSetupPage />} />
-      <Route path="/assessments" element={<AssessmentsPage />} />
-      <Route path="/fees" element={<FeesPage />} />
-      <Route path="/report-cards" element={<ReportCardsPage />} />
-      <Route path="/audit-logs" element={<AuditLogsPage />} />
+    <Route path="/login" element={<LoginPage/>}/>
+    <Route path="/activate-guardian" element={<GuardianActivationPage/>}/>
+    <Route path="/change-password" element={<RequireAuth><ChangePasswordPage/></RequireAuth>}/>
+    <Route element={<RequireAuth><AppLayout/></RequireAuth>}>
+      <Route path="/" element={<DashboardPage/>}/>
+      <Route path="/schools" element={<SchoolsPage/>}/>
+      <Route path="/school-configuration" element={<SchoolConfigurationPage/>}/>
+      <Route path="/school-calendar" element={<SchoolCalendarPage/>}/>
+      <Route path="/teaching-assignments" element={<TeachingAssignmentsPage/>}/>
+      <Route path="/timetable" element={<TimetablePage/>}/>
+      <Route path="/attendance" element={<AttendancePage/>}/>
+      <Route path="/students" element={<StudentsPage/>}/>
+      <Route path="/guardians" element={<GuardiansPage/>}/>
+      <Route path="/guardian-portal" element={<GuardianPortalPage/>}/>
+      <Route path="/staff" element={<StaffPage/>}/>
+      <Route path="/enrollments" element={<EnrollmentsPage/>}/>
+      <Route path="/academic-setup" element={<AcademicSetupPage/>}/>
+      <Route path="/assessments" element={<AssessmentsPage/>}/>
+      <Route path="/fees" element={<FeesPage/>}/>
+      <Route path="/report-cards" element={<ReportCardsPage/>}/>
+      <Route path="/audit-logs" element={<AuditLogsPage/>}/>
     </Route>
-    <Route path="*" element={<Navigate to="/" replace />} />
+    <Route path="*" element={<Navigate to="/" replace/>}/>
   </Routes></SchoolProvider></AuthProvider>;
 }
