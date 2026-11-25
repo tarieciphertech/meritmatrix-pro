@@ -71,6 +71,7 @@ def list_timetable(
     ).filter(
         TimetableEntry.school_id == school_id,
         TimetableEntry.is_active.is_(True),
+        Staff.is_active.is_(True), Staff.employment_status == "active",
         TimetableEntry.effective_from <= effective_date,
         (TimetableEntry.effective_to.is_(None) | (TimetableEntry.effective_to >= effective_date)),
         TeachingAssignment.is_active.is_(True),
