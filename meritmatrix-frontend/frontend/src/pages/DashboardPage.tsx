@@ -24,6 +24,8 @@ function TeacherDashboard({ schoolId }: { schoolId: string }) {
   const [events,setEvents]=useState<CalendarEvent[]>([]);
   const [notifications,setNotifications]=useState<Notification[]>([]);
   const [attendance,setAttendance]=useState<AttendanceRow[]>([]);
+  const [studentCount,setStudentCount]=useState<number|null>(null);
+  const [enrollmentCount,setEnrollmentCount]=useState<number|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState<string|null>(null);
   const requestRef=useRef(0);
@@ -37,15 +39,19 @@ function TeacherDashboard({ schoolId }: { schoolId: string }) {
       api.get<CalendarEvent[]>('/api/v1/calendar-events',{school_id:schoolId,from_date:date,approved_only:true}),
       api.get<Notification[]>('/api/v1/notifications',{school_id:schoolId,limit:6}),
       api.get<AttendanceRow[]>('/api/v1/attendance',{school_id:schoolId,attendance_date:date}),
+      api.get<StudentResponse[]>('/api/v1/students',{school_id:schoolId,limit:200}),
+      api.get<EnrollmentResponse[]>('/api/v1/enrollments',{school_id:schoolId,limit:200}),
     ]);
     if(requestRef.current!==request)return;
-    const [a,t,as,c,n,at]=results;
+    const [a,t,as,c,n,at,students,enrollments]=results;
     setAssignments(a.status==='fulfilled'?a.value:[]);
     setSlots(t.status==='fulfilled'?t.value:[]);
     setAssessments(as.status==='fulfilled'?as.value:[]);
     setEvents(c.status==='fulfilled'?c.value:[]);
     setNotifications(n.status==='fulfilled'?n.value:[]);
     setAttendance(at.status==='fulfilled'?at.value:[]);
+    setStudentCount(students.status==='fulfilled'?students.value.length:null);
+    setEnrollmentCount(enrollments.status==='fulfilled'?enrollments.value.length:null);
     const failures=results.filter(r=>r.status==='rejected');
     if(failures.length===results.length)setError('Teacher workspace data could not be loaded. Check your connection and access, then retry.');
     else if(failures.length)setError('Some teacher workspace sections could not be loaded. Available sections are shown; retry to refresh.');
