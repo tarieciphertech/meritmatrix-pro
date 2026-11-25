@@ -18,6 +18,7 @@ export default function TimetablePage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [form, setForm] = useState<Form>(empty);
+  const [viewDate, setViewDate] = useState(today());
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -27,14 +28,14 @@ export default function TimetablePage() {
   const requestRef = useRef(0);
   schoolRef.current = selectedSchool?.id ?? null;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (dateOverride?: string) => {
     const request = ++requestRef.current;
     if (!selectedSchool) { setSlots([]); setAssignments([]); setLoading(false); return; }
     const schoolId = selectedSchool.id;
     setLoading(true); setError(null);
     try {
       const [slotRows, assignmentRows] = await Promise.all([
-        api.get<Slot[]>('/api/v1/timetable', { school_id: schoolId }),
+        api.get<Slot[]>('/api/v1/timetable', { school_id: schoolId, active_on: isTeacher ? today() : (dateOverride || viewDate) }),
         api.get<Assignment[]>('/api/v1/teaching-assignments', { school_id: schoolId, active_only: true }),
       ]);
       if (schoolRef.current !== schoolId || requestRef.current !== request) return;
@@ -44,7 +45,7 @@ export default function TimetablePage() {
     } finally {
       if (schoolRef.current === schoolId && requestRef.current === request) setLoading(false);
     }
-  }, [selectedSchool]);
+  }, [selectedSchool, isTeacher, viewDate]);
 
   useEffect(() => {
     requestRef.current += 1; setSlots([]); setAssignments([]); setShowForm(false); setError(null); setNotice('');
@@ -68,7 +69,7 @@ export default function TimetablePage() {
         room: form.room || null, effective_from: form.effective_from, effective_to: form.effective_to || null,
       }, { school_id: selectedSchool.id });
       setForm({ ...empty, effective_from: today() }); setShowForm(false);
-      setNotice('Timetable lesson saved.'); await load();
+      setNotice('Timetable lesson saved.'); setViewDate(form.effective_from); await load(form.effective_from);
     } catch (e) { setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not save timetable lesson'); }
     finally { setSaving(false); }
   }
@@ -82,7 +83,8 @@ export default function TimetablePage() {
   if (!selectedSchool) return <div><PageHeader title="My timetable" /><Card className="p-6">Select a school first.</Card></div>;
   return <div className="space-y-5">
     <PageHeader title={isTeacher ? 'My timetable' : 'Timetable management'} subtitle={isTeacher ? 'Your active weekly teaching schedule.' : `Create and manage weekly lessons for ${selectedSchool.name}.`} actions={!isTeacher ? <Button onClick={() => setShowForm(v => !v)}>{showForm ? 'Cancel' : '+ Add lesson'}</Button> : undefined} />
-    {error && <ErrorBanner message={error} onRetry={load} />}
+    {!isTeacher && <label className="block max-w-xs text-sm font-medium text-slate-600">Show timetable active on<input type="date" value={viewDate} onChange={e=>setViewDate(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 bg-white p-2"/></label>}
+    {error && <ErrorBanner message={error} onRetry={()=>void load()} />}
     {notice && <div role="status" className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
     {showForm && !isTeacher && <Card className="p-5"><form onSubmit={submit} className="space-y-4">
       <h2 className="font-semibold text-slate-900">New weekly lesson</h2>
