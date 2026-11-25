@@ -131,6 +131,7 @@ def create_timetable_entry(
         raise ConflictError("This time overlaps another lesson for the same teacher or class-subject.", code="TIMETABLE_SLOT_CONFLICT")
     entry = TimetableEntry(school_id=school_id, **payload.model_dump())
     db.add(entry)
+    db.flush()
     record_audit_event(
         db, school_id=school_id, actor_user_id=current_user.id,
         action="timetable.entry_created", entity_type="timetable_entry", entity_id=entry.id,
