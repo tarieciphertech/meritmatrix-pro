@@ -47,7 +47,7 @@ TEMPLATE_PERMISSION_NAMES = {
         "schools.read", "academic_years.read", "terms.read", "classes.read", "subjects.read",
         "class_subjects.read", "students.read", "students.create", "students.update",
         "guardians.read", "student_guardians.read", "staff.read", "enrollments.read",
-        "enrollments.create", "enrollments.update", "fees.read", "fees.create", "audit_logs.read",
+        "enrollments.create", "enrollments.update", "fees.read", "fees.payments.create", "audit_logs.read",
     },
     "finance": {
         "schools.read", "academic_years.read", "students.read", "enrollments.read",
