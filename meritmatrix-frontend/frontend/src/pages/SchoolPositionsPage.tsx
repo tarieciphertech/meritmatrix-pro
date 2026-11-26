@@ -14,7 +14,7 @@ const permissionGroups: { label: string; permissions: { name: string; label: str
     {name:'terms.read',label:'View terms'}, {name:'terms.create',label:'Create terms'}, {name:'terms.update',label:'Edit terms'},
     {name:'classes.read',label:'View classes'}, {name:'classes.create',label:'Create classes'}, {name:'classes.update',label:'Edit classes'},
     {name:'subjects.read',label:'View subjects'}, {name:'subjects.create',label:'Create subjects'}, {name:'subjects.update',label:'Edit subjects'},
-    {name:'class_subjects.read',label:'View class subjects'}, {name:'class_subjects.create',label:'Manage timetable and class subjects'}, {name:'class_subjects.delete',label:'Remove timetable lessons'},
+    {name:'class_subjects.read',label:'View class subjects'}, {name:'class_subjects.create',label:'Create timetable and class-subject records'}, {name:'class_subjects.update',label:'Edit teaching assignments'}, {name:'class_subjects.delete',label:'Remove timetable lessons'},
   ]},
   { label: 'Students and people', permissions: [
     {name:'students.read',label:'View students'}, {name:'students.create',label:'Register students'}, {name:'students.update',label:'Edit student records'}, {name:'students.delete',label:'Archive students'},
@@ -28,7 +28,7 @@ const permissionGroups: { label: string; permissions: { name: string; label: str
     {name:'assessments.read',label:'View assessments and marks'}, {name:'assessments.create',label:'Create assessments and record marks'}, {name:'assessments.update',label:'Edit and publish results'},
   ]},
   { label: 'Finance and oversight', permissions: [
-    {name:'fees.read',label:'View fees and balances'}, {name:'fees.create',label:'Record financial charges and payments'},
+    {name:'fees.read',label:'View fees and balances'}, {name:'fees.charges.create',label:'Create fee charges'}, {name:'fees.payments.create',label:'Record fee payments'},
     {name:'audit_logs.read',label:'View audit history'},
   ]},
 ];
