@@ -119,7 +119,7 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
         UserSchool(user_id=teacher.id, school_id=school.id),
         TeachingAssignment(
             school_id=school.id, staff_id=teacher_staff.id, class_subject_id=pair_one.id,
-            start_date=today, is_active=True, is_primary=True,
+            start_date=academic_year.start_date, is_active=True, is_primary=True,
         ),
         TeachingAssignment(
             school_id=school.id, staff_id=other_staff.id, class_subject_id=pair_two.id,
