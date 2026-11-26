@@ -37,6 +37,8 @@ class TimetableEntryResponse(BaseModel):
     effective_from: date
     effective_to: Optional[date]
     is_active: bool
+    academic_year_id: Optional[uuid.UUID] = None
+    is_published: bool = False
     teacher_name: str
     class_name: str
     class_code: str
