@@ -79,7 +79,8 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
 
     pair_one = ClassSubject(class_id=class_one.id, subject_id=subject_one.id)
     pair_two = ClassSubject(class_id=class_two.id, subject_id=subject_two.id)
-    db_session.add_all([pair_one, pair_two])
+    pair_three = ClassSubject(class_id=class_one.id, subject_id=subject_two.id)
+    db_session.add_all([pair_one, pair_two, pair_three])
     db_session.flush()
 
     teacher = make_user(
@@ -107,6 +108,10 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
         ),
         TeachingAssignment(
             school_id=school.id, staff_id=other_staff.id, class_subject_id=pair_two.id,
+            start_date=today, is_active=True, is_primary=True,
+        ),
+        TeachingAssignment(
+            school_id=school.id, staff_id=other_staff.id, class_subject_id=pair_three.id,
             start_date=today, is_active=True, is_primary=True,
         ),
     ])
@@ -148,6 +153,30 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
         },
     )
     assert second.status_code == 201, second.text
+
+    # A different teacher and subject still cannot double-book the same class.
+    class_clash = client.post(
+        "/api/v1/timetable", headers=admin_headers, params=params,
+        json={
+            "staff_id": str(other_staff.id), "class_subject_id": str(pair_three.id),
+            "weekday": 0, "start_time": "08:20", "end_time": "09:00",
+            "effective_from": today.isoformat(),
+        },
+    )
+    assert class_clash.status_code == 409, class_clash.text
+    assert class_clash.json()["error"]["code"] == "TIMETABLE_SLOT_CONFLICT"
+
+    # A room is a reserved resource even when both classes and teachers differ.
+    room_clash = client.post(
+        "/api/v1/timetable", headers=admin_headers, params=params,
+        json={
+            "staff_id": str(other_staff.id), "class_subject_id": str(pair_two.id),
+            "weekday": 0, "start_time": "08:20", "end_time": "09:00",
+            "room": " room 1 ", "effective_from": today.isoformat(),
+        },
+    )
+    assert room_clash.status_code == 409, room_clash.text
+    assert room_clash.json()["error"]["code"] == "TIMETABLE_SLOT_CONFLICT"
 
     admin_list = client.get("/api/v1/timetable", headers=admin_headers, params=params)
     assert admin_list.status_code == 200, admin_list.text
