@@ -76,6 +76,29 @@ def _role_names(user: User) -> Set[str]:
     return {role.name for role in user.roles}
 
 
+def _effective_permission_names(user: User, db: Session) -> Set[str]:
+    names = _permission_names(user)
+    # Add permissions from every active school position held by this user's
+    # linked staff record. Each route still enforces school membership/scope.
+    from app.models.staff import Staff
+    from app.models.school_position import StaffPosition, SchoolPosition
+    staff_ids = [row[0] for row in db.query(Staff.id).filter(
+        Staff.user_id == user.id,
+        Staff.is_active.is_(True),
+        Staff.employment_status == "active",
+    ).all()]
+    if staff_ids:
+        rows = db.query(SchoolPosition.permissions).join(
+            StaffPosition, StaffPosition.position_id == SchoolPosition.id
+        ).filter(
+            StaffPosition.staff_id.in_(staff_ids),
+            SchoolPosition.is_active.is_(True),
+        ).all()
+        for (permissions,) in rows:
+            names.update(permissions or [])
+    return names
+
+
 def require_permission(permission_name: str) -> Callable[..., User]:
     """Dependency factory: require the resolved user to hold a specific permission.
 
@@ -83,8 +106,11 @@ def require_permission(permission_name: str) -> Callable[..., User]:
     permission check.
     """
 
-    def dependency(current_user: User = Depends(get_current_active_user)) -> User:
-        held = _permission_names(current_user)
+    def dependency(
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        held = _effective_permission_names(current_user, db)
         if SYSTEM_ADMIN_PERMISSION in held or permission_name in held:
             return current_user
         raise ForbiddenError(
