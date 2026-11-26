@@ -14,6 +14,7 @@ from app.models.clazz import Class  # noqa: F401
 from app.models.subject import Subject  # noqa: F401
 from app.models.class_subject import ClassSubject  # noqa: F401
 from app.models.user_school import UserSchool  # noqa: F401
+from app.models.school_position import SchoolPosition, StaffPosition  # noqa: F401
 from app.models.student import Student, StudentStatus  # noqa: F401
 from app.models.guardian import Guardian  # noqa: F401
 from app.models.guardian_activation import GuardianActivation  # noqa: F401
@@ -32,7 +33,7 @@ from app.models.user_notification import UserNotification  # noqa: F401
 
 __all__ = [
     "User", "Role", "Permission", "RefreshToken", "user_roles", "role_permissions",
-    "School", "SchoolSettings", "AcademicYear", "Term", "Class", "Subject", "ClassSubject", "UserSchool",
+    "School", "SchoolSettings", "AcademicYear", "Term", "Class", "Subject", "ClassSubject", "UserSchool", "SchoolPosition", "StaffPosition",
     "Student", "StudentStatus", "Guardian", "GuardianActivation", "StudentGuardian", "RelationshipType",
     "Staff", "EmploymentStatus", "Enrollment", "EnrollmentStatus", "CalendarEvent", "TeachingAssignment",
     "TimetableEntry", "AttendanceRecord", "Assessment", "AssessmentMark", "FeeCharge", "FeePayment",
