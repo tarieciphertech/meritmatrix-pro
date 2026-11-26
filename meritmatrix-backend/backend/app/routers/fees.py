@@ -122,7 +122,7 @@ def void_charge(
     charge = db.query(FeeCharge).filter(
         FeeCharge.id == charge_id,
         FeeCharge.school_id == school_id,
-    ).first()
+    ).with_for_update().first()
     if not charge:
         raise NotFoundError("Fee charge not found in this school.", code="FEE_CHARGE_NOT_FOUND")
     if charge.is_void:
