@@ -219,9 +219,30 @@ def publish_annual_master_timetable(
     ).all()
     if not entries:
         raise ConflictError("Add lessons to the annual master timetable before publishing it.", code="EMPTY_MASTER_TIMETABLE")
-    for entry in entries:
+    pair_ids = {entry.class_subject_id for entry in entries}
+    pairs = {
+        pair.id: pair
+        for pair in db.query(ClassSubject).filter(ClassSubject.id.in_(pair_ids)).all()
+    }
+    for index, entry in enumerate(entries):
         if entry.effective_from < year.start_date or (entry.effective_to and entry.effective_to > year.end_date):
             raise ConflictError("Every lesson must fall within the academic year.", code="TIMETABLE_OUTSIDE_ACADEMIC_YEAR")
+        for other in entries[index + 1:]:
+            if entry.weekday != other.weekday:
+                continue
+            if entry.start_time >= other.end_time or entry.end_time <= other.start_time:
+                continue
+            entry_end = entry.effective_to or year.end_date
+            other_end = other.effective_to or year.end_date
+            if entry_end < other.effective_from or other_end < entry.effective_from:
+                continue
+            if entry.staff_id == other.staff_id:
+                raise ConflictError("The annual timetable contains a teacher clash.", code="TIMETABLE_TEACHER_CONFLICT")
+            entry_pair, other_pair = pairs.get(entry.class_subject_id), pairs.get(other.class_subject_id)
+            if entry_pair and other_pair and entry_pair.class_id == other_pair.class_id:
+                raise ConflictError("The annual timetable contains a class clash.", code="TIMETABLE_CLASS_CONFLICT")
+            if entry.room and other.room and entry.room.strip().casefold() == other.room.strip().casefold():
+                raise ConflictError("The annual timetable contains a room clash.", code="TIMETABLE_ROOM_CONFLICT")
     now = datetime.now(timezone.utc)
     for entry in entries:
         entry.is_published = True
