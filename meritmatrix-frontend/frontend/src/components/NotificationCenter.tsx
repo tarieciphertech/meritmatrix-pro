@@ -44,6 +44,7 @@ export default function NotificationCenter({ schoolId }: { schoolId?: string }) 
     setItems([]);
     setError(null);
     setLoading(false);
+    setSavingId(null);
   }, [schoolId]);
 
   useEffect(() => { void load(); }, [load]);
