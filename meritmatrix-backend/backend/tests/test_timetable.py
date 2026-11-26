@@ -152,7 +152,8 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
             "start_time": "08:00",
             "end_time": "08:40",
             "room": "Room 1",
-            "effective_from": today.isoformat(),
+            "effective_from": academic_year.start_date.isoformat(),
+            "effective_to": academic_year.end_date.isoformat(),
         },
     )
     assert first.status_code == 201, first.text
