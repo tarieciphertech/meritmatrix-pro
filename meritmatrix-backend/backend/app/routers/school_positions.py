@@ -45,7 +45,7 @@ POSITION_TEMPLATES = [
         "terms.read", "terms.create", "terms.update",
         "classes.read", "classes.create", "classes.update",
         "subjects.read", "subjects.create", "subjects.update",
-        "class_subjects.read", "class_subjects.create", "class_subjects.delete",
+        "class_subjects.read", "class_subjects.create", "class_subjects.update", "class_subjects.delete",
         "students.read", "students.create", "students.update",
         "guardians.read", "guardians.create", "guardians.update",
         "staff.read", "staff.create", "staff.update",
@@ -64,7 +64,7 @@ POSITION_TEMPLATES = [
     ]),
     ("BURSAR", "Bursar", "Financial records, fees, payments and financial oversight", [
         "schools.read", "academic_years.read", "students.read", "enrollments.read",
-        "fees.read", "fees.create", "audit_logs.read",
+        "fees.read", "fees.charges.create", "fees.payments.create", "audit_logs.read",
     ]),
     ("TEACHER", "Teacher", "Teaching, assigned learners, attendance and assessments", [
         "schools.read", "academic_years.read", "terms.read", "classes.read",
