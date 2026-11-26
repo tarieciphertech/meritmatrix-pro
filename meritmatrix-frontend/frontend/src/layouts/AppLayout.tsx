@@ -10,7 +10,7 @@ const navItems = [
   {to:'/school-configuration',label:'School Configuration'},{to:'/school-calendar',label:'School Calendar'},
   {to:'/teaching-assignments',label:'Teaching Assignments'},{to:'/timetable',label:'My Timetable'},
   {to:'/attendance',label:'Attendance'},{to:'/students',label:'Students'},{to:'/guardians',label:'Guardians'},
-  {to:'/guardian-portal',label:'Guardian Portal'},{to:'/staff',label:'Staff'},{to:'/enrollments',label:'Enrollments'},
+  {to:'/guardian-portal',label:'Guardian Portal'},{to:'/staff',label:'Staff'},{to:'/school-positions',label:'School Positions & Permissions'},{to:'/enrollments',label:'Enrollments'},
   {to:'/academic-setup',label:'Academic Setup'},{to:'/assessments',label:'Assessments & Results'},
   {to:'/fees',label:'Fees & Payments'},{to:'/report-cards',label:'Report Cards'},{to:'/audit-logs',label:'Audit History'},
 ];
