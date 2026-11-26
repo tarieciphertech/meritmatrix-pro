@@ -1,0 +1,75 @@
+"""Add school positions and multi-position staff assignments."""
+from datetime import datetime, timezone
+import uuid
+
+from alembic import op
+import sqlalchemy as sa
+import app.models.base
+
+revision = "school_positions"
+down_revision = "annual_master_timetable"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.create_table(
+        "school_positions",
+        sa.Column("id", app.models.base.GUID(), nullable=False),
+        sa.Column("school_id", app.models.base.GUID(), nullable=False),
+        sa.Column("name", sa.String(length=80), nullable=False),
+        sa.Column("code", sa.String(length=50), nullable=False),
+        sa.Column("description", sa.String(length=255), nullable=True),
+        sa.Column("is_system", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(["school_id"], ["schools.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("school_id", "code", name="uq_school_position_code"),
+    )
+    op.create_index("ix_school_positions_school_id", "school_positions", ["school_id"])
+    op.create_table(
+        "school_position_permissions",
+        sa.Column("position_id", app.models.base.GUID(), nullable=False),
+        sa.Column("permission_id", app.models.base.GUID(), nullable=False),
+        sa.ForeignKeyConstraint(["position_id"], ["school_positions.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["permission_id"], ["permissions.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("position_id", "permission_id"),
+    )
+    op.create_table(
+        "staff_positions",
+        sa.Column("id", app.models.base.GUID(), nullable=False),
+        sa.Column("staff_id", app.models.base.GUID(), nullable=False),
+        sa.Column("position_id", app.models.base.GUID(), nullable=False),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column("assigned_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("assigned_by_user_id", app.models.base.GUID(), nullable=True),
+        sa.ForeignKeyConstraint(["staff_id"], ["staff.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["position_id"], ["school_positions.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["assigned_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("staff_id", "position_id", name="uq_staff_position"),
+    )
+    op.create_index("ix_staff_positions_staff_id", "staff_positions", ["staff_id"])
+    op.create_index("ix_staff_positions_position_id", "staff_positions", ["position_id"])
+    roles = sa.table(
+        "roles", sa.column("id", app.models.base.GUID()), sa.column("name", sa.String()),
+        sa.column("description", sa.String()), sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    op.bulk_insert(roles, [{
+        "id": uuid.uuid4(), "name": "SCHOOL_STAFF",
+        "description": "School employee whose access is determined by assigned school positions",
+        "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
+    }])
+
+
+def downgrade() -> None:
+    op.execute(sa.text("DELETE FROM roles WHERE name = 'SCHOOL_STAFF'"))
+    op.drop_index("ix_staff_positions_position_id", table_name="staff_positions")
+    op.drop_index("ix_staff_positions_staff_id", table_name="staff_positions")
+    op.drop_table("staff_positions")
+    op.drop_table("school_position_permissions")
+    op.drop_index("ix_school_positions_school_id", table_name="school_positions")
+    op.drop_table("school_positions")
