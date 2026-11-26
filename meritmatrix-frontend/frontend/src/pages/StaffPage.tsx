@@ -60,6 +60,7 @@ export default function StaffPage() {
   const { selectedSchool } = useSchool();
   const [staffList, setStaffList] = useState<StaffResponse[]>([]);
   const [positions, setPositions] = useState<SchoolPosition[]>([]);
+  const [effectivePermissions, setEffectivePermissions] = useState<string[]>([]);
   const [positionModalOpen, setPositionModalOpen] = useState(false);
   const [positionStaff, setPositionStaff] = useState<StaffResponse | null>(null);
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
@@ -72,6 +73,7 @@ export default function StaffPage() {
   const [form, setForm] = useState<StaffForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const can = (permission: string) => effectivePermissions.includes('system.admin') || effectivePermissions.includes(permission);
   const activeSchoolIdRef = useRef<string | null>(selectedSchool?.id ?? null);
   const loadRequestIdRef = useRef(0);
 
@@ -87,13 +89,15 @@ export default function StaffPage() {
     setLoading(true);
     setError(null);
     try {
-      const [list, positionRows] = await Promise.all([
+      const [list, positionRows, permissionResult] = await Promise.all([
         api.get<StaffResponse[]>('/api/v1/staff', { school_id: requestSchoolId, limit: 200 }),
         api.get<SchoolPosition[]>('/api/v1/school-positions', { school_id: requestSchoolId }),
+        api.get<{ position_codes: string[]; permission_names: string[] }>('/api/v1/school-positions/me', { school_id: requestSchoolId }),
       ]);
       if (activeSchoolIdRef.current !== requestSchoolId || loadRequestIdRef.current !== requestId) return;
       setStaffList(list);
       setPositions(positionRows);
+      setEffectivePermissions(permissionResult.permission_names);
     } catch (err) {
       if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) {
         setStaffList([]);
@@ -109,6 +113,7 @@ export default function StaffPage() {
     loadRequestIdRef.current += 1;
     setStaffList([]);
     setPositions([]);
+    setEffectivePermissions([]);
     setPositionModalOpen(false);
     setPositionStaff(null);
     setSelectedPositionIds([]);
@@ -288,7 +293,7 @@ export default function StaffPage() {
       <PageHeader
         title="Staff"
         subtitle={`Managing staff for ${selectedSchool.name}`}
-        actions={<Button onClick={openCreate}>+ New Staff Member</Button>}
+        actions={can('staff.create') ? <Button onClick={openCreate}>+ New Staff Member</Button> : undefined}
       />
 
       {error && <ErrorBanner message={error} onRetry={load} />}
@@ -318,13 +323,9 @@ export default function StaffPage() {
                 <Td>{s.hire_date ?? '—'}</Td>
                 <Td>
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(s)}>
-                      Edit
-                    </Button>
-                    <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => void openPositionManager(s)}>
-                      Positions
-                    </Button>
-                    {s.user_id ? (
+                    {can('staff.update') && <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(s)}>Edit</Button>}
+                    {can('staff.update') && <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => void openPositionManager(s)}>Positions</Button>}
+                    {can('staff.update') && (s.user_id ? (
                       <Badge tone="green">Login enabled</Badge>
                     ) : (
                       <Button
@@ -335,14 +336,14 @@ export default function StaffPage() {
                       >
                         Enable login
                       </Button>
-                    )}
-                    <Button
+                    ))}
+                    {can('staff.delete') && <Button
                       variant="danger"
                       className="!px-2 !py-1 text-xs"
                       onClick={() => handleArchive(s)}
                     >
                       Archive
-                    </Button>
+                    </Button>}
                   </div>
                 </Td>
               </tr>
