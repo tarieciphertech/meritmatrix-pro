@@ -279,7 +279,6 @@ export default function AcademicSetupPage() {
  const filteredTerms=terms.filter(x=>(`${x.name} ${x.term_number}`).toLowerCase().includes(recordSearch.toLowerCase()));
  const filteredClasses=classes.filter(x=>(`${x.name} ${x.code} ${x.stream||''}`).toLowerCase().includes(recordSearch.toLowerCase()));
  const filteredSubjects=subjects.filter(x=>(`${x.name} ${x.code} ${x.description||''}`).toLowerCase().includes(recordSearch.toLowerCase()));
- const rows=tab==='terms'?terms.filter(t=>t.academic_year_id===yearId):terms;
 
  return <div>
   <PageHeader title="Academic Setup" subtitle={selectedSchool?'Configure the academic structure for '+selectedSchool.name:'Select a school to continue'} actions={selectedSchool&&tab!=='class-subjects'&&<Button onClick={create}>+ Add {tab==='years'?'Academic Year':tab==='terms'?'Term':tab==='classes'?'Class':'Subject'}</Button>}/>
