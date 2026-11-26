@@ -110,7 +110,6 @@ export default function AcademicSetupPage() {
  const [subjects,setSubjects]=useState<SubjectResponse[]>([]);
  const [assignments,setAssignments]=useState<ClassSubjectResponse[]>([]);
  const [selectedClassId,setSelectedClassId]=useState('');
- const [selectedSubjectId,setSelectedSubjectId]=useState('');
  const [selectedSubjectIds,setSelectedSubjectIds]=useState<string[]>([]);
  const [classSearch,setClassSearch]=useState('');
  const [subjectSearch,setSubjectSearch]=useState('');
