@@ -89,6 +89,8 @@ def assigned_class_ids(
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if staff is None:
         return set() if _is_teacher(user) else None
+    if not _is_teacher(user):
+        return None  # Non-teaching school positions are not class-assignment scoped.
     if not staff.is_active or staff.employment_status != "active" or staff.school_id != school_id:
         return set()
 
@@ -234,6 +236,15 @@ def deny_linked_staff_management(
         return
     linked_staff = db.query(Staff.id).filter(Staff.user_id == user.id).first()
     if linked_staff is not None:
+        from app.models.school_position import StaffPosition, SchoolPosition
+        has_school_position = db.query(StaffPosition.id).join(
+            SchoolPosition, SchoolPosition.id == StaffPosition.position_id
+        ).filter(
+            StaffPosition.staff_id == linked_staff[0], StaffPosition.is_active.is_(True),
+            SchoolPosition.is_active.is_(True),
+        ).first()
+        if has_school_position:
+            return  # Fine-grained school-position permissions are enforced by require_permission.
         raise ForbiddenError(
             f"Staff-linked accounts cannot {action}. Use the authorized school administration workflow.",
             code="STAFF_MANAGEMENT_RESTRICTED",
