@@ -24,7 +24,7 @@ from app.schemas.assessment import AssessmentCreate, AssessmentResponse, Assessm
 from app.schemas.grading_band import GradingBandResponse, GradingScaleReplace
 from app.services.user_school_service import UserSchoolService
 from app.services.audit_service import record_audit_event
-from app.services.notification_service import notify_guardians
+from app.services.notification_service import notify_guardians, notify_school_roles, notify_teaching_staff
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
@@ -271,6 +271,14 @@ def update_assessment(
             message="The school has published assessment results for your child. Sign in to review the results.",
             data={"assessment_id": str(assessment.id), "assessment_title": assessment.title, "term_id": str(assessment.term_id)},
         )
+        notify_teaching_staff(
+            db, school_id=assessment.school_id, class_subject_id=assessment.class_subject_id,
+            notification_type="assessment.results_published",
+            title="Assessment results published",
+            message=f'Results for "{assessment.title}" have been published.',
+            data={"assessment_id": str(assessment.id), "assessment_title": assessment.title},
+            exclude_user_id=current_user.id,
+        )
     db.commit()
     db.refresh(assessment)
     return _assessment_row(db, assessment.id)
@@ -329,6 +337,14 @@ def submit_marks_for_review(
         entity_id=assessment.id,
         details={"title": assessment.title, "marked_students": len(marked_ids)},
     )
+    notify_school_roles(
+        db, school_id=assessment.school_id, role_names={"SCHOOL_ADMIN", "SUPER_ADMIN"},
+        notification_type="assessment.marks_submitted_for_review",
+        title="Assessment marks ready for review",
+        message=f'Marks for "{assessment.title}" have been submitted for administrator review.',
+        data={"assessment_id": str(assessment.id), "assessment_title": assessment.title},
+        exclude_user_id=current_user.id,
+    )
     db.commit()
     db.refresh(assessment)
     return _assessment_row(db, assessment.id)
@@ -353,6 +369,14 @@ def return_marks_to_draft(
         db, school_id=assessment.school_id, actor_user_id=current_user.id,
         action="assessment.marks_returned_to_draft", entity_type="assessment",
         entity_id=assessment.id, details={"title": assessment.title},
+    )
+    notify_teaching_staff(
+        db, school_id=assessment.school_id, class_subject_id=assessment.class_subject_id,
+        notification_type="assessment.marks_returned_to_draft",
+        title="Assessment returned for correction",
+        message=f'Marks for "{assessment.title}" have been returned to draft for correction.',
+        data={"assessment_id": str(assessment.id), "assessment_title": assessment.title},
+        exclude_user_id=current_user.id,
     )
     db.commit()
     db.refresh(assessment)
