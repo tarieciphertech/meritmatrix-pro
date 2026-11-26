@@ -44,7 +44,7 @@ export default function TimetablePage() {
       try { yearRow = await api.get<AcademicYear>('/api/v1/academic-years/current', { school_id: schoolId }); } catch { /* The school may not have configured its current academic year yet. */ }
       if (schoolRef.current !== schoolId || requestRef.current !== request) return;
       setSlots(slotRows); setAssignments(assignmentRows); setAcademicYear(yearRow);
-      if (yearRow) { setForm(previous => ({ ...previous, effective_from: yearRow!.start_date, effective_to: yearRow!.end_date })); setViewDate(yearRow.start_date); }
+      if (yearRow) { setForm(previous => ({ ...previous, effective_from: yearRow!.start_date, effective_to: yearRow!.end_date })); setViewDate(previous => previous === today() ? yearRow!.start_date : previous); }
     } catch (e) {
       if (schoolRef.current === schoolId && requestRef.current === request) setError(e instanceof Error ? e.message : 'Could not load timetable');
     } finally {
