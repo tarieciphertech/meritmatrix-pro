@@ -90,7 +90,7 @@ def _ensure_default_positions(db: Session, school_id: uuid.UUID) -> None:
             is_system=True, is_active=True,
         )
         allowed = (
-            {name for name in permissions if name.startswith(SCHOOL_PERMISSION_PREFIXES) and name != "schools.create"}
+            {name for name in permissions if name.startswith(SCHOOL_PERMISSION_PREFIXES) and name not in {"schools.create", "schools.update"}}
             if template == "all"
             else (set(TEMPLATE_PERMISSION_NAMES[template]) if template != "management" else
                   {name for name in permissions if name.startswith(SCHOOL_PERMISSION_PREFIXES)
@@ -158,7 +158,7 @@ def create_school_position(
         raise ConflictError("A school position with this code already exists.", code="SCHOOL_POSITION_EXISTS")
     invalid_scope = [
         name for name in payload.permission_names
-        if not name.startswith(SCHOOL_PERMISSION_PREFIXES) or name == "schools.create"
+        if not name.startswith(SCHOOL_PERMISSION_PREFIXES) or name in {"schools.create", "schools.update"}
     ]
     if invalid_scope:
         raise ConflictError(
