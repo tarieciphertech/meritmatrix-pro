@@ -157,7 +157,7 @@ def create_staff_account(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("staff.update")),
 ):
-    """Provision a login for an active staff member with the least-privilege TEACHER role."""
+    """Provision a login for an active staff member with the least-privilege SCHOOL_STAFF role."""
     service = StaffService(db)
     staff = service.get_staff(staff_id)
     _verify_school_membership(db, current_user, staff.school_id)
@@ -176,9 +176,9 @@ def create_staff_account(
     if existing_user:
         raise ConflictError("An account already uses this email. Resolve the existing account before linking it.", code="ACCOUNT_EMAIL_EXISTS")
 
-    role = db.query(Role).filter(Role.name == "TEACHER").first()
+    role = db.query(Role).filter(Role.name == "SCHOOL_STAFF").first()
     if role is None:
-        raise AppError("The TEACHER role is not configured. Run the application role/permission seed before provisioning staff accounts.", code="TEACHER_ROLE_NOT_CONFIGURED", status_code=409)
+        raise AppError("The SCHOOL_STAFF role is not configured. Apply the school-position migration before provisioning staff accounts.", code="SCHOOL_STAFF_ROLE_NOT_CONFIGURED", status_code=409)
 
     try:
         password_hash = hash_password(payload.password)
@@ -198,7 +198,7 @@ def create_staff_account(
     db.add(user)
     db.flush()
 
-    db.add(UserSchool(user_id=user.id, school_id=staff.school_id, school_role="TEACHER"))
+    db.add(UserSchool(user_id=user.id, school_id=staff.school_id, school_role="SCHOOL_STAFF"))
     staff.user_id = user.id
     record_audit_event(
         db, school_id=staff.school_id, actor_user_id=current_user.id,
