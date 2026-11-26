@@ -51,7 +51,7 @@ TEMPLATE_PERMISSION_NAMES = {
     },
     "finance": {
         "schools.read", "academic_years.read", "students.read", "enrollments.read",
-        "staff.read", "fees.read", "fees.create", "audit_logs.read",
+        "staff.read", "fees.read", "fees.charges.create", "fees.payments.create", "audit_logs.read",
     },
     "teacher": {
         "schools.read", "academic_years.read", "terms.read", "classes.read", "subjects.read",
