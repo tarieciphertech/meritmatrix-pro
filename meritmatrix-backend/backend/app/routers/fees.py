@@ -81,7 +81,7 @@ def create_charge(
     payload: FeeChargeCreate,
     school_id: uuid.UUID = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("fees.create")),
+    current_user: User = Depends(require_permission("fees.charges.create")),
 ):
     _school_access(db, current_user, school_id)
     student = db.query(Student).filter(Student.id == payload.student_id, Student.school_id == school_id, Student.is_active.is_(True)).first()
@@ -129,7 +129,7 @@ def create_payment(
     payload: FeePaymentCreate,
     school_id: uuid.UUID = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("fees.create")),
+    current_user: User = Depends(require_permission("fees.payments.create")),
 ):
     _school_access(db, current_user, school_id)
     charge = db.query(FeeCharge).filter(FeeCharge.id == payload.charge_id, FeeCharge.school_id == school_id, FeeCharge.is_void.is_(False)).with_for_update().first()
