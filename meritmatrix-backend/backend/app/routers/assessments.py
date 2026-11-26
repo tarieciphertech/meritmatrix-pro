@@ -378,6 +378,7 @@ def return_marks_to_draft(
         message=f'Marks for "{assessment.title}" have been returned to draft for correction.',
         data={"assessment_id": str(assessment.id), "assessment_title": assessment.title},
         exclude_user_id=current_user.id,
+        effective_on=assessment.assessment_date,
     )
     db.commit()
     db.refresh(assessment)
