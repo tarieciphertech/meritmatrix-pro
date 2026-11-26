@@ -62,9 +62,9 @@ export default function SchoolPositionsPage() {
     setSaving(true); setError(null); setNotice('');
     try {
       if (selectedPosition) {
-        await api.patch('/api/v1/school-positions/' + selectedPosition.id, {
+        await api.patch('/api/v1/school-positions/' + selectedPosition.id + '?school_id=' + selectedSchool.id, {
           name, description: description || null, permission_names: selectedPermissions,
-        }, { school_id: selectedSchool.id } as never);
+        });
       } else {
         await api.post('/api/v1/school-positions', {
           name, code, description: description || null, permission_names: selectedPermissions,
