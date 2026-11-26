@@ -196,7 +196,7 @@ def test_school_id_cannot_be_changed(client, make_user, auth_headers, seeded_rba
     assert staff.school_id == school_a.id
 
 def test_create_staff_login_requires_initial_password_change(client, make_user, auth_headers, seeded_rbac, db_session):
-    """Provisioning links a least-privilege teacher login with onboarding enabled."""
+    """Provisioning links a position-controlled school staff login with onboarding enabled."""
     from app.models.user import User
 
     school = School(name="Onboarding School", code="ONBOARD1", city="City", country="Country")
@@ -240,6 +240,7 @@ def test_create_staff_login_requires_initial_password_change(client, make_user, 
     account = db_session.query(User).filter(User.id == staff.user_id).one()
     assert account.must_change_password is True
     assert account.is_active is True
+    assert [role.name for role in account.roles] == ["SCHOOL_STAFF"]
 
 
 def test_teacher_ec_number_is_normalized_and_unique_across_schools(
