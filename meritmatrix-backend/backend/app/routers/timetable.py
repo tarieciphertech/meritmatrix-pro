@@ -19,6 +19,7 @@ from app.models.user import User
 from app.schemas.timetable import TimetableEntryCreate, TimetableEntryResponse
 from app.services.audit_service import record_audit_event
 from app.services.user_school_service import UserSchoolService
+from app.services.notification_service import notify_users
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/timetable", tags=["timetable"])
@@ -133,6 +134,15 @@ def create_timetable_entry(
     entry = TimetableEntry(school_id=school_id, **payload.model_dump())
     db.add(entry)
     db.flush()
+    if staff.user_id:
+        notify_users(
+            db, school_id=school_id, recipient_user_ids=[staff.user_id],
+            notification_type="timetable.lesson_scheduled",
+            title="Timetable updated",
+            message=f"You have a new {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][payload.weekday]} lesson: {pair.subject.name} · {pair.clazz.name} at {payload.start_time.strftime('%H:%M')}.",
+            data={"timetable_entry_id": str(entry.id), "weekday": payload.weekday},
+            exclude_user_id=current_user.id,
+        )
     record_audit_event(
         db, school_id=school_id, actor_user_id=current_user.id,
         action="timetable.entry_created", entity_type="timetable_entry", entity_id=entry.id,
@@ -155,6 +165,16 @@ def deactivate_timetable_entry(
     _school_access(db, current_user, entry.school_id)
     deny_linked_staff_management(db, current_user, "manage the school timetable")
     entry.is_active = False
+    staff = db.query(Staff).filter(Staff.id == entry.staff_id, Staff.school_id == entry.school_id).first()
+    if staff and staff.user_id:
+        notify_users(
+            db, school_id=entry.school_id, recipient_user_ids=[staff.user_id],
+            notification_type="timetable.lesson_removed",
+            title="Timetable lesson removed",
+            message="A lesson has been removed from your weekly timetable. Please review your schedule.",
+            data={"timetable_entry_id": str(entry.id)},
+            exclude_user_id=current_user.id,
+        )
     record_audit_event(
         db, school_id=entry.school_id, actor_user_id=current_user.id,
         action="timetable.entry_deactivated", entity_type="timetable_entry", entity_id=entry.id,

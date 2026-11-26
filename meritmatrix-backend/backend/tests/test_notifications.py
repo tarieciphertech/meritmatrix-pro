@@ -145,3 +145,185 @@ def test_user_cannot_mark_another_users_notification_as_read(
 
     assert response.status_code == 404, response.text
     assert response.json()["error"]["code"] == "NOTIFICATION_NOT_FOUND"
+
+def test_school_role_notifications_are_limited_to_matching_school_members(
+    make_user, seeded_rbac, db_session
+):
+    from app.models.user_school import UserSchool
+    from app.models.user_notification import UserNotification
+    from app.services.notification_service import notify_school_roles
+
+    school = School(name="Staff Notifications School", code="SNS001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    admin = make_user(
+        email="staff-notification-admin@example.com", password="StrongPass123",
+        role_name="SCHOOL_ADMIN",
+    )
+    teacher = make_user(
+        email="staff-notification-teacher@example.com", password="StrongPass123",
+        role_name="TEACHER",
+    )
+    unlinked_admin = make_user(
+        email="staff-notification-unlinked@example.com", password="StrongPass123",
+        role_name="SCHOOL_ADMIN",
+    )
+    db_session.add_all([
+        UserSchool(user_id=admin.id, school_id=school.id),
+        UserSchool(user_id=teacher.id, school_id=school.id),
+    ])
+    db_session.flush()
+
+    count = notify_school_roles(
+        db_session,
+        school_id=school.id,
+        role_names={"SCHOOL_ADMIN"},
+        notification_type="assessment.marks_submitted_for_review",
+        title="Marks ready for review",
+        message="An assessment is ready for review.",
+        data={"assessment_id": "assessment-1"},
+        exclude_user_id=teacher.id,
+    )
+    db_session.commit()
+
+    rows = db_session.query(UserNotification).filter(
+        UserNotification.school_id == school.id
+    ).all()
+    assert count == 1
+    assert len(rows) == 1
+    assert rows[0].recipient_user_id == admin.id
+    assert rows[0].recipient_user_id != unlinked_admin.id
+
+def test_timetable_notifications_reach_only_the_assigned_active_teacher(
+    make_user, seeded_rbac, db_session
+):
+    from datetime import date
+    from app.models.class_subject import ClassSubject
+    from app.models.clazz import Class
+    from app.models.staff import Staff
+    from app.models.subject import Subject
+    from app.models.teaching_assignment import TeachingAssignment
+    from app.models.user_notification import UserNotification
+    from app.models.user_school import UserSchool
+    from app.services.notification_service import notify_teaching_staff
+
+    school = School(name="Timetable Notification School", code="TNS001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    teacher = make_user(
+        email="timetable-notification-teacher@example.com",
+        password="StrongPass123",
+        role_name="TEACHER",
+    )
+    unassigned_teacher = make_user(
+        email="timetable-notification-other@example.com",
+        password="StrongPass123",
+        role_name="TEACHER",
+    )
+    clazz = Class(school_id=school.id, name="Form 2A", code="F2A", level=2, is_active=True)
+    subject = Subject(school_id=school.id, name="Science", code="SCI", is_active=True)
+    db_session.add_all([clazz, subject])
+    db_session.flush()
+    class_subject = ClassSubject(class_id=clazz.id, subject_id=subject.id)
+    staff = Staff(
+        school_id=school.id, staff_number="TNS-T-001", first_name="Kago",
+        last_name="Teacher", user_id=teacher.id, employment_status="active", is_active=True,
+    )
+    db_session.add_all([class_subject, staff])
+    db_session.flush()
+    db_session.add_all([
+        UserSchool(user_id=teacher.id, school_id=school.id),
+        UserSchool(user_id=unassigned_teacher.id, school_id=school.id),
+        TeachingAssignment(
+            school_id=school.id, staff_id=staff.id, class_subject_id=class_subject.id,
+            start_date=date.today(), is_active=True, is_primary=True,
+        ),
+    ])
+    db_session.flush()
+
+    count = notify_teaching_staff(
+        db_session,
+        school_id=school.id,
+        class_subject_id=class_subject.id,
+        notification_type="timetable.lesson_scheduled",
+        title="Timetable updated",
+        message="A lesson was added to your timetable.",
+        data={"class_subject_id": str(class_subject.id)},
+    )
+    db_session.commit()
+
+    rows = db_session.query(UserNotification).filter(
+        UserNotification.school_id == school.id
+    ).all()
+    assert count == 1
+    assert len(rows) == 1
+    assert rows[0].recipient_user_id == teacher.id
+    assert rows[0].recipient_user_id != unassigned_teacher.id
+
+def test_calendar_approval_notifies_only_members_of_the_affected_school(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    from app.models.user_school import UserSchool
+
+    school = School(name="Calendar Notice School", code="CNS001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    admin = make_user(
+        email="calendar-notice-admin@example.com",
+        password="StrongPass123",
+        role_name="SUPER_ADMIN",
+    )
+    teacher = make_user(
+        email="calendar-notice-teacher@example.com",
+        password="StrongPass123",
+        role_name="TEACHER",
+    )
+    unrelated_teacher = make_user(
+        email="calendar-notice-unrelated@example.com",
+        password="StrongPass123",
+        role_name="TEACHER",
+    )
+    db_session.add_all([
+        UserSchool(user_id=admin.id, school_id=school.id),
+        UserSchool(user_id=teacher.id, school_id=school.id),
+    ])
+    db_session.commit()
+
+    admin_headers = auth_headers("calendar-notice-admin@example.com", "StrongPass123")
+    teacher_headers = auth_headers("calendar-notice-teacher@example.com", "StrongPass123")
+    unrelated_headers = auth_headers("calendar-notice-unrelated@example.com", "StrongPass123")
+    event = client.post(
+        f"/api/v1/calendar-events?school_id={school.id}",
+        headers=admin_headers,
+        json={
+            "title": "School Open Day",
+            "event_type": "school_event",
+            "start_date": "2026-12-05",
+            "end_date": "2026-12-05",
+        },
+    )
+    assert event.status_code == 201, event.text
+
+    approved = client.patch(
+        f"/api/v1/calendar-events/{event.json()['id']}",
+        headers=admin_headers,
+        json={"is_approved": True},
+    )
+    assert approved.status_code == 200, approved.text
+
+    inbox = client.get(
+        f"/api/v1/notifications?school_id={school.id}",
+        headers=teacher_headers,
+    )
+    assert inbox.status_code == 200, inbox.text
+    assert len(inbox.json()) == 1
+    assert inbox.json()[0]["notification_type"] == "calendar.event_approved"
+    assert inbox.json()[0]["data"]["calendar_event_id"] == event.json()["id"]
+
+    unrelated_inbox = client.get(
+        f"/api/v1/notifications?school_id={school.id}",
+        headers=unrelated_headers,
+    )
+    assert unrelated_inbox.status_code == 200
+    assert unrelated_inbox.json() == []
+
