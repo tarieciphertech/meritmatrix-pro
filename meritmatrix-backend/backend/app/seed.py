@@ -101,6 +101,7 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
 
 DEFAULT_ROLES: dict[str, str] = {
     "SUPER_ADMIN": "Complete platform access",
+    "SCHOOL_STAFF": "School employee whose access is determined by assigned school positions",
     "SCHOOL_ADMIN": "Manages a single school's students, staff, and academic data",
     "TEACHER": "Manages assigned classes, subjects, and marks",
     "PARENT": "Views linked children's academic records",
@@ -111,6 +112,7 @@ DEFAULT_ROLES: dict[str, str] = {
 # Additional domain permissions (students, classes, results, etc.) are added
 # in later milestones alongside those domains.
 ROLE_PERMISSIONS: dict[str, list[str]] = {
+    "SCHOOL_STAFF": [],
     "SUPER_ADMIN": list(DEFAULT_PERMISSIONS.keys()),
     # SCHOOL_ADMIN manages a single school's people and academic data.
     # Platform-level operations (schools.create/update, roles management,
