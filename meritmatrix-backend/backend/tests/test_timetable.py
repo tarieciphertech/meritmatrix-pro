@@ -202,7 +202,7 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
         },
     )
     assert overlap.status_code == 409, overlap.text
-    assert overlap.json()["error"]["code"] == "TIMETABLE_SLOT_CONFLICT"
+    assert overlap.json()["error"]["code"] == "TIMETABLE_TEACHER_CONFLICT"
 
     class_clash = client.post(
         "/api/v1/timetable", headers=admin_headers, params=params,
