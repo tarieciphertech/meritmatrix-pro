@@ -278,6 +278,7 @@ def update_assessment(
             message=f'Results for "{assessment.title}" have been published.',
             data={"assessment_id": str(assessment.id), "assessment_title": assessment.title},
             exclude_user_id=current_user.id,
+            effective_on=assessment.assessment_date,
         )
     db.commit()
     db.refresh(assessment)
