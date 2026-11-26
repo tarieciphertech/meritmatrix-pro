@@ -29,7 +29,7 @@ POSITION_TEMPLATES = [
         "terms.read", "terms.create", "terms.update",
         "classes.read", "classes.create", "classes.update",
         "subjects.read", "subjects.create", "subjects.update",
-        "class_subjects.read", "class_subjects.create", "class_subjects.delete",
+        "class_subjects.read", "class_subjects.create", "class_subjects.update", "class_subjects.delete",
         "students.read", "students.create", "students.update", "students.delete",
         "guardians.read", "guardians.create", "guardians.update", "guardians.delete",
         "student_guardians.read", "student_guardians.create", "student_guardians.delete",
@@ -37,7 +37,7 @@ POSITION_TEMPLATES = [
         "enrollments.read", "enrollments.create", "enrollments.update",
         "attendance.read", "attendance.create",
         "assessments.read", "assessments.create", "assessments.update",
-        "fees.read", "fees.create", "audit_logs.read",
+        "fees.read", "fees.charges.create", "fees.payments.create", "audit_logs.read",
     ]),
     ("DEPUTY_HEAD", "Deputy Head", "School operations and academic oversight", [
         "schools.read", "schools.configure",
@@ -60,7 +60,7 @@ POSITION_TEMPLATES = [
         "guardians.read", "guardians.create", "guardians.update",
         "student_guardians.read", "student_guardians.create",
         "staff.read", "enrollments.read", "enrollments.create", "enrollments.update",
-        "attendance.read", "fees.read", "fees.create",
+        "attendance.read", "fees.read", "fees.payments.create",
     ]),
     ("BURSAR", "Bursar", "Financial records, fees, payments and financial oversight", [
         "schools.read", "academic_years.read", "students.read", "enrollments.read",
