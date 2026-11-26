@@ -76,6 +76,52 @@ def _role_names(user: User) -> Set[str]:
     return {role.name for role in user.roles}
 
 
+def _school_position_permission_names(db: Session, user: User, request: Request) -> Set[str]:
+    """Resolve permissions from every active position held by this user in the request school."""
+    from app.models.associations import school_position_permissions
+    from app.models.permission import Permission
+    from app.models.school_position import SchoolPosition, StaffPosition
+    from app.models.staff import Staff
+    from app.models.timetable_entry import TimetableEntry
+    from app.models.user_school import UserSchool
+
+    school_id = request.query_params.get("school_id") or request.path_params.get("school_id")
+    staff_id = request.path_params.get("staff_id")
+    if not school_id and staff_id:
+        staff = db.query(Staff).filter(Staff.id == staff_id, Staff.user_id == user.id).first()
+        if staff:
+            school_id = str(staff.school_id)
+    entry_id = request.path_params.get("entry_id")
+    if not school_id and entry_id:
+        entry = db.query(TimetableEntry).filter(TimetableEntry.id == entry_id).first()
+        if entry:
+            school_id = str(entry.school_id)
+    if not school_id:
+        memberships = db.query(UserSchool.school_id).filter(UserSchool.user_id == user.id).all()
+        if len(memberships) == 1:
+            school_id = str(memberships[0][0])
+    if not school_id:
+        return set()
+
+    staff = db.query(Staff).filter(
+        Staff.user_id == user.id, Staff.school_id == school_id,
+        Staff.is_active.is_(True), Staff.employment_status == "active",
+    ).first()
+    if not staff:
+        return set()
+    rows = (
+        db.query(Permission.name)
+        .join(school_position_permissions, school_position_permissions.c.permission_id == Permission.id)
+        .join(SchoolPosition, SchoolPosition.id == school_position_permissions.c.position_id)
+        .join(StaffPosition, StaffPosition.position_id == SchoolPosition.id)
+        .filter(
+            StaffPosition.staff_id == staff.id, StaffPosition.is_active.is_(True),
+            SchoolPosition.school_id == school_id, SchoolPosition.is_active.is_(True),
+        ).all()
+    )
+    return {row[0] for row in rows}
+
+
 def require_permission(permission_name: str) -> Callable[..., User]:
     """Dependency factory: require the resolved user to hold a specific permission.
 
@@ -83,9 +129,14 @@ def require_permission(permission_name: str) -> Callable[..., User]:
     permission check.
     """
 
-    def dependency(current_user: User = Depends(get_current_active_user)) -> User:
+    def dependency(
+        request: Request,
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db),
+    ) -> User:
         held = _permission_names(current_user)
-        if SYSTEM_ADMIN_PERMISSION in held or permission_name in held:
+        school_held = _school_position_permission_names(db, current_user, request)
+        if SYSTEM_ADMIN_PERMISSION in held or permission_name in held or permission_name in school_held:
             return current_user
         raise ForbiddenError(
             "You do not have permission to perform this action.",

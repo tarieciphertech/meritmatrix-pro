@@ -28,3 +28,10 @@ role_permissions = Table(
         primary_key=True,
     ),
 )
+
+school_position_permissions = Table(
+    "school_position_permissions",
+    Base.metadata,
+    Column("position_id", GUID(), ForeignKey("school_positions.id", ondelete="CASCADE"), primary_key=True),
+    Column("permission_id", GUID(), ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True),
+)

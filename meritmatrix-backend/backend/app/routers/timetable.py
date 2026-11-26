@@ -1,6 +1,6 @@
 """School-scoped weekly timetable management and teacher schedule access."""
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.auth.assignment_access import deny_linked_staff_management, require_staff_school_scope
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
 from app.database import get_db
+from app.models.academic_year import AcademicYear
+from app.models.school import School
 from app.models.class_subject import ClassSubject
 from app.models.clazz import Class
 from app.models.staff import Staff
@@ -48,7 +50,7 @@ def _response(row):
         "class_subject_id": entry.class_subject_id, "weekday": entry.weekday,
         "start_time": entry.start_time, "end_time": entry.end_time, "room": entry.room,
         "effective_from": entry.effective_from, "effective_to": entry.effective_to,
-        "is_active": entry.is_active, "teacher_name": f"{staff.first_name} {staff.last_name}".strip(),
+        "is_active": entry.is_active, "academic_year_id": entry.academic_year_id, "is_published": entry.is_published, "teacher_name": f"{staff.first_name} {staff.last_name}".strip(),
         "class_name": clazz.name, "class_code": clazz.code, "subject_name": subject.name,
         "subject_code": subject.code, "created_at": entry.created_at, "updated_at": entry.updated_at,
     }
@@ -110,6 +112,26 @@ def create_timetable_entry(
     )
     if not staff or not pair:
         raise NotFoundError("Choose active staff and a class-subject pair from the selected school.", code="TIMETABLE_TARGET_NOT_FOUND")
+    # Serialize schedule writes per school so concurrent administrators cannot
+    # pass the same availability check and insert conflicting lessons.
+    db.query(School).filter(School.id == school_id).with_for_update().first()
+    academic_year = db.query(AcademicYear).filter(
+        AcademicYear.school_id == school_id, AcademicYear.is_active.is_(True),
+        AcademicYear.start_date <= payload.effective_from,
+        AcademicYear.end_date >= payload.effective_from,
+    ).order_by(AcademicYear.is_current.desc()).first()
+    if not academic_year:
+        raise ConflictError("Create and activate the school's academic year before building its annual master timetable.", code="CURRENT_ACADEMIC_YEAR_REQUIRED")
+    if payload.effective_from != academic_year.start_date or (payload.effective_to and payload.effective_to != academic_year.end_date):
+        raise ConflictError("Annual master timetable lessons must cover the full academic year. The dates are taken from Academic Setup.", code="TIMETABLE_MUST_MATCH_ACADEMIC_YEAR")
+    if academic_year:
+        already_published = db.query(TimetableEntry.id).filter(
+            TimetableEntry.school_id == school_id,
+            TimetableEntry.academic_year_id == academic_year.id,
+            TimetableEntry.is_active.is_(True), TimetableEntry.is_published.is_(True),
+        ).first()
+        if already_published:
+            raise ConflictError("The annual master timetable is published. Reopen it for an authorized amendment before changing lessons.", code="TIMETABLE_PUBLISHED")
     assignment = db.query(TeachingAssignment).filter(
         TeachingAssignment.school_id == school_id, TeachingAssignment.staff_id == staff.id,
         TeachingAssignment.class_subject_id == pair.id, TeachingAssignment.is_active.is_(True),
@@ -118,19 +140,31 @@ def create_timetable_entry(
     ).first()
     if not assignment:
         raise ConflictError("The teacher must have an active teaching assignment for this class and subject on the schedule start date.", code="TEACHING_ASSIGNMENT_REQUIRED")
-    overlap_query = db.query(TimetableEntry).filter(
+    conflicts = db.query(TimetableEntry, ClassSubject).join(
+        ClassSubject, ClassSubject.id == TimetableEntry.class_subject_id
+    ).filter(
         TimetableEntry.school_id == school_id, TimetableEntry.is_active.is_(True),
         TimetableEntry.weekday == payload.weekday,
         TimetableEntry.start_time < payload.end_time, TimetableEntry.end_time > payload.start_time,
         (TimetableEntry.effective_to.is_(None) | (TimetableEntry.effective_to >= payload.effective_from)),
-        ((TimetableEntry.staff_id == staff.id) | (TimetableEntry.class_subject_id == pair.id)),
+        ((TimetableEntry.effective_from <= payload.effective_to) if payload.effective_to else True),
+    ).all()
+    for existing, existing_pair in conflicts:
+        same_date_window = not payload.effective_to or existing.effective_from <= payload.effective_to
+        if not same_date_window:
+            continue
+        if existing.staff_id == staff.id:
+            raise ConflictError("This teacher already has a lesson during the selected time.", code="TIMETABLE_TEACHER_CONFLICT")
+        if existing_pair.class_id == pair.class_id:
+            raise ConflictError("This class already has another subject scheduled during the selected time.", code="TIMETABLE_CLASS_CONFLICT")
+        if payload.room and existing.room and payload.room.strip().casefold() == existing.room.strip().casefold():
+            raise ConflictError("This room is already allocated to another lesson during the selected time.", code="TIMETABLE_ROOM_CONFLICT")
+    entry_data = payload.model_dump()
+    entry_data["effective_to"] = academic_year.end_date
+    entry = TimetableEntry(
+        school_id=school_id, academic_year_id=academic_year.id,
+        **entry_data,
     )
-    if payload.effective_to:
-        overlap_query = overlap_query.filter(TimetableEntry.effective_from <= payload.effective_to)
-    overlap = overlap_query.first()
-    if overlap:
-        raise ConflictError("This time overlaps another lesson for the same teacher or class-subject.", code="TIMETABLE_SLOT_CONFLICT")
-    entry = TimetableEntry(school_id=school_id, **payload.model_dump())
     db.add(entry)
     db.flush()
     record_audit_event(
@@ -154,6 +188,8 @@ def deactivate_timetable_entry(
         raise NotFoundError("Timetable entry not found.", code="TIMETABLE_ENTRY_NOT_FOUND")
     _school_access(db, current_user, entry.school_id)
     deny_linked_staff_management(db, current_user, "manage the school timetable")
+    if entry.is_published:
+        raise ConflictError("Published annual timetable lessons cannot be removed directly. Reopen the master timetable first.", code="TIMETABLE_PUBLISHED")
     entry.is_active = False
     record_audit_event(
         db, school_id=entry.school_id, actor_user_id=current_user.id,
@@ -161,3 +197,95 @@ def deactivate_timetable_entry(
         details={"staff_id": str(entry.staff_id), "class_subject_id": str(entry.class_subject_id)},
     )
     db.commit()
+
+
+@router.post("/publish/{academic_year_id}", status_code=200)
+def publish_annual_master_timetable(
+    academic_year_id: uuid.UUID,
+    school_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("class_subjects.update")),
+):
+    """Lock and publish the school's single recurring timetable for an academic year."""
+    _school_access(db, current_user, school_id)
+    deny_linked_staff_management(db, current_user, "publish the annual master timetable")
+    db.query(School).filter(School.id == school_id).with_for_update().first()
+    year = db.query(AcademicYear).filter(
+        AcademicYear.id == academic_year_id, AcademicYear.school_id == school_id,
+        AcademicYear.is_active.is_(True),
+    ).first()
+    if not year:
+        raise NotFoundError("Academic year not found for this school.", code="ACADEMIC_YEAR_NOT_FOUND")
+    entries = db.query(TimetableEntry).filter(
+        TimetableEntry.school_id == school_id, TimetableEntry.academic_year_id == year.id,
+        TimetableEntry.is_active.is_(True),
+    ).all()
+    if not entries:
+        raise ConflictError("Add lessons to the annual master timetable before publishing it.", code="EMPTY_MASTER_TIMETABLE")
+    pair_ids = {entry.class_subject_id for entry in entries}
+    pairs = {
+        pair.id: pair
+        for pair in db.query(ClassSubject).filter(ClassSubject.id.in_(pair_ids)).all()
+    }
+    for index, entry in enumerate(entries):
+        if entry.effective_from < year.start_date or (entry.effective_to and entry.effective_to > year.end_date):
+            raise ConflictError("Every lesson must fall within the academic year.", code="TIMETABLE_OUTSIDE_ACADEMIC_YEAR")
+        for other in entries[index + 1:]:
+            if entry.weekday != other.weekday:
+                continue
+            if entry.start_time >= other.end_time or entry.end_time <= other.start_time:
+                continue
+            entry_end = entry.effective_to or year.end_date
+            other_end = other.effective_to or year.end_date
+            if entry_end < other.effective_from or other_end < entry.effective_from:
+                continue
+            if entry.staff_id == other.staff_id:
+                raise ConflictError("The annual timetable contains a teacher clash.", code="TIMETABLE_TEACHER_CONFLICT")
+            entry_pair, other_pair = pairs.get(entry.class_subject_id), pairs.get(other.class_subject_id)
+            if entry_pair and other_pair and entry_pair.class_id == other_pair.class_id:
+                raise ConflictError("The annual timetable contains a class clash.", code="TIMETABLE_CLASS_CONFLICT")
+            if entry.room and other.room and entry.room.strip().casefold() == other.room.strip().casefold():
+                raise ConflictError("The annual timetable contains a room clash.", code="TIMETABLE_ROOM_CONFLICT")
+    now = datetime.now(timezone.utc)
+    for entry in entries:
+        entry.is_published = True
+        entry.published_at = now
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="timetable.annual_master_published", entity_type="academic_year",
+        entity_id=year.id, details={"academic_year": year.name, "lesson_count": len(entries)},
+    )
+    db.commit()
+    return {"academic_year_id": str(year.id), "academic_year": year.name, "published": True, "lesson_count": len(entries)}
+
+
+@router.post("/reopen/{academic_year_id}", status_code=200)
+def reopen_annual_master_timetable(
+    academic_year_id: uuid.UUID,
+    school_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("class_subjects.update")),
+):
+    """Temporarily unlock the annual master timetable for an audited amendment."""
+    _school_access(db, current_user, school_id)
+    deny_linked_staff_management(db, current_user, "reopen the annual master timetable")
+    db.query(School).filter(School.id == school_id).with_for_update().first()
+    year = db.query(AcademicYear).filter(
+        AcademicYear.id == academic_year_id, AcademicYear.school_id == school_id,
+    ).first()
+    if not year:
+        raise NotFoundError("Academic year not found for this school.", code="ACADEMIC_YEAR_NOT_FOUND")
+    entries = db.query(TimetableEntry).filter(
+        TimetableEntry.school_id == school_id, TimetableEntry.academic_year_id == year.id,
+        TimetableEntry.is_active.is_(True), TimetableEntry.is_published.is_(True),
+    ).all()
+    for entry in entries:
+        entry.is_published = False
+        entry.published_at = None
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="timetable.annual_master_reopened", entity_type="academic_year",
+        entity_id=year.id, details={"academic_year": year.name, "lesson_count": len(entries)},
+    )
+    db.commit()
+    return {"academic_year_id": str(year.id), "academic_year": year.name, "published": False, "lesson_count": len(entries)}

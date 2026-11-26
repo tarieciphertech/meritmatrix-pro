@@ -93,7 +93,9 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
     "assessments.create": "Create assessments and record marks",
     "assessments.update": "Update assessments and publish results",
     "fees.read": "View fee charges, payments and balances",
-    "fees.create": "Create fee charges and record payments",
+    "fees.create": "Legacy fee creation permission",
+    "fees.charges.create": "Create student fee charges",
+    "fees.payments.create": "Record fee payments against existing charges",
     "audit_logs.read": "View school-scoped audit history",
     # System
     "system.admin": "Full platform administrative access (implies all other permissions)",
@@ -101,6 +103,7 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
 
 DEFAULT_ROLES: dict[str, str] = {
     "SUPER_ADMIN": "Complete platform access",
+    "SCHOOL_STAFF": "School employee whose access is determined by assigned school positions",
     "SCHOOL_ADMIN": "Manages a single school's students, staff, and academic data",
     "TEACHER": "Manages assigned classes, subjects, and marks",
     "PARENT": "Views linked children's academic records",
@@ -111,6 +114,7 @@ DEFAULT_ROLES: dict[str, str] = {
 # Additional domain permissions (students, classes, results, etc.) are added
 # in later milestones alongside those domains.
 ROLE_PERMISSIONS: dict[str, list[str]] = {
+    "SCHOOL_STAFF": [],
     "SUPER_ADMIN": list(DEFAULT_PERMISSIONS.keys()),
     # SCHOOL_ADMIN manages a single school's people and academic data.
     # Platform-level operations (schools.create/update, roles management,
@@ -131,7 +135,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "enrollments.read", "enrollments.create", "enrollments.update",
         "attendance.read", "attendance.create",
         "assessments.read", "assessments.create", "assessments.update",
-        "fees.read", "fees.create", "audit_logs.read",
+        "fees.read", "fees.create", "fees.charges.create", "fees.payments.create", "audit_logs.read",
     ],
     "TEACHER": [
         "schools.read", "academic_years.read", "terms.read", "classes.read",

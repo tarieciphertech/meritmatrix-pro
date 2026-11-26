@@ -1,16 +1,25 @@
 // Authenticated application shell: role-aware sidebar navigation and school selector.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useSchool } from '../lib/school-context';
+import { api } from '../lib/api';
 import { Select } from '../components/ui';
 
+const navPermission: Record<string, string> = {
+  '/schools': 'schools.read', '/school-configuration': 'schools.configure',
+  '/teaching-assignments': 'class_subjects.read', '/timetable': 'class_subjects.read',
+  '/attendance': 'attendance.read', '/students': 'students.read', '/guardians': 'guardians.read',
+  '/staff': 'staff.read', '/school-positions': 'staff.update', '/enrollments': 'enrollments.read', '/academic-setup': 'classes.read',
+  '/assessments': 'assessments.read', '/fees': 'fees.read', '/report-cards': 'assessments.read',
+  '/audit-logs': 'audit_logs.read',
+};
 const navItems = [
   {to:'/',label:'Dashboard',end:true},{to:'/schools',label:'Schools'},
   {to:'/school-configuration',label:'School Configuration'},{to:'/school-calendar',label:'School Calendar'},
   {to:'/teaching-assignments',label:'Teaching Assignments'},{to:'/timetable',label:'My Timetable'},
   {to:'/attendance',label:'Attendance'},{to:'/students',label:'Students'},{to:'/guardians',label:'Guardians'},
-  {to:'/guardian-portal',label:'Guardian Portal'},{to:'/staff',label:'Staff'},{to:'/enrollments',label:'Enrollments'},
+  {to:'/guardian-portal',label:'Guardian Portal'},{to:'/staff',label:'Staff'},{to:'/school-positions',label:'School Positions'},{to:'/enrollments',label:'Enrollments'},
   {to:'/academic-setup',label:'Academic Setup'},{to:'/assessments',label:'Assessments & Results'},
   {to:'/fees',label:'Fees & Payments'},{to:'/report-cards',label:'Report Cards'},{to:'/audit-logs',label:'Audit History'},
 ];
@@ -20,8 +29,18 @@ export default function AppLayout(){
   const isSuperAdmin=(user?.roles??[]).some(r=>r.name==='SUPER_ADMIN');const isTeacher=(user?.roles??[]).some(r=>r.name==='TEACHER');
   const isAuditAdmin=(user?.roles??[]).some(r=>['SUPER_ADMIN','SCHOOL_ADMIN'].includes(r.name));
   const {schools,selectedSchool,selectSchool}=useSchool();const navigate=useNavigate();const [mobileOpen,setMobileOpen]=useState(false);
+  const isSchoolStaff=(user?.roles??[]).some(r=>r.name==='SCHOOL_STAFF');
+  const [positionPermissions,setPositionPermissions]=useState<string[]>([]);
+  useEffect(()=>{
+    if(!isSchoolStaff||!selectedSchool){setPositionPermissions([]);return;}
+    let active=true;
+    api.get<{position_codes:string[];permission_names:string[]}>('/api/v1/school-positions/me',{school_id:selectedSchool.id})
+      .then(result=>{if(active)setPositionPermissions(result.permission_names);})
+      .catch(()=>{if(active)setPositionPermissions([]);});
+    return ()=>{active=false;};
+  },[isSchoolStaff,selectedSchool?.id]);
   async function handleLogout(){await logout();navigate('/login');}
-  const allowed=isGuardian?navItems.filter(i=>i.to==='/guardian-portal'):isTeacher?navItems.filter(i=>['/','/students','/attendance','/assessments','/report-cards','/timetable'].includes(i.to)):navItems.filter(i=>i.to!=='/audit-logs'||isAuditAdmin);
+  const allowed=isGuardian?navItems.filter(i=>i.to==='/guardian-portal'):isSchoolStaff?navItems.filter(i=>i.to==='/'||positionPermissions.includes(navPermission[i.to]??'')):isTeacher?navItems.filter(i=>['/','/students','/attendance','/assessments','/report-cards','/timetable'].includes(i.to)):navItems.filter(i=>i.to!=='/audit-logs'||isAuditAdmin);
   const sidebar=<nav aria-label="Main navigation" className="min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-1 px-3 py-4">{allowed.map(item=><NavLink key={item.to} to={item.to} end={item.end} className={navClasses} onClick={()=>setMobileOpen(false)}>{item.label}</NavLink>)}</nav>;
   return <div className="min-h-screen bg-slate-50/85 backdrop-blur-sm lg:bg-slate-50/75">
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white/92 backdrop-blur-md lg:flex"><div className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 px-4"><div className="flex h-8 w-8 items-center justify-center rounded-md bg-indigo-600 text-sm font-bold text-white">M</div><span className="text-sm font-semibold text-slate-900">MeritMatrix Pro</span></div>{sidebar}</aside>

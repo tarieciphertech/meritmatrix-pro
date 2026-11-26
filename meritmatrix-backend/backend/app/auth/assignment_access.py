@@ -27,6 +27,26 @@ def _is_teacher(user: User) -> bool:
     return any(role.name == "TEACHER" for role in getattr(user, "roles", []))
 
 
+def _teacher_assignment_scoped(db: Session, user: User, staff: Staff) -> bool:
+    """Only a staff member holding the Teacher position alone is assignment-scoped."""
+    roles = {role.name for role in getattr(user, "roles", [])}
+    # Legacy teacher accounts in helper-level integrations may not expose role
+    # relationships; retain their existing assignment-scoped behaviour.
+    if not roles:
+        return True
+    if "TEACHER" not in roles:
+        return False
+    from app.models.school_position import SchoolPosition, StaffPosition
+    positions = db.query(SchoolPosition.code).join(
+        StaffPosition, StaffPosition.position_id == SchoolPosition.id
+    ).filter(
+        StaffPosition.staff_id == staff.id, StaffPosition.is_active.is_(True),
+        SchoolPosition.is_active.is_(True),
+    ).all()
+    codes = {row[0] for row in positions}
+    return not codes or codes == {"TEACHER"}
+
+
 def require_teacher_employment_profile(db: Session, user: User) -> None:
     """Fail closed when a teacher login is not linked to active school employment."""
     if SYSTEM_ADMIN_PERMISSION in _permission_names(user) or not _is_teacher(user):
@@ -89,6 +109,8 @@ def assigned_class_ids(
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if staff is None:
         return set() if _is_teacher(user) else None
+    if not _teacher_assignment_scoped(db, user, staff):
+        return None  # Other assigned positions combine with teacher access.
     if not staff.is_active or staff.employment_status != "active" or staff.school_id != school_id:
         return set()
 
@@ -177,6 +199,8 @@ def assigned_class_subject_ids(
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if staff is None:
         return set() if _is_teacher(user) else None
+    if not _teacher_assignment_scoped(db, user, staff):
+        return None  # Other assigned positions combine with teacher access.
     if not staff.is_active or staff.employment_status != "active" or staff.school_id != school_id:
         return set()
 
@@ -234,6 +258,15 @@ def deny_linked_staff_management(
         return
     linked_staff = db.query(Staff.id).filter(Staff.user_id == user.id).first()
     if linked_staff is not None:
+        from app.models.school_position import StaffPosition, SchoolPosition
+        has_school_position = db.query(StaffPosition.id).join(
+            SchoolPosition, SchoolPosition.id == StaffPosition.position_id
+        ).filter(
+            StaffPosition.staff_id == linked_staff[0], StaffPosition.is_active.is_(True),
+            SchoolPosition.is_active.is_(True),
+        ).first()
+        if has_school_position:
+            return  # Fine-grained school-position permissions are enforced by require_permission.
         raise ForbiddenError(
             f"Staff-linked accounts cannot {action}. Use the authorized school administration workflow.",
             code="STAFF_MANAGEMENT_RESTRICTED",
