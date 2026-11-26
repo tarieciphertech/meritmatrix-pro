@@ -13,7 +13,7 @@ from app.models.school_position import SchoolPosition, StaffPosition
 from app.models.role import Role
 from app.models.staff import Staff
 from app.models.user import User
-from app.schemas.school_position import SchoolPositionCreate, SchoolPositionResponse, SchoolPositionUpdate, StaffPositionsUpdate
+from app.schemas.school_position import SchoolPositionCreate, SchoolPositionResponse, SchoolPositionUpdate, StaffPositionResponse, StaffPositionsUpdate
 from app.services.audit_service import record_audit_event
 from app.services.user_school_service import UserSchoolService
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
