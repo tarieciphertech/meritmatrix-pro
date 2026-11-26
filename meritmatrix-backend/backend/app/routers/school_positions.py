@@ -94,11 +94,11 @@ def _ensure_default_positions(db: Session, school_id: uuid.UUID) -> None:
             if template == "all"
             else (set(TEMPLATE_PERMISSION_NAMES[template]) if template != "management" else
                   {name for name in permissions if name.startswith(SCHOOL_PERMISSION_PREFIXES)
-                   and name not in {"staff.delete", "students.delete", "guardians.delete", "class_subjects.delete"}})
+                   and name not in {"schools.update", "staff.delete", "students.delete", "guardians.delete", "class_subjects.delete"}})
         )
         if template == "management":
             allowed = {name for name in permissions if name.startswith(SCHOOL_PERMISSION_PREFIXES)
-                       and name not in {"staff.delete", "students.delete", "guardians.delete", "class_subjects.delete"}}
+                       and name not in {"schools.update", "staff.delete", "students.delete", "guardians.delete", "class_subjects.delete"}}
         position.permissions = [permissions[name] for name in allowed if name in permissions]
         db.add(position)
     db.flush()
