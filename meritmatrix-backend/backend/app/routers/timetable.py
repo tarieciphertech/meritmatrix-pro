@@ -118,18 +118,51 @@ def create_timetable_entry(
     ).first()
     if not assignment:
         raise ConflictError("The teacher must have an active teaching assignment for this class and subject on the schedule start date.", code="TEACHING_ASSIGNMENT_REQUIRED")
-    overlap_query = db.query(TimetableEntry).filter(
-        TimetableEntry.school_id == school_id, TimetableEntry.is_active.is_(True),
-        TimetableEntry.weekday == payload.weekday,
-        TimetableEntry.start_time < payload.end_time, TimetableEntry.end_time > payload.start_time,
-        (TimetableEntry.effective_to.is_(None) | (TimetableEntry.effective_to >= payload.effective_from)),
-        ((TimetableEntry.staff_id == staff.id) | (TimetableEntry.class_subject_id == pair.id)),
+    # Serialize timetable writes for this school so two administrators cannot
+    # both pass validation against the same stale schedule.
+    from app.models.school import School
+    db.query(School).filter(School.id == school_id).with_for_update().first()
+
+    # A recurring slot reserves the teacher, the entire class, and (when set)
+    # the room. Checking class_id rather than class_subject_id prevents a class
+    # from being assigned two different subjects at the same time.
+    from sqlalchemy import func
+    resource_conflict = (
+        (TimetableEntry.staff_id == staff.id)
+        | (ClassSubject.class_id == pair.class_id)
+    )
+    if payload.room and payload.room.strip():
+        resource_conflict = resource_conflict | (
+            TimetableEntry.room.is_not(None)
+            & (func.lower(func.trim(TimetableEntry.room)) == payload.room.strip().lower())
+        )
+    overlap_query = (
+        db.query(TimetableEntry)
+        .join(ClassSubject, ClassSubject.id == TimetableEntry.class_subject_id)
+        .filter(
+            TimetableEntry.school_id == school_id,
+            TimetableEntry.is_active.is_(True),
+            TimetableEntry.weekday == payload.weekday,
+            TimetableEntry.start_time < payload.end_time,
+            TimetableEntry.end_time > payload.start_time,
+            (TimetableEntry.effective_to.is_(None) | (TimetableEntry.effective_to >= payload.effective_from)),
+            resource_conflict,
+        )
     )
     if payload.effective_to:
         overlap_query = overlap_query.filter(TimetableEntry.effective_from <= payload.effective_to)
+    else:
+        overlap_query = overlap_query.filter(TimetableEntry.effective_from <= payload.effective_from)
     overlap = overlap_query.first()
     if overlap:
-        raise ConflictError("This time overlaps another lesson for the same teacher or class-subject.", code="TIMETABLE_SLOT_CONFLICT")
+        conflict_pair = db.query(ClassSubject).filter(ClassSubject.id == overlap.class_subject_id).first()
+        if overlap.staff_id == staff.id:
+            reason = "The selected teacher already has a lesson during this period."
+        elif conflict_pair and conflict_pair.class_id == pair.class_id:
+            reason = "This class already has another lesson during this period."
+        else:
+            reason = "The selected room is already allocated during this period."
+        raise ConflictError(reason, code="TIMETABLE_SLOT_CONFLICT")
     entry = TimetableEntry(school_id=school_id, **payload.model_dump())
     db.add(entry)
     db.flush()
