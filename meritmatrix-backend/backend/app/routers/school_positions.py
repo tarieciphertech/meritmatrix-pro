@@ -160,7 +160,7 @@ def create_school_position(
         raise ConflictError("A school position with this code already exists.", code="SCHOOL_POSITION_EXISTS")
     invalid_scope = [
         name for name in payload.permission_names
-        if not name.startswith(SCHOOL_PERMISSION_PREFIXES) or name in {"schools.create", "schools.update"}
+        if not name.startswith(SCHOOL_PERMISSION_PREFIXES) or name in {"schools.create", "schools.update", "fees.create"}
     ]
     if invalid_scope:
         raise ConflictError(
@@ -199,7 +199,7 @@ def list_school_permission_catalog(
     return [
         {"name": row.name, "description": row.description}
         for row in rows
-        if row.name.startswith(SCHOOL_PERMISSION_PREFIXES) and row.name != "schools.create"
+        if row.name.startswith(SCHOOL_PERMISSION_PREFIXES) and row.name not in {"schools.create", "schools.update", "fees.create"}
     ]
 
 
