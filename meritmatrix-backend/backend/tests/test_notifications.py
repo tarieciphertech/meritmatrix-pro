@@ -260,3 +260,62 @@ def test_timetable_notifications_reach_only_the_assigned_active_teacher(
     assert rows[0].recipient_user_id == teacher.id
     assert rows[0].recipient_user_id != unassigned_teacher.id
 
+def test_calendar_approval_notifies_only_members_of_the_affected_school(
+    client, make_user, auth_headers, seeded_rbac, db_session
+):
+    from app.models.user_school import UserSchool
+
+    school = School(name="Calendar Notice School", code="CNS001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    admin = make_user(
+        email="calendar-notice-admin@example.com",
+        password="StrongPass123",
+        role_name="SUPER_ADMIN",
+    )
+    teacher = make_user(
+        email="calendar-notice-teacher@example.com",
+        password="StrongPass123",
+        role_name="TEACHER",
+    )
+    unrelated_teacher = make_user(
+        email="calendar-notice-unrelated@example.com",
+        password="StrongPass123",
+        role_name="TEACHER",
+    )
+    db_session.add_all([
+        UserSchool(user_id=admin.id, school_id=school.id),
+        UserSchool(user_id=teacher.id, school_id=school.id),
+    ])
+    db_session.commit()
+
+    admin_headers = auth_headers("calendar-notice-admin@example.com", "StrongPass123")
+    teacher_headers = auth_headers("calendar-notice-teacher@example.com", "StrongPass123")
+    event = client.post(
+        f"/api/v1/calendar-events?school_id={school.id}",
+        headers=admin_headers,
+        json={
+            "title": "School Open Day",
+            "event_type": "school_event",
+            "start_date": "2026-12-05",
+            "end_date": "2026-12-05",
+        },
+    )
+    assert event.status_code == 201, event.text
+
+    approved = client.patch(
+        f"/api/v1/calendar-events/{event.json()['id']}",
+        headers=admin_headers,
+        json={"is_approved": True},
+    )
+    assert approved.status_code == 200, approved.text
+
+    inbox = client.get(
+        f"/api/v1/notifications?school_id={school.id}",
+        headers=teacher_headers,
+    )
+    assert inbox.status_code == 200, inbox.text
+    assert len(inbox.json()) == 1
+    assert inbox.json()[0]["notification_type"] == "calendar.event_approved"
+    assert inbox.json()[0]["data"]["calendar_event_id"] == event.json()["id"]
+
