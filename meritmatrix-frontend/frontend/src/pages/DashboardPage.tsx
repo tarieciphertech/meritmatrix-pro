@@ -114,7 +114,7 @@ function AdminSchoolOverview({ schoolId }: { schoolId: string }) {
       setPendingReviews(assessmentResult.status === 'fulfilled'
         ? assessmentResult.value.filter(item => item.marks_submitted && !item.is_published)
         : []);
-      setEvents(eventResult.status === 'fulfilled' ? eventResult.value.slice(0, 4) : []);
+      setEvents(eventResult.status === 'fulfilled' ? eventResult.value : []);
       setUnreadCount(notificationResult.status === 'fulfilled' ? notificationResult.value.length : null);
       const failed = results.filter(result => result.status === 'rejected').length;
       if (failed === results.length) setError('School overview data could not be loaded. Check your access and retry.');
@@ -147,7 +147,7 @@ function AdminSchoolOverview({ schoolId }: { schoolId: string }) {
       </Card>
       <Card className="p-4">
         <div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Upcoming school calendar</h3><Link to="/school-calendar" className="text-sm font-medium text-indigo-700 hover:underline">Open calendar →</Link></div>
-        {loading ? <p className="mt-3 text-sm text-slate-500">Loading calendar…</p> : events.length ? <ul className="mt-3 divide-y divide-slate-100">{events.map(event => <li key={event.id} className="flex items-center justify-between gap-3 py-2"><div><p className="text-sm font-medium text-slate-800">{event.title}</p><p className="text-xs text-slate-500">{event.event_type.replaceAll('_', ' ')}</p></div><span className="shrink-0 text-xs text-slate-500">{fmt(event.start_date)}{event.end_date !== event.start_date ? `–${fmt(event.end_date)}` : ''}</span></li>)}</ul> : <p className="mt-3 text-sm text-slate-500">No approved upcoming events are scheduled.</p>}
+        {loading ? <p className="mt-3 text-sm text-slate-500">Loading calendar…</p> : events.length ? <ul className="mt-3 divide-y divide-slate-100">{events.slice(0, 4).map(event => <li key={event.id} className="flex items-center justify-between gap-3 py-2"><div><p className="text-sm font-medium text-slate-800">{event.title}</p><p className="text-xs text-slate-500">{event.event_type.replaceAll('_', ' ')}</p></div><span className="shrink-0 text-xs text-slate-500">{fmt(event.start_date)}{event.end_date !== event.start_date ? `–${fmt(event.end_date)}` : ''}</span></li>)}</ul> : <p className="mt-3 text-sm text-slate-500">No approved upcoming events are scheduled.</p>}
       </Card>
     </div>
     <div className="flex flex-wrap gap-2">
