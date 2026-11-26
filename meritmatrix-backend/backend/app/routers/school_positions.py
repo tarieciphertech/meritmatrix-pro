@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.permission import Permission
 from app.models.school import School
 from app.models.school_position import SchoolPosition, StaffPosition
+from app.models.role import Role
 from app.models.staff import Staff
 from app.models.user import User
 from app.schemas.school_position import SchoolPositionCreate, SchoolPositionResponse, StaffPositionsUpdate
@@ -199,6 +200,15 @@ def assign_staff_positions(
                 staff_id=staff.id, position_id=position.id, is_active=True,
                 assigned_by_user_id=current_user.id,
             ))
+    if staff.user_id:
+        staff_user = db.query(User).filter(User.id == staff.user_id).first()
+        teacher_role = db.query(Role).filter(Role.name == "TEACHER").first()
+        has_teacher_position = any(position.code == "TEACHER" for position in positions)
+        if staff_user and teacher_role:
+            if has_teacher_position and teacher_role not in staff_user.roles:
+                staff_user.roles.append(teacher_role)
+            elif not has_teacher_position and teacher_role in staff_user.roles:
+                staff_user.roles.remove(teacher_role)
     record_audit_event(db, school_id=school_id, actor_user_id=current_user.id,
         action="staff.positions_updated", entity_type="staff", entity_id=staff.id,
         details={"position_codes": sorted(position.code for position in positions)})
