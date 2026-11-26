@@ -291,6 +291,7 @@ def test_calendar_approval_notifies_only_members_of_the_affected_school(
 
     admin_headers = auth_headers("calendar-notice-admin@example.com", "StrongPass123")
     teacher_headers = auth_headers("calendar-notice-teacher@example.com", "StrongPass123")
+    unrelated_headers = auth_headers("calendar-notice-unrelated@example.com", "StrongPass123")
     event = client.post(
         f"/api/v1/calendar-events?school_id={school.id}",
         headers=admin_headers,
@@ -318,4 +319,11 @@ def test_calendar_approval_notifies_only_members_of_the_affected_school(
     assert len(inbox.json()) == 1
     assert inbox.json()[0]["notification_type"] == "calendar.event_approved"
     assert inbox.json()[0]["data"]["calendar_event_id"] == event.json()["id"]
+
+    unrelated_inbox = client.get(
+        f"/api/v1/notifications?school_id={school.id}",
+        headers=unrelated_headers,
+    )
+    assert unrelated_inbox.status_code == 200
+    assert unrelated_inbox.json() == []
 
