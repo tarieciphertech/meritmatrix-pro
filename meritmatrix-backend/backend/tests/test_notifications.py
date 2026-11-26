@@ -194,3 +194,69 @@ def test_school_role_notifications_are_limited_to_matching_school_members(
     assert rows[0].recipient_user_id == admin.id
     assert rows[0].recipient_user_id != unlinked_admin.id
 
+def test_timetable_notifications_reach_only_the_assigned_active_teacher(
+    make_user, seeded_rbac, db_session
+):
+    from datetime import date
+    from app.models.class_subject import ClassSubject
+    from app.models.clazz import Class
+    from app.models.staff import Staff
+    from app.models.subject import Subject
+    from app.models.teaching_assignment import TeachingAssignment
+    from app.models.user_notification import UserNotification
+    from app.models.user_school import UserSchool
+    from app.services.notification_service import notify_teaching_staff
+
+    school = School(name="Timetable Notification School", code="TNS001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    teacher = make_user(
+        email="timetable-notification-teacher@example.com",
+        password="StrongPass123",
+        role_name="TEACHER",
+    )
+    unassigned_teacher = make_user(
+        email="timetable-notification-other@example.com",
+        password="StrongPass123",
+        role_name="TEACHER",
+    )
+    clazz = Class(school_id=school.id, name="Form 2A", code="F2A", level=2, is_active=True)
+    subject = Subject(school_id=school.id, name="Science", code="SCI", is_active=True)
+    db_session.add_all([clazz, subject])
+    db_session.flush()
+    class_subject = ClassSubject(class_id=clazz.id, subject_id=subject.id)
+    staff = Staff(
+        school_id=school.id, staff_number="TNS-T-001", first_name="Kago",
+        last_name="Teacher", user_id=teacher.id, employment_status="active", is_active=True,
+    )
+    db_session.add_all([class_subject, staff])
+    db_session.flush()
+    db_session.add_all([
+        UserSchool(user_id=teacher.id, school_id=school.id),
+        UserSchool(user_id=unassigned_teacher.id, school_id=school.id),
+        TeachingAssignment(
+            school_id=school.id, staff_id=staff.id, class_subject_id=class_subject.id,
+            start_date=date.today(), is_active=True, is_primary=True,
+        ),
+    ])
+    db_session.flush()
+
+    count = notify_teaching_staff(
+        db_session,
+        school_id=school.id,
+        class_subject_id=class_subject.id,
+        notification_type="timetable.lesson_scheduled",
+        title="Timetable updated",
+        message="A lesson was added to your timetable.",
+        data={"class_subject_id": str(class_subject.id)},
+    )
+    db_session.commit()
+
+    rows = db_session.query(UserNotification).filter(
+        UserNotification.school_id == school.id
+    ).all()
+    assert count == 1
+    assert len(rows) == 1
+    assert rows[0].recipient_user_id == teacher.id
+    assert rows[0].recipient_user_id != unassigned_teacher.id
+
