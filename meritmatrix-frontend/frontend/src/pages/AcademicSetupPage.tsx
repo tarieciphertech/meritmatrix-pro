@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { AcademicYearResponse, ClassResponse, ClassSubjectResponse, InstitutionType, SubjectResponse, TermResponse } from '../types';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Input, Modal, PageHeader, Select, Spinner, Table, Td } from '../components/ui';
 
-type Tab = 'years' | 'terms' | 'classes' | 'subjects' | 'class-subjects';
+type Tab = 'years' | 'terms' | 'classes' | 'subjects' | 'class-subjects' | 'master-timetable';
 type YearForm = { name: string; start_date: string; end_date: string; is_current: boolean };
 type TermForm = { name: string; term_number: string; start_date: string; end_date: string; is_current: boolean };
 type ClassForm = { name: string; code: string; level: string; stream: string; description: string };
 type SubjectForm = { name: string; code: string; description: string };
-const tabs: {id: Tab; label: string}[] = [{id:'years',label:'Academic Years'},{id:'terms',label:'Terms'},{id:'classes',label:'Classes'},{id:'subjects',label:'Subjects'},{id:'class-subjects',label:'Class Subjects'}];
+const tabs: {id: Tab; label: string}[] = [{id:'years',label:'Academic Years'},{id:'terms',label:'Terms'},{id:'classes',label:'Classes'},{id:'subjects',label:'Subjects'},{id:'class-subjects',label:'Class Subjects'},{id:'master-timetable',label:'Master Timetable'}];
 const emptyYear: YearForm = {name:'',start_date:'',end_date:'',is_current:false};
 const emptyTerm: TermForm = {name:'',term_number:'1',start_date:'',end_date:'',is_current:false};
 const emptyClass: ClassForm = {name:'',code:'',level:'',stream:'',description:''};
@@ -101,6 +102,7 @@ function getClassTemplates(institutionType?: InstitutionType | null): ClassTempl
 }
 
 export default function AcademicSetupPage() {
+ const navigate=useNavigate();
  const {selectedSchool}=useSchool();
  const classTemplates=getClassTemplates(selectedSchool?.institution_type);
  const [tab,setTab]=useState<Tab>('years');
@@ -248,7 +250,10 @@ export default function AcademicSetupPage() {
    if(tab==='years'){
     const p={name:yf.name.trim(),start_date:yf.start_date,end_date:yf.end_date};
     if(editingId) await api.patch('/api/v1/academic-years/'+editingId,{...p,is_current:yf.is_current});
-    else await api.post('/api/v1/academic-years',p,{school_id:selectedSchool.id});
+    else {
+     const created=await api.post<AcademicYearResponse>('/api/v1/academic-years',p,{school_id:selectedSchool.id});
+     if(yf.is_current)await api.patch('/api/v1/academic-years/'+created.id,{is_current:true});
+    }
    }else if(tab==='terms'){
     if(!yearId)throw new Error('Select an academic year first.');
     const p={name:tf.name.trim(),term_number:Number(tf.term_number),start_date:tf.start_date,end_date:tf.end_date};
@@ -267,6 +272,19 @@ export default function AcademicSetupPage() {
   }catch(e){setFormError(e instanceof ApiError||e instanceof Error?e.message:'Could not save record');}
   finally{setSaving(false);}
  }
+ async function setCurrentAcademicYear(id:string){
+  if(!selectedSchool)return;
+  const year=activeYears.find(item=>item.id===id);
+  if(!year||year.is_current)return;
+  if(!window.confirm('Set '+year.name+' as the current academic year? The annual master timetable builder will use '+year.start_date+' to '+year.end_date+'. Existing academic records will be retained.'))return;
+  setSaving(true);setError(null);
+  try{
+   await api.patch('/api/v1/academic-years/'+id,{is_current:true});
+   await load();
+   window.alert(year.name+' is now the current academic year. You can configure its annual master timetable.');
+  }catch(e){setError(e instanceof Error?e.message:'Could not set the current academic year.');}
+  finally{setSaving(false);}
+ }
  async function deactivate(kind:Tab,id:string,label:string){
   if(!window.confirm('Deactivate "'+label+'"? Existing records will be retained.'))return;
   const endpoint=kind==='years'?'academic-years':kind;
@@ -274,6 +292,7 @@ export default function AcademicSetupPage() {
   catch(e){setError(e instanceof Error?e.message:'Could not deactivate record');}
  }
  const activeYears=years.filter(x=>x.is_active);
+  const currentAcademicYear=activeYears.find(x=>x.is_current)||null;
  const filteredYears=years.filter(x=>(`${x.name}`).toLowerCase().includes(recordSearch.toLowerCase()));
  const filteredTerms=terms.filter(x=>(`${x.name} ${x.term_number}`).toLowerCase().includes(recordSearch.toLowerCase()));
  const filteredClasses=classes.filter(x=>(`${x.name} ${x.code} ${x.stream||''}`).toLowerCase().includes(recordSearch.toLowerCase()));
@@ -286,6 +305,23 @@ export default function AcademicSetupPage() {
   {!selectedSchool&&<Card><EmptyState title="No school selected" hint="Choose a school from the selector in the header."/></Card>}
   {selectedSchool&&error&&<ErrorBanner message={error} onRetry={load}/>}
   {selectedSchool&&loading&&<Spinner label="Loading academic setup…"/>}
+  {selectedSchool&&!loading&&tab==='master-timetable'&&<div className="space-y-4">
+   <Card className="p-5">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+     <div className="min-w-0">
+      <h2 className="text-lg font-semibold text-slate-900">Annual master timetable configuration</h2>
+      <p className="mt-1 max-w-2xl text-sm text-slate-600">Each school has one recurring master timetable per academic year. Its start and end dates come directly from the academic year configured below. Terms, holidays and special events remain calendar exceptions; they do not create separate master timetables.</p>
+      {currentAcademicYear?<div className="mt-4 space-y-1 text-sm"><p className="font-semibold text-slate-900">{currentAcademicYear.name} <Badge tone="green">Current academic year</Badge></p><p className="text-slate-600">{currentAcademicYear.start_date} to {currentAcademicYear.end_date}</p><p className="text-slate-500">The timetable builder will use this full-year date range for every lesson.</p></div>:<p className="mt-4 text-sm font-medium text-amber-700">No current academic year is configured. Set one below before building the annual timetable.</p>}
+     </div>
+     <Button disabled={!currentAcademicYear} onClick={()=>navigate('/timetable')}>Open timetable builder</Button>
+    </div>
+   </Card>
+   <Card>
+    <div className="border-b border-slate-100 p-4"><h3 className="font-semibold text-slate-900">Academic year assigned to the master timetable</h3><p className="mt-1 text-sm text-slate-600">Choose which active academic year the timetable builder should configure. Changing the current year does not delete or archive other years.</p></div>
+    {activeYears.length===0?<div className="p-4"><EmptyState title="No active academic years" hint="Create an academic year in the Academic Years tab first."/></div>:<Table headers={['Academic year','Start date','End date','Configuration','Action']}>{activeYears.map(x=><tr key={x.id}><Td className="font-medium">{x.name}</Td><Td>{x.start_date}</Td><Td>{x.end_date}</Td><Td>{x.is_current?<Badge tone="green">Current master year</Badge>:<Badge tone="slate">Not selected</Badge>}</Td><Td>{x.is_current?<span className="text-sm text-slate-500">Selected</span>:<Button variant="secondary" className="!px-2 !py-1 text-xs" disabled={saving} onClick={()=>void setCurrentAcademicYear(x.id)}>Use this year</Button>}</Td></tr>)}</Table>}
+   </Card>
+   <Card className="p-4"><p className="text-sm text-slate-600">After selecting the current academic year, open the timetable builder to add teacher, class, subject, time and room allocations. The system checks clashes and allows the completed master timetable to be published and locked for the year.</p></Card>
+  </div>}
   {selectedSchool&&!loading&&tab==='years'&&<Card>{filteredYears.length===0?<EmptyState title="No academic years yet" hint="Create an academic year before adding terms and enrollments."/>:<Table headers={['Name','Start','End','Current','Status','Actions']}>{filteredYears.map(x=><tr key={x.id}><Td className="font-medium">{x.name}</Td><Td>{x.start_date}</Td><Td>{x.end_date}</Td><Td>{x.is_current?<Badge tone="green">Current</Badge>:'—'}</Td><Td><Badge tone={x.is_active?'green':'slate'}>{x.is_active?'Active':'Inactive'}</Badge></Td><Td><div className="flex gap-2"><Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={()=>editYear(x)}>Edit</Button>{x.is_active&&<Button variant="danger" className="!px-2 !py-1 text-xs" onClick={()=>void deactivate('years',x.id,x.name)}>Deactivate</Button>}</div></Td></tr>)}</Table>}</Card>}
   {selectedSchool&&!loading&&tab==='terms'&&<div className="space-y-3"><Card><div className="p-4"><Field label="Academic year" required><Select value={yearId} onChange={e=>setYearId(e.target.value)}><option value="">Select academic year…</option>{activeYears.map(x=><option key={x.id} value={x.id}>{x.name}{x.is_current?' (Current)':''}</option>)}</Select></Field></div></Card><Card>{filteredTerms.filter(t=>t.academic_year_id===yearId).length===0?<EmptyState title="No terms for this year" hint="Select an academic year and create its first term."/>:<Table headers={['Term','Number','Start','End','Current','Status','Actions']}>{filteredTerms.filter(t=>t.academic_year_id===yearId).map(x=><tr key={x.id}><Td className="font-medium">{x.name}</Td><Td>{x.term_number}</Td><Td>{x.start_date}</Td><Td>{x.end_date}</Td><Td>{x.is_current?<Badge tone="green">Current</Badge>:'—'}</Td><Td><Badge tone={x.is_active?'green':'slate'}>{x.is_active?'Active':'Inactive'}</Badge></Td><Td><div className="flex gap-2"><Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={()=>editTerm(x)}>Edit</Button>{x.is_active&&<Button variant="danger" className="!px-2 !py-1 text-xs" onClick={()=>void deactivate('terms',x.id,x.name)}>Deactivate</Button>}</div></Td></tr>)}</Table>}</Card></div>}
   {selectedSchool&&!loading&&tab==='classes'&&<Card>{filteredClasses.length===0?<EmptyState title="No classes yet" hint="Add classes such as Form 1, Form 2 or Grade 7."/>:<Table headers={['Name','Code','Level','Stream','Status','Actions']}>{filteredClasses.map(x=><tr key={x.id}><Td className="font-medium">{x.name}</Td><Td>{x.code}</Td><Td>{x.level??'—'}</Td><Td>{x.stream||'—'}</Td><Td><Badge tone={x.is_active?'green':'slate'}>{x.is_active?'Active':'Inactive'}</Badge></Td><Td><div className="flex gap-2"><Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={()=>editClass(x)}>Edit</Button>{x.is_active&&<Button variant="danger" className="!px-2 !py-1 text-xs" onClick={()=>void deactivate('classes',x.id,x.name)}>Deactivate</Button>}</div></Td></tr>)}</Table>}</Card>}
@@ -293,7 +329,7 @@ export default function AcademicSetupPage() {
   {selectedSchool&&!loading&&tab==='subjects'&&<Card><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><div><p className="font-medium text-slate-900">Subjects for {selectedSchool.name}</p><p className="mt-1 text-sm text-slate-600">Recommended starting list for this school type. Confirm subjects against the approved curriculum before use.</p></div><Button variant="secondary" disabled={saving} onClick={()=>void addRecommendedSubjects()}>{saving?'Adding subjects…':'Add recommended subjects'}</Button></div>{filteredSubjects.length===0?<EmptyState title="No subjects yet" hint="Add a recommended starter list, or use + Add Subject to create a subject manually."/>:<Table headers={['Subject','Code','Description','Status','Actions']}>{filteredSubjects.map(x=><tr key={x.id}><Td className="font-medium">{x.name}</Td><Td>{x.code}</Td><Td>{x.description||'—'}</Td><Td><Badge tone={x.is_active?'green':'slate'}>{x.is_active?'Active':'Inactive'}</Badge></Td><Td><div className="flex gap-2"><Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={()=>editSubject(x)}>Edit</Button>{x.is_active&&<Button variant="danger" className="!px-2 !py-1 text-xs" onClick={()=>void deactivate('subjects',x.id,x.name)}>Deactivate</Button>}</div></Td></tr>)}</Table>}</Card>}
   <Modal open={open} title={(editingId?'Edit ':'New ')+(tab==='years'?'Academic Year':tab==='terms'?'Term':tab==='classes'?'Class':'Subject')} onClose={()=>setOpen(false)}>
    <form onSubmit={submit} className="space-y-4">{formError&&<ErrorBanner message={formError}/>}
-   {tab==='years'&&<><Field label="Academic year name" required><Input required maxLength={100} value={yf.name} onChange={e=>setYf(p=>({...p,name:e.target.value}))} placeholder="2026 Academic Year"/></Field><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label="Start date" required><Input required type="date" value={yf.start_date} onChange={e=>setYf(p=>({...p,start_date:e.target.value}))}/></Field><Field label="End date" required><Input required type="date" min={yf.start_date||undefined} value={yf.end_date} onChange={e=>setYf(p=>({...p,end_date:e.target.value}))}/></Field></div>{editingId&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={yf.is_current} onChange={e=>setYf(p=>({...p,is_current:e.target.checked}))}/> Set as current year</label>}</>}
+   {tab==='years'&&<><Field label="Academic year name" required><Input required maxLength={100} value={yf.name} onChange={e=>setYf(p=>({...p,name:e.target.value}))} placeholder="2026 Academic Year"/></Field><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label="Start date" required><Input required type="date" value={yf.start_date} onChange={e=>setYf(p=>({...p,start_date:e.target.value}))}/></Field><Field label="End date" required><Input required type="date" min={yf.start_date||undefined} value={yf.end_date} onChange={e=>setYf(p=>({...p,end_date:e.target.value}))}/></Field></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={yf.is_current} onChange={e=>setYf(p=>({...p,is_current:e.target.checked}))}/> Set as current year for the annual master timetable</label></>}
    {tab==='terms'&&<><Field label="Academic year" required><Select required value={yearId} onChange={e=>setYearId(e.target.value)}><option value="">Select year…</option>{activeYears.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</Select></Field><Field label="Term name" required><Input required value={tf.name} onChange={e=>setTf(p=>({...p,name:e.target.value}))} placeholder="Term 1"/></Field><Field label="Term number" required><Input required type="number" min="1" step="1" value={tf.term_number} onChange={e=>setTf(p=>({...p,term_number:e.target.value}))}/></Field><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label="Start date" required><Input required type="date" value={tf.start_date} onChange={e=>setTf(p=>({...p,start_date:e.target.value}))}/></Field><Field label="End date" required><Input required type="date" min={tf.start_date||undefined} value={tf.end_date} onChange={e=>setTf(p=>({...p,end_date:e.target.value}))}/></Field></div>{editingId&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={tf.is_current} onChange={e=>setTf(p=>({...p,is_current:e.target.checked}))}/> Set as current term</label>}</>}
    {tab==='classes'&&<><Field label="Class name" required><Input required maxLength={100} value={cf.name} onChange={e=>setCf(p=>({...p,name:e.target.value}))} placeholder="Form 1"/></Field><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label="Class code" required><Input required maxLength={50} value={cf.code} onChange={e=>setCf(p=>({...p,code:e.target.value}))} placeholder="F1"/></Field><Field label="Level"><Input type="number" min="0" step="1" value={cf.level} onChange={e=>setCf(p=>({...p,level:e.target.value}))}/></Field></div><Field label="Stream"><Input value={cf.stream} onChange={e=>setCf(p=>({...p,stream:e.target.value}))} placeholder="A"/></Field><Field label="Description"><Input value={cf.description} onChange={e=>setCf(p=>({...p,description:e.target.value}))}/></Field></>}
    {tab==='subjects'&&<><Field label="Subject name" required><Input required maxLength={100} value={sf.name} onChange={e=>setSf(p=>({...p,name:e.target.value}))} placeholder="Mathematics"/></Field><Field label="Subject code" required><Input required maxLength={20} value={sf.code} onChange={e=>setSf(p=>({...p,code:e.target.value}))} placeholder="MATH"/></Field><Field label="Description"><Input value={sf.description} onChange={e=>setSf(p=>({...p,description:e.target.value}))}/></Field></>}
