@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { api, ApiError } from '../lib/api';
+import { api } from '../lib/api';
 import { useSchool } from '../lib/school-context';
 import type { ClassResponse, ClassSubjectResponse, StaffResponse } from '../types';
 import { Button, Card, ErrorBanner, PageHeader, Spinner } from '../components/ui';
