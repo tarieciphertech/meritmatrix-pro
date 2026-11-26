@@ -64,6 +64,31 @@ def upgrade() -> None:
         "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
     }])
 
+    permissions = sa.table(
+        "permissions", sa.column("id", app.models.base.GUID()), sa.column("name", sa.String()),
+        sa.column("description", sa.String()), sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    role_permissions = sa.table(
+        "role_permissions", sa.column("role_id", app.models.base.GUID()),
+        sa.column("permission_id", app.models.base.GUID()),
+    )
+    bind = op.get_bind()
+    new_permissions = [
+        ("fees.charges.create", "Create student fee charges"),
+        ("fees.payments.create", "Record fee payments against existing charges"),
+    ]
+    for permission_name, description in new_permissions:
+        permission_id = uuid.uuid4()
+        op.bulk_insert(permissions, [{
+            "id": permission_id, "name": permission_name, "description": description,
+            "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
+        }])
+        for role_name in ("SUPER_ADMIN", "SCHOOL_ADMIN"):
+            role_id = bind.execute(sa.text("SELECT id FROM roles WHERE name = :name"), {"name": role_name}).scalar()
+            if role_id:
+                op.bulk_insert(role_permissions, [{"role_id": role_id, "permission_id": permission_id}])
+
 
 def downgrade() -> None:
     op.execute(sa.text("DELETE FROM roles WHERE name = 'SCHOOL_STAFF'"))
