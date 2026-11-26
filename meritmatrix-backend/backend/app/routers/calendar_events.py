@@ -13,6 +13,7 @@ from app.models.calendar_event import CalendarEvent
 from app.models.user import User
 from app.schemas.calendar_event import CalendarEventCreate, CalendarEventResponse, CalendarEventUpdate
 from app.services.user_school_service import UserSchoolService
+from app.services.notification_service import notify_school_roles
 from app.utils.errors import ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/calendar-events", tags=["school-calendar"])
@@ -81,12 +82,25 @@ def update_calendar_event(
 ):
     event = _get_event(db, event_id)
     _verify_school_access(db, current_user, event.school_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    was_approved = event.is_approved
+    for field, value in changes.items():
         setattr(event, field, value)
     if event.end_date < event.start_date:
         raise HTTPException(status_code=422, detail="end_date must be on or after start_date")
     if event.event_type in {"public_holiday", "school_holiday", "school_closure"} and event.is_instructional:
         raise HTTPException(status_code=422, detail="Holiday and closure events cannot be instructional days")
+    became_approved = changes.get("is_approved") is True and not was_approved
+    approved_event_changed = was_approved and any(field in changes for field in {"title", "start_date", "end_date"})
+    if became_approved or approved_event_changed:
+        notify_school_roles(
+            db, school_id=event.school_id, role_names={"SCHOOL_ADMIN", "TEACHER"},
+            notification_type="calendar.event_approved" if became_approved else "calendar.event_updated",
+            title="School calendar updated",
+            message=f'{event.title} is scheduled from {event.start_date.isoformat()} to {event.end_date.isoformat()}.',
+            data={"calendar_event_id": str(event.id), "event_type": event.event_type},
+            exclude_user_id=current_user.id,
+        )
     db.commit()
     db.refresh(event)
     return event
