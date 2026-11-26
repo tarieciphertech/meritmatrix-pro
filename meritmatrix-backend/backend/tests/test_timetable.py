@@ -57,6 +57,7 @@ def test_timetable_list_requires_authentication(client):
 def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
     client, make_user, auth_headers, seeded_rbac, db_session
 ):
+    from app.models.academic_year import AcademicYear
     from app.models.class_subject import ClassSubject
     from app.models.clazz import Class
     from app.models.school import School
@@ -69,17 +70,27 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
     school = School(name="Timetable School", code="TMT001", city="Gaborone", country="Botswana")
     db_session.add(school)
     db_session.flush()
+    academic_year = AcademicYear(
+        school_id=school.id, name="Test Academic Year",
+        start_date=today.replace(month=1, day=1), end_date=today.replace(month=12, day=31),
+        is_current=True, is_active=True,
+    )
+    db_session.add(academic_year)
+    db_session.flush()
 
     class_one = Class(school_id=school.id, name="Form 1A", code="F1A", level=1, is_active=True)
     class_two = Class(school_id=school.id, name="Form 1B", code="F1B", level=1, is_active=True)
+    class_three = Class(school_id=school.id, name="Form 1C", code="F1C", level=1, is_active=True)
     subject_one = Subject(school_id=school.id, name="Mathematics", code="MATH", is_active=True)
     subject_two = Subject(school_id=school.id, name="English", code="ENG", is_active=True)
-    db_session.add_all([class_one, class_two, subject_one, subject_two])
+    db_session.add_all([class_one, class_two, class_three, subject_one, subject_two])
     db_session.flush()
 
     pair_one = ClassSubject(class_id=class_one.id, subject_id=subject_one.id)
     pair_two = ClassSubject(class_id=class_two.id, subject_id=subject_two.id)
-    db_session.add_all([pair_one, pair_two])
+    pair_three = ClassSubject(class_id=class_three.id, subject_id=subject_two.id)
+    pair_four = ClassSubject(class_id=class_one.id, subject_id=subject_two.id)
+    db_session.add_all([pair_one, pair_two, pair_three, pair_four])
     db_session.flush()
 
     teacher = make_user(
@@ -97,7 +108,12 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
         first_name="Neo", last_name="Teacher",
         employment_status="active", is_active=True,
     )
-    db_session.add_all([teacher_staff, other_staff])
+    third_staff = Staff(
+        school_id=school.id, staff_number="TMT-T-003",
+        first_name="Tariro", last_name="Teacher",
+        employment_status="active", is_active=True,
+    )
+    db_session.add_all([teacher_staff, other_staff, third_staff])
     db_session.flush()
     db_session.add_all([
         UserSchool(user_id=teacher.id, school_id=school.id),
@@ -107,6 +123,14 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
         ),
         TeachingAssignment(
             school_id=school.id, staff_id=other_staff.id, class_subject_id=pair_two.id,
+            start_date=today, is_active=True, is_primary=True,
+        ),
+        TeachingAssignment(
+            school_id=school.id, staff_id=third_staff.id, class_subject_id=pair_three.id,
+            start_date=today, is_active=True, is_primary=True,
+        ),
+        TeachingAssignment(
+            school_id=school.id, staff_id=third_staff.id, class_subject_id=pair_four.id,
             start_date=today, is_active=True, is_primary=True,
         ),
     ])
@@ -133,6 +157,7 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
     )
     assert first.status_code == 201, first.text
     first_id = first.json()["id"]
+    assert first.json()["academic_year_id"] == str(academic_year.id)
 
     second = client.post(
         "/api/v1/timetable",
@@ -144,6 +169,7 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
             "weekday": 0,
             "start_time": "09:00",
             "end_time": "09:40",
+            "room": "Room 2",
             "effective_from": today.isoformat(),
         },
     )
@@ -174,6 +200,28 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
     )
     assert overlap.status_code == 409, overlap.text
     assert overlap.json()["error"]["code"] == "TIMETABLE_SLOT_CONFLICT"
+
+    class_clash = client.post(
+        "/api/v1/timetable", headers=admin_headers, params=params,
+        json={
+            "staff_id": str(third_staff.id), "class_subject_id": str(pair_four.id),
+            "weekday": 0, "start_time": "08:20", "end_time": "09:00",
+            "effective_from": today.isoformat(),
+        },
+    )
+    assert class_clash.status_code == 409
+    assert class_clash.json()["error"]["code"] == "TIMETABLE_CLASS_CONFLICT"
+
+    room_clash = client.post(
+        "/api/v1/timetable", headers=admin_headers, params=params,
+        json={
+            "staff_id": str(third_staff.id), "class_subject_id": str(pair_three.id),
+            "weekday": 0, "start_time": "08:20", "end_time": "09:00",
+            "room": " room 1 ", "effective_from": today.isoformat(),
+        },
+    )
+    assert room_clash.status_code == 409
+    assert room_clash.json()["error"]["code"] == "TIMETABLE_ROOM_CONFLICT"
 
     denied_delete = client.delete(f"/api/v1/timetable/{first_id}", headers=teacher_headers)
     assert denied_delete.status_code == 403, denied_delete.text
