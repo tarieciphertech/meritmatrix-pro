@@ -10,7 +10,7 @@ const navPermission: Record<string, string> = {
   '/schools': 'schools.read', '/school-configuration': 'schools.configure',
   '/teaching-assignments': 'class_subjects.read', '/timetable': 'class_subjects.read',
   '/attendance': 'attendance.read', '/students': 'students.read', '/guardians': 'guardians.read',
-  '/staff': 'staff.read', '/enrollments': 'enrollments.read', '/academic-setup': 'classes.read',
+  '/staff': 'staff.read', '/school-positions': 'staff.update', '/enrollments': 'enrollments.read', '/academic-setup': 'classes.read',
   '/assessments': 'assessments.read', '/fees': 'fees.read', '/report-cards': 'assessments.read',
   '/audit-logs': 'audit_logs.read',
 };
@@ -19,7 +19,7 @@ const navItems = [
   {to:'/school-configuration',label:'School Configuration'},{to:'/school-calendar',label:'School Calendar'},
   {to:'/teaching-assignments',label:'Teaching Assignments'},{to:'/timetable',label:'My Timetable'},
   {to:'/attendance',label:'Attendance'},{to:'/students',label:'Students'},{to:'/guardians',label:'Guardians'},
-  {to:'/guardian-portal',label:'Guardian Portal'},{to:'/staff',label:'Staff'},{to:'/enrollments',label:'Enrollments'},
+  {to:'/guardian-portal',label:'Guardian Portal'},{to:'/staff',label:'Staff'},{to:'/school-positions',label:'School Positions'},{to:'/enrollments',label:'Enrollments'},
   {to:'/academic-setup',label:'Academic Setup'},{to:'/assessments',label:'Assessments & Results'},
   {to:'/fees',label:'Fees & Payments'},{to:'/report-cards',label:'Report Cards'},{to:'/audit-logs',label:'Audit History'},
 ];
