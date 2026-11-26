@@ -30,3 +30,9 @@ class StaffPositionsUpdate(BaseModel):
 class StaffPositionResponse(BaseModel):
     staff_id: uuid.UUID
     positions: list[SchoolPositionResponse]
+
+class SchoolPositionUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=80)
+    description: Optional[str] = Field(default=None, max_length=255)
+    permission_names: Optional[list[str]] = None
+    is_active: Optional[bool] = None
