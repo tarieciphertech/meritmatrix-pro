@@ -126,7 +126,7 @@ def create_timetable_entry(
     # A recurring slot reserves the teacher, the entire class, and (when set)
     # the room. Checking class_id rather than class_subject_id prevents a class
     # from being assigned two different subjects at the same time.
-    from sqlalchemy import func, or_
+    from sqlalchemy import func
     overlap_query = (
         db.query(TimetableEntry)
         .join(ClassSubject, ClassSubject.id == TimetableEntry.class_subject_id)
