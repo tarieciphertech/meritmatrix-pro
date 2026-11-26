@@ -115,7 +115,7 @@ def void_charge(
     charge_id: uuid.UUID,
     school_id: uuid.UUID = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("fees.update")),
+    current_user: User = Depends(require_permission("fees.create")),
 ):
     """Void an unpaid charge while preserving its audit history."""
     _school_access(db, current_user, school_id)
