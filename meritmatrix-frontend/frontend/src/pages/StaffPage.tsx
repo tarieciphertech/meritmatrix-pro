@@ -26,6 +26,8 @@ import {
 
 // Form model: create fields plus edit-only lifecycle fields
 // (employment_status / termination_date are only accepted on PATCH).
+type SchoolPosition = { id: string; name: string; code: string; description?: string | null; permission_names: string[]; is_system: boolean; is_active: boolean };
+
 interface StaffForm extends StaffCreate {
   employment_status: EmploymentStatus;
   termination_date: string;
@@ -57,6 +59,11 @@ const statusTone: Record<EmploymentStatus, 'green' | 'slate' | 'amber' | 'red' |
 export default function StaffPage() {
   const { selectedSchool } = useSchool();
   const [staffList, setStaffList] = useState<StaffResponse[]>([]);
+  const [positions, setPositions] = useState<SchoolPosition[]>([]);
+  const [positionModalOpen, setPositionModalOpen] = useState(false);
+  const [positionStaff, setPositionStaff] = useState<StaffResponse | null>(null);
+  const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
+  const [savingPositions, setSavingPositions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,12 +87,13 @@ export default function StaffPage() {
     setLoading(true);
     setError(null);
     try {
-      const list = await api.get<StaffResponse[]>('/api/v1/staff', {
-        school_id: requestSchoolId,
-        limit: 200,
-      });
+      const [list, positionRows] = await Promise.all([
+        api.get<StaffResponse[]>('/api/v1/staff', { school_id: requestSchoolId, limit: 200 }),
+        api.get<SchoolPosition[]>('/api/v1/school-positions', { school_id: requestSchoolId }),
+      ]);
       if (activeSchoolIdRef.current !== requestSchoolId || loadRequestIdRef.current !== requestId) return;
       setStaffList(list);
+      setPositions(positionRows);
     } catch (err) {
       if (activeSchoolIdRef.current === requestSchoolId && loadRequestIdRef.current === requestId) {
         setStaffList([]);
@@ -100,6 +108,10 @@ export default function StaffPage() {
     activeSchoolIdRef.current = selectedSchool?.id ?? null;
     loadRequestIdRef.current += 1;
     setStaffList([]);
+    setPositions([]);
+    setPositionModalOpen(false);
+    setPositionStaff(null);
+    setSelectedPositionIds([]);
     setError(null);
     setModalOpen(false);
     setEditingStaff(null);
@@ -183,6 +195,42 @@ export default function StaffPage() {
       setFormError(err instanceof ApiError ? err.message : 'Failed to save staff member');
     } finally {
       setSaving(false);
+    }
+  }
+
+
+  async function openPositionManager(staff: StaffResponse) {
+    if (!selectedSchool) return;
+    setPositionStaff(staff);
+    setSelectedPositionIds([]);
+    try {
+      const result = await api.get<{ staff_id: string; positions: SchoolPosition[] }>(
+        '/api/v1/school-positions/staff/' + staff.id, { school_id: selectedSchool.id },
+      );
+      setSelectedPositionIds(result.positions.map(position => position.id));
+      setPositionModalOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load staff positions');
+    }
+  }
+
+  async function savePositions() {
+    if (!selectedSchool || !positionStaff) return;
+    setSavingPositions(true);
+    setError(null);
+    try {
+      await api.put(
+        '/api/v1/school-positions/staff/' + positionStaff.id,
+        { position_ids: selectedPositionIds },
+        { school_id: selectedSchool.id },
+      );
+      setPositionModalOpen(false);
+      setPositionStaff(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save staff positions');
+    } finally {
+      setSavingPositions(false);
     }
   }
 
@@ -272,6 +320,9 @@ export default function StaffPage() {
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(s)}>
                       Edit
+                    </Button>
+                    <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => void openPositionManager(s)}>
+                      Positions
                     </Button>
                     {s.user_id ? (
                       <Badge tone="green">Login enabled</Badge>
@@ -424,6 +475,43 @@ export default function StaffPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={positionModalOpen}
+        title={positionStaff ? 'School positions · ' + positionStaff.first_name + ' ' + positionStaff.last_name : 'School positions'}
+        onClose={() => setPositionModalOpen(false)}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">Assign one or more positions. Their permissions are combined, and all access remains limited to this school.</p>
+          <div className="max-h-80 space-y-2 overflow-y-auto rounded-md border border-slate-200 p-3">
+            {positions.map(position => (
+              <label key={position.id} className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={selectedPositionIds.includes(position.id)}
+                  onChange={event => setSelectedPositionIds(current =>
+                    event.target.checked
+                      ? [...current, position.id]
+                      : current.filter(id => id !== position.id)
+                  )}
+                  className="mt-1"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-slate-900">{position.name}</span>
+                  <span className="block text-xs text-slate-500">{position.description || position.code}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="self-center text-xs text-slate-500">{selectedPositionIds.length} position(s) selected</span>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setPositionModalOpen(false)}>Cancel</Button>
+              <Button onClick={() => void savePositions()} disabled={savingPositions}>{savingPositions ? 'Saving…' : 'Save positions'}</Button>
+            </div>
+          </div>
+        </div>
       </Modal>
     </div>
   );
