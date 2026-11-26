@@ -29,7 +29,8 @@ def _is_teacher(user: User) -> bool:
 
 def _teacher_assignment_scoped(db: Session, user: User, staff: Staff) -> bool:
     """Only a staff member holding the Teacher position alone is assignment-scoped."""
-    if not _is_teacher(user):
+    roles = {role.name for role in getattr(user, "roles", [])}
+    if roles and "TEACHER" not in roles:
         return False
     from app.models.school_position import SchoolPosition, StaffPosition
     positions = db.query(SchoolPosition.code).join(
