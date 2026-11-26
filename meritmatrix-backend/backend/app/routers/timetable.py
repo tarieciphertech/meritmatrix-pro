@@ -127,6 +127,15 @@ def create_timetable_entry(
     # the room. Checking class_id rather than class_subject_id prevents a class
     # from being assigned two different subjects at the same time.
     from sqlalchemy import func
+    resource_conflict = (
+        (TimetableEntry.staff_id == staff.id)
+        | (ClassSubject.class_id == pair.class_id)
+    )
+    if payload.room and payload.room.strip():
+        resource_conflict = resource_conflict | (
+            TimetableEntry.room.is_not(None)
+            & (func.lower(func.trim(TimetableEntry.room)) == payload.room.strip().lower())
+        )
     overlap_query = (
         db.query(TimetableEntry)
         .join(ClassSubject, ClassSubject.id == TimetableEntry.class_subject_id)
@@ -137,15 +146,7 @@ def create_timetable_entry(
             TimetableEntry.start_time < payload.end_time,
             TimetableEntry.end_time > payload.start_time,
             (TimetableEntry.effective_to.is_(None) | (TimetableEntry.effective_to >= payload.effective_from)),
-            (
-                (TimetableEntry.staff_id == staff.id)
-                | (ClassSubject.class_id == pair.class_id)
-                | (
-                    (payload.room is not None)
-                    & (func.lower(func.trim(TimetableEntry.room)) == payload.room.strip().lower())
-                    & TimetableEntry.room.is_not(None)
-                )
-            ),
+            resource_conflict,
         )
     )
     if payload.effective_to:
