@@ -232,10 +232,23 @@ def deny_linked_staff_management(
     """
     if SYSTEM_ADMIN_PERMISSION in _permission_names(user):
         return
-    linked_staff = db.query(Staff.id).filter(Staff.user_id == user.id).first()
+    linked_staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if linked_staff is not None:
+        # A linked employee may administer school records only when the school
+        # has explicitly assigned at least one active position. The route's
+        # require_permission dependency remains the decisive capability check,
+        # so a Teacher position cannot inherit Clerk or Headmaster rights.
+        from app.models.school_position import SchoolPosition, StaffPosition
+        assigned_position = db.query(StaffPosition.staff_id).join(
+            SchoolPosition, SchoolPosition.id == StaffPosition.position_id
+        ).filter(
+            StaffPosition.staff_id == linked_staff.id,
+            SchoolPosition.is_active.is_(True),
+        ).first()
+        if assigned_position:
+            return
         raise ForbiddenError(
-            f"Staff-linked accounts cannot {action}. Use the authorized school administration workflow.",
+            f"Staff-linked accounts cannot {action} until an authorized school position is assigned.",
             code="STAFF_MANAGEMENT_RESTRICTED",
         )
     if _is_teacher(user):
