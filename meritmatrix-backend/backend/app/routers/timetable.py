@@ -194,3 +194,74 @@ def deactivate_timetable_entry(
         details={"staff_id": str(entry.staff_id), "class_subject_id": str(entry.class_subject_id)},
     )
     db.commit()
+
+
+@router.post("/publish/{academic_year_id}", status_code=200)
+def publish_annual_master_timetable(
+    academic_year_id: uuid.UUID,
+    school_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("class_subjects.update")),
+):
+    """Lock and publish the school's single recurring timetable for an academic year."""
+    _school_access(db, current_user, school_id)
+    deny_linked_staff_management(db, current_user, "publish the annual master timetable")
+    db.query(School).filter(School.id == school_id).with_for_update().first()
+    year = db.query(AcademicYear).filter(
+        AcademicYear.id == academic_year_id, AcademicYear.school_id == school_id,
+        AcademicYear.is_active.is_(True),
+    ).first()
+    if not year:
+        raise NotFoundError("Academic year not found for this school.", code="ACADEMIC_YEAR_NOT_FOUND")
+    entries = db.query(TimetableEntry).filter(
+        TimetableEntry.school_id == school_id, TimetableEntry.academic_year_id == year.id,
+        TimetableEntry.is_active.is_(True),
+    ).all()
+    if not entries:
+        raise ConflictError("Add lessons to the annual master timetable before publishing it.", code="EMPTY_MASTER_TIMETABLE")
+    for entry in entries:
+        if entry.effective_from < year.start_date or (entry.effective_to and entry.effective_to > year.end_date):
+            raise ConflictError("Every lesson must fall within the academic year.", code="TIMETABLE_OUTSIDE_ACADEMIC_YEAR")
+    now = datetime.now(timezone.utc)
+    for entry in entries:
+        entry.is_published = True
+        entry.published_at = now
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="timetable.annual_master_published", entity_type="academic_year",
+        entity_id=year.id, details={"academic_year": year.name, "lesson_count": len(entries)},
+    )
+    db.commit()
+    return {"academic_year_id": str(year.id), "academic_year": year.name, "published": True, "lesson_count": len(entries)}
+
+
+@router.post("/reopen/{academic_year_id}", status_code=200)
+def reopen_annual_master_timetable(
+    academic_year_id: uuid.UUID,
+    school_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("class_subjects.update")),
+):
+    """Temporarily unlock the annual master timetable for an audited amendment."""
+    _school_access(db, current_user, school_id)
+    deny_linked_staff_management(db, current_user, "reopen the annual master timetable")
+    db.query(School).filter(School.id == school_id).with_for_update().first()
+    year = db.query(AcademicYear).filter(
+        AcademicYear.id == academic_year_id, AcademicYear.school_id == school_id,
+    ).first()
+    if not year:
+        raise NotFoundError("Academic year not found for this school.", code="ACADEMIC_YEAR_NOT_FOUND")
+    entries = db.query(TimetableEntry).filter(
+        TimetableEntry.school_id == school_id, TimetableEntry.academic_year_id == year.id,
+        TimetableEntry.is_active.is_(True), TimetableEntry.is_published.is_(True),
+    ).all()
+    for entry in entries:
+        entry.is_published = False
+        entry.published_at = None
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="timetable.annual_master_reopened", entity_type="academic_year",
+        entity_id=year.id, details={"academic_year": year.name, "lesson_count": len(entries)},
+    )
+    db.commit()
+    return {"academic_year_id": str(year.id), "academic_year": year.name, "published": False, "lesson_count": len(entries)}
