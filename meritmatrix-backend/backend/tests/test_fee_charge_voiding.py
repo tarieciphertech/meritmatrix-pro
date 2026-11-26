@@ -59,6 +59,14 @@ def test_unpaid_fee_charge_can_be_voided_and_remains_in_audit_history(
     assert voided.status_code == 200, voided.text
     assert voided.json()["is_void"] is True
 
+    from app.models.audit_log import AuditLog
+    audit = db_session.query(AuditLog).filter(
+        AuditLog.school_id == school.id,
+        AuditLog.action == "fees.charge_voided",
+        AuditLog.entity_id == charge["id"],
+    ).one()
+    assert audit.entity_type == "fee_charge"
+
     active_rows = client.get(
         f"/api/v1/fees/charges?school_id={school.id}",
         headers=headers,
