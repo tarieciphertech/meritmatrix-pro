@@ -29,7 +29,7 @@ export default function NotificationCenter({ schoolId }: { schoolId?: string }) 
     try {
       const rows = await api.get<NotificationItem[]>('/api/v1/notifications', {
         school_id: schoolId,
-        limit: 20,
+        limit: 100,
       });
       if (requestIdRef.current === requestId && activeSchoolIdRef.current === requestSchoolId) setItems(rows);
     } catch (err) {
