@@ -49,7 +49,7 @@ export default function FeesPage() {
       const [studentRows, yearRows, chargeRows, paymentRows] = await Promise.all([
         api.get<StudentResponse[]>('/api/v1/students', { school_id: requestSchoolId }),
         api.get<AcademicYearResponse[]>('/api/v1/academic-years', { school_id: requestSchoolId }),
-        api.get<Charge[]>('/api/v1/fees/charges', { school_id: requestSchoolId }),
+        api.get<Charge[]>('/api/v1/fees/charges', { school_id: requestSchoolId, include_void: true }),
         api.get<Payment[]>('/api/v1/fees/payments', { school_id: requestSchoolId }),
       ]);
       if (activeSchoolIdRef.current !== requestSchoolId || loadRequestIdRef.current !== requestId) return;
