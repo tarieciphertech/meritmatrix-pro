@@ -130,6 +130,15 @@ def create_school_position(
     code = payload.code.strip().upper().replace(" ", "_")
     if db.query(SchoolPosition).filter(SchoolPosition.school_id == school_id, SchoolPosition.code == code).first():
         raise ConflictError("A school position with this code already exists.", code="SCHOOL_POSITION_EXISTS")
+    invalid_scope = [
+        name for name in payload.permission_names
+        if not name.startswith(SCHOOL_PERMISSION_PREFIXES) or name == "schools.create"
+    ]
+    if invalid_scope:
+        raise ConflictError(
+            "School positions cannot receive platform-wide permissions: " + ", ".join(sorted(invalid_scope)),
+            code="INVALID_POSITION_PERMISSION",
+        )
     permissions = db.query(Permission).filter(Permission.name.in_(payload.permission_names)).all() if payload.permission_names else []
     found = {permission.name for permission in permissions}
     missing = sorted(set(payload.permission_names) - found)
