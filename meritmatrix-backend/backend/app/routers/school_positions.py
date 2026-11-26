@@ -4,6 +4,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.auth.assignment_access import require_staff_school_scope
 from app.auth.dependencies import get_current_active_user, require_permission
 from app.database import get_db
 from app.models.permission import Permission
@@ -62,6 +63,7 @@ TEMPLATE_PERMISSION_NAMES = {
 
 
 def _verify_school(db: Session, user: User, school_id: uuid.UUID) -> None:
+    require_staff_school_scope(db, user, school_id)
     if not UserSchoolService(db).is_user_member_of_school(user.id, school_id):
         from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names
         if SYSTEM_ADMIN_PERMISSION not in _permission_names(user):
