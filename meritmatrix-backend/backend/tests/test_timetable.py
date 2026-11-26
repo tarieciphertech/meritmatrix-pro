@@ -171,7 +171,8 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
             "start_time": "09:00",
             "end_time": "09:40",
             "room": "Room 2",
-            "effective_from": today.isoformat(),
+            "effective_from": academic_year.start_date.isoformat(),
+            "effective_to": academic_year.end_date.isoformat(),
         },
     )
     assert second.status_code == 201, second.text
@@ -196,7 +197,8 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
             "weekday": 0,
             "start_time": "08:20",
             "end_time": "09:00",
-            "effective_from": today.isoformat(),
+            "effective_from": academic_year.start_date.isoformat(),
+            "effective_to": academic_year.end_date.isoformat(),
         },
     )
     assert overlap.status_code == 409, overlap.text
@@ -207,7 +209,8 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
         json={
             "staff_id": str(third_staff.id), "class_subject_id": str(pair_four.id),
             "weekday": 0, "start_time": "08:20", "end_time": "09:00",
-            "effective_from": today.isoformat(),
+            "effective_from": academic_year.start_date.isoformat(),
+            "effective_to": academic_year.end_date.isoformat(),
         },
     )
     assert class_clash.status_code == 409
@@ -218,7 +221,8 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
         json={
             "staff_id": str(third_staff.id), "class_subject_id": str(pair_three.id),
             "weekday": 0, "start_time": "08:20", "end_time": "09:00",
-            "room": " room 1 ", "effective_from": today.isoformat(),
+            "room": " room 1 ", "effective_from": academic_year.start_date.isoformat(),
+            "effective_to": academic_year.end_date.isoformat(),
         },
     )
     assert room_clash.status_code == 409
