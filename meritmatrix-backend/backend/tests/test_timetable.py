@@ -10,6 +10,7 @@ from app.schemas.timetable import TimetableEntryCreate
 
 def _payload(**overrides):
     values = {
+        "annual_timetable_id": uuid4(),
         "staff_id": uuid4(),
         "class_subject_id": uuid4(),
         "weekday": 0,
@@ -57,6 +58,8 @@ def test_timetable_list_requires_authentication(client):
 def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
     client, make_user, auth_headers, seeded_rbac, db_session
 ):
+    from app.models.academic_year import AcademicYear
+    from app.models.annual_timetable import AnnualTimetable
     from app.models.class_subject import ClassSubject
     from app.models.clazz import Class
     from app.models.school import School
@@ -68,6 +71,19 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
     today = date.today()
     school = School(name="Timetable School", code="TMT001", city="Gaborone", country="Botswana")
     db_session.add(school)
+    db_session.flush()
+    academic_year = AcademicYear(
+        school_id=school.id, name="2026 Academic Year",
+        start_date=today, end_date=date(today.year, 12, 31),
+        is_current=True, is_active=True,
+    )
+    db_session.add(academic_year)
+    db_session.flush()
+    annual = AnnualTimetable(
+        school_id=school.id, academic_year_id=academic_year.id,
+        status="draft", version=1,
+    )
+    db_session.add(annual)
     db_session.flush()
 
     class_one = Class(school_id=school.id, name="Form 1A", code="F1A", level=1, is_active=True)
@@ -122,6 +138,7 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
         headers=admin_headers,
         params=params,
         json={
+            "annual_timetable_id": str(annual.id),
             "staff_id": str(teacher_staff.id),
             "class_subject_id": str(pair_one.id),
             "weekday": 0,
@@ -139,6 +156,7 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
         headers=admin_headers,
         params=params,
         json={
+            "annual_timetable_id": str(annual.id),
             "staff_id": str(other_staff.id),
             "class_subject_id": str(pair_two.id),
             "weekday": 0,
@@ -153,17 +171,12 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
     assert admin_list.status_code == 200, admin_list.text
     assert len(admin_list.json()) == 2
 
-    teacher_list = client.get("/api/v1/timetable", headers=teacher_headers, params=params)
-    assert teacher_list.status_code == 200, teacher_list.text
-    assert len(teacher_list.json()) == 1
-    assert teacher_list.json()[0]["id"] == first_id
-    assert teacher_list.json()[0]["teacher_name"] == "Mpho Teacher"
-
     overlap = client.post(
         "/api/v1/timetable",
         headers=admin_headers,
         params=params,
         json={
+            "annual_timetable_id": str(annual.id),
             "staff_id": str(teacher_staff.id),
             "class_subject_id": str(pair_one.id),
             "weekday": 0,
@@ -174,6 +187,19 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
     )
     assert overlap.status_code == 409, overlap.text
     assert overlap.json()["error"]["code"] == "TIMETABLE_SLOT_CONFLICT"
+
+    published = client.post(
+        f"/api/v1/timetable/annual/{annual.id}/publish",
+        headers=admin_headers,
+    )
+    assert published.status_code == 200, published.text
+    assert published.json()["status"] == "published"
+
+    teacher_list = client.get("/api/v1/timetable", headers=teacher_headers, params=params)
+    assert teacher_list.status_code == 200, teacher_list.text
+    assert len(teacher_list.json()) == 1
+    assert teacher_list.json()[0]["id"] == first_id
+    assert teacher_list.json()[0]["teacher_name"] == "Mpho Teacher"
 
     denied_delete = client.delete(f"/api/v1/timetable/{first_id}", headers=teacher_headers)
     assert denied_delete.status_code == 403, denied_delete.text
