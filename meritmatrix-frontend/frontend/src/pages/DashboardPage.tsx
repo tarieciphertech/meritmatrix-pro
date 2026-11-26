@@ -95,6 +95,7 @@ function AdminSchoolOverview({ schoolId }: { schoolId: string }) {
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,7 +123,7 @@ function AdminSchoolOverview({ schoolId }: { schoolId: string }) {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [schoolId]);
+  }, [schoolId, refreshKey]);
 
   const attendanceExceptions = attendance.filter(row => ['absent', 'late', 'sick'].includes(row.status)).length;
   const fmt = (value: string) => new Date(value + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -130,7 +131,7 @@ function AdminSchoolOverview({ schoolId }: { schoolId: string }) {
   return <section className="mb-5 space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">School operations</h2><p className="mt-1 text-xs text-slate-400">Live activity and items requiring attention</p></div>
-      <span className="text-xs text-slate-400">Today · {fmt(today())}</span>
+      <div className="flex items-center gap-3"><span className="text-xs text-slate-400">Today · {fmt(today())}</span><Button variant="secondary" className="!px-2 !py-1 text-xs" disabled={loading} onClick={() => setRefreshKey(value => value + 1)}>Refresh overview</Button></div>
     </div>
     {error && <ErrorBanner message={error} />}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
