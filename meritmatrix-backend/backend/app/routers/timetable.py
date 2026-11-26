@@ -120,8 +120,10 @@ def create_timetable_entry(
         AcademicYear.start_date <= payload.effective_from,
         AcademicYear.end_date >= payload.effective_from,
     ).order_by(AcademicYear.is_current.desc()).first()
-    if academic_year and payload.effective_to and payload.effective_to > academic_year.end_date:
-        raise ConflictError("A master timetable lesson cannot extend beyond its academic year.", code="TIMETABLE_OUTSIDE_ACADEMIC_YEAR")
+    if not academic_year:
+        raise ConflictError("Create and activate the school's academic year before building its annual master timetable.", code="CURRENT_ACADEMIC_YEAR_REQUIRED")
+    if payload.effective_from != academic_year.start_date or (payload.effective_to and payload.effective_to != academic_year.end_date):
+        raise ConflictError("Annual master timetable lessons must cover the full academic year. The dates are taken from Academic Setup.", code="TIMETABLE_MUST_MATCH_ACADEMIC_YEAR")
     if academic_year:
         already_published = db.query(TimetableEntry.id).filter(
             TimetableEntry.school_id == school_id,
@@ -158,8 +160,9 @@ def create_timetable_entry(
         if payload.room and existing.room and payload.room.strip().casefold() == existing.room.strip().casefold():
             raise ConflictError("This room is already allocated to another lesson during the selected time.", code="TIMETABLE_ROOM_CONFLICT")
     entry_data = payload.model_dump()
+    entry_data["effective_to"] = academic_year.end_date
     entry = TimetableEntry(
-        school_id=school_id, academic_year_id=academic_year.id if academic_year else None,
+        school_id=school_id, academic_year_id=academic_year.id,
         **entry_data,
     )
     db.add(entry)
