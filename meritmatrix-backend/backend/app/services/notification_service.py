@@ -88,3 +88,125 @@ def notify_guardians(
             ))
             count += 1
     return count
+
+def notify_users(
+    db: Session,
+    *,
+    school_id: uuid.UUID,
+    recipient_user_ids: Iterable[uuid.UUID],
+    notification_type: str,
+    title: str,
+    message: str,
+    data: dict[str, Any] | None = None,
+    exclude_user_id: uuid.UUID | None = None,
+) -> int:
+    """Create school-scoped in-app notifications for active school members."""
+    from app.models.user_school import UserSchool
+
+    target_ids = {uuid.UUID(str(value)) for value in recipient_user_ids if value is not None}
+    if exclude_user_id:
+        target_ids.discard(uuid.UUID(str(exclude_user_id)))
+    if not target_ids:
+        return 0
+    users = (
+        db.query(User.id)
+        .join(UserSchool, UserSchool.user_id == User.id)
+        .filter(
+            User.id.in_(target_ids),
+            User.is_active.is_(True),
+            UserSchool.school_id == school_id,
+        )
+        .distinct()
+        .all()
+    )
+    for (user_id,) in users:
+        db.add(UserNotification(
+            recipient_user_id=user_id,
+            school_id=school_id,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            data=data or {},
+        ))
+    return len(users)
+
+
+def notify_school_roles(
+    db: Session,
+    *,
+    school_id: uuid.UUID,
+    role_names: Iterable[str],
+    notification_type: str,
+    title: str,
+    message: str,
+    data: dict[str, Any] | None = None,
+    exclude_user_id: uuid.UUID | None = None,
+) -> int:
+    """Notify active members of a school who hold one of the requested roles."""
+    from app.models.user_school import UserSchool
+
+    users = (
+        db.query(User.id)
+        .join(User.roles)
+        .join(UserSchool, UserSchool.user_id == User.id)
+        .filter(
+            User.is_active.is_(True),
+            UserSchool.school_id == school_id,
+            Role.name.in_(set(role_names)),
+        )
+        .distinct()
+        .all()
+    )
+    return notify_users(
+        db,
+        school_id=school_id,
+        recipient_user_ids=[row[0] for row in users],
+        notification_type=notification_type,
+        title=title,
+        message=message,
+        data=data,
+        exclude_user_id=exclude_user_id,
+    )
+
+
+def notify_teaching_staff(
+    db: Session,
+    *,
+    school_id: uuid.UUID,
+    class_subject_id: uuid.UUID,
+    notification_type: str,
+    title: str,
+    message: str,
+    data: dict[str, Any] | None = None,
+    exclude_user_id: uuid.UUID | None = None,
+) -> int:
+    """Notify active, linked teachers assigned to the affected class-subject."""
+    from app.models.staff import Staff
+    from app.models.teaching_assignment import TeachingAssignment
+
+    user_ids = (
+        db.query(Staff.user_id)
+        .join(TeachingAssignment, TeachingAssignment.staff_id == Staff.id)
+        .filter(
+            TeachingAssignment.school_id == school_id,
+            TeachingAssignment.class_subject_id == class_subject_id,
+            TeachingAssignment.is_active.is_(True),
+            Staff.school_id == school_id,
+            Staff.is_active.is_(True),
+            Staff.employment_status == "active",
+            Staff.user_id.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    return notify_users(
+        db,
+        school_id=school_id,
+        recipient_user_ids=[row[0] for row in user_ids],
+        notification_type=notification_type,
+        title=title,
+        message=message,
+        data=data,
+        exclude_user_id=exclude_user_id,
+    )
+
