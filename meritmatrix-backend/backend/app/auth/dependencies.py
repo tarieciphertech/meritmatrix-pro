@@ -78,6 +78,8 @@ def _role_names(user: User) -> Set[str]:
 
 def _school_position_permission_names(db: Session, user: User, request: Request) -> Set[str]:
     """Resolve permissions from every active position held by this user in the request school."""
+    from app.models.associations import school_position_permissions
+    from app.models.permission import Permission
     from app.models.school_position import SchoolPosition, StaffPosition
     from app.models.staff import Staff
     from app.models.timetable_entry import TimetableEntry
