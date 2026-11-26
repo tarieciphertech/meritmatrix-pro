@@ -1,4 +1,5 @@
 """Create in-app notifications for guardians linked to affected students."""
+from datetime import date
 from typing import Any, Iterable
 import uuid
 
@@ -179,11 +180,13 @@ def notify_teaching_staff(
     message: str,
     data: dict[str, Any] | None = None,
     exclude_user_id: uuid.UUID | None = None,
+    effective_on: date | None = None,
 ) -> int:
-    """Notify active, linked teachers assigned to the affected class-subject."""
+    """Notify linked teachers assigned to the class-subject on the relevant date."""
     from app.models.staff import Staff
     from app.models.teaching_assignment import TeachingAssignment
 
+    relevant_date = effective_on or date.today()
     user_ids = (
         db.query(Staff.user_id)
         .join(TeachingAssignment, TeachingAssignment.staff_id == Staff.id)
@@ -191,6 +194,8 @@ def notify_teaching_staff(
             TeachingAssignment.school_id == school_id,
             TeachingAssignment.class_subject_id == class_subject_id,
             TeachingAssignment.is_active.is_(True),
+            TeachingAssignment.start_date <= relevant_date,
+            (TeachingAssignment.end_date.is_(None) | (TeachingAssignment.end_date >= relevant_date)),
             Staff.school_id == school_id,
             Staff.is_active.is_(True),
             Staff.employment_status == "active",
