@@ -226,16 +226,16 @@ def update_school_position(
             raise ConflictError("Remove this position from assigned staff before deactivating it.", code="SCHOOL_POSITION_IN_USE")
     if "permission_names" in changes:
         invalid_scope = [
-            name for name in changes["permission_names"]
-            if not name.startswith(SCHOOL_PERMISSION_PREFIXES) or name == "schools.create"
+            name for name in (changes["permission_names"] or [])
+            if not name.startswith(SCHOOL_PERMISSION_PREFIXES) or name in {"schools.create", "schools.update", "fees.create"}
         ]
         if invalid_scope:
             raise ConflictError("School positions cannot receive platform-wide permissions.", code="INVALID_POSITION_PERMISSION")
         permissions = db.query(Permission).filter(
-            Permission.name.in_(changes["permission_names"])
+            Permission.name.in_(changes["permission_names"] or [])
         ).all() if changes["permission_names"] else []
         found = {permission.name for permission in permissions}
-        missing = sorted(set(changes["permission_names"]) - found)
+        missing = sorted(set(changes["permission_names"] or []) - found)
         if missing:
             raise ConflictError("Unknown permissions: " + ", ".join(missing), code="UNKNOWN_PERMISSION")
         position.permissions = permissions
