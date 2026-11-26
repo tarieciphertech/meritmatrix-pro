@@ -132,7 +132,7 @@ export default function AcademicSetupPage() {
  useEffect(()=>{
   loadRequestIdRef.current+=1;
   setYears([]);setTerms([]);setClasses([]);setSubjects([]);setAssignments([]);
-  setSelectedClassId('');setSelectedSubjectId('');setSelectedSubjectIds([]);setClassSearch('');setSubjectSearch('');setRecordSearch('');setYearId('');setError(null);
+  setSelectedClassId('');setSelectedSubjectIds([]);setClassSearch('');setSubjectSearch('');setRecordSearch('');setYearId('');setError(null);
   setLoading(false);
  },[selectedSchool?.id]);
 
@@ -224,7 +224,7 @@ export default function AcademicSetupPage() {
   }
   try{setAssignments(await api.get<ClassSubjectResponse[]>('/api/v1/class-subjects',{class_id:selectedClassId}));}
   catch(e){setError(e instanceof Error?e.message:'Assignments saved but list could not refresh.');}
-  setSelectedSubjectIds([]);setSelectedSubjectId('');setAssigning(false);
+  setSelectedSubjectIds([]);setAssigning(false);
   if(created)setError(failures.length?created+' subjects assigned; '+failures.length+' could not be assigned.':null);
   else if(failures.length)setError(failures[0]);
  }
