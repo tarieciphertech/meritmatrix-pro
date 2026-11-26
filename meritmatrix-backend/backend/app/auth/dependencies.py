@@ -129,9 +129,14 @@ def require_permission(permission_name: str) -> Callable[..., User]:
     permission check.
     """
 
-    def dependency(current_user: User = Depends(get_current_active_user)) -> User:
+    def dependency(
+        request: Request,
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db),
+    ) -> User:
         held = _permission_names(current_user)
-        if SYSTEM_ADMIN_PERMISSION in held or permission_name in held:
+        school_held = _school_position_permission_names(db, current_user, request)
+        if SYSTEM_ADMIN_PERMISSION in held or permission_name in held or permission_name in school_held:
             return current_user
         raise ForbiddenError(
             "You do not have permission to perform this action.",
