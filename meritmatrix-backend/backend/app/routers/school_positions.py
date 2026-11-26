@@ -12,7 +12,7 @@ from app.models.school_position import SchoolPosition, StaffPosition
 from app.models.role import Role
 from app.models.staff import Staff
 from app.models.user import User
-from app.schemas.school_position import SchoolPositionCreate, SchoolPositionResponse, StaffPositionsUpdate
+from app.schemas.school_position import SchoolPositionCreate, SchoolPositionResponse, SchoolPositionUpdate, StaffPositionsUpdate
 from app.services.audit_service import record_audit_event
 from app.services.user_school_service import UserSchoolService
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
@@ -180,6 +180,71 @@ def create_school_position(
     record_audit_event(db, school_id=school_id, actor_user_id=current_user.id,
         action="school_position.created", entity_type="school_position", entity_id=position.id,
         details={"code": code, "permission_names": sorted(found)})
+    db.commit()
+    db.refresh(position)
+    return _response(position)
+
+
+
+@router.get("/permissions")
+def list_school_permission_catalog(
+    school_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("staff.update")),
+):
+    _verify_school(db, current_user, school_id)
+    rows = db.query(Permission).order_by(Permission.name).all()
+    return [
+        {"name": row.name, "description": row.description}
+        for row in rows
+        if row.name.startswith(SCHOOL_PERMISSION_PREFIXES) and row.name != "schools.create"
+    ]
+
+
+@router.patch("/{position_id}", response_model=SchoolPositionResponse)
+def update_school_position(
+    position_id: uuid.UUID,
+    payload: SchoolPositionUpdate,
+    school_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("staff.update")),
+):
+    _verify_school(db, current_user, school_id)
+    position = db.query(SchoolPosition).filter(
+        SchoolPosition.id == position_id, SchoolPosition.school_id == school_id,
+    ).first()
+    if not position:
+        raise NotFoundError("School position not found.", code="SCHOOL_POSITION_NOT_FOUND")
+    changes = payload.model_dump(exclude_unset=True)
+    if "is_active" in changes and not changes["is_active"]:
+        assigned = db.query(StaffPosition.id).filter(
+            StaffPosition.position_id == position.id, StaffPosition.is_active.is_(True),
+        ).first()
+        if assigned:
+            raise ConflictError("Remove this position from assigned staff before deactivating it.", code="SCHOOL_POSITION_IN_USE")
+    if "permission_names" in changes:
+        invalid_scope = [
+            name for name in changes["permission_names"]
+            if not name.startswith(SCHOOL_PERMISSION_PREFIXES) or name == "schools.create"
+        ]
+        if invalid_scope:
+            raise ConflictError("School positions cannot receive platform-wide permissions.", code="INVALID_POSITION_PERMISSION")
+        permissions = db.query(Permission).filter(
+            Permission.name.in_(changes["permission_names"])
+        ).all() if changes["permission_names"] else []
+        found = {permission.name for permission in permissions}
+        missing = sorted(set(changes["permission_names"]) - found)
+        if missing:
+            raise ConflictError("Unknown permissions: " + ", ".join(missing), code="UNKNOWN_PERMISSION")
+        position.permissions = permissions
+    for field in ("name", "description", "is_active"):
+        if field in changes:
+            setattr(position, field, changes[field])
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="school_position.updated", entity_type="school_position", entity_id=position.id,
+        details={"changed_fields": sorted(changes.keys())},
+    )
     db.commit()
     db.refresh(position)
     return _response(position)
