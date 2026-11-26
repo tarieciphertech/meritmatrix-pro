@@ -223,5 +223,22 @@ def test_timetable_is_school_scoped_assignment_scoped_and_rejects_overlaps(
     assert room_clash.status_code == 409
     assert room_clash.json()["error"]["code"] == "TIMETABLE_ROOM_CONFLICT"
 
+    published = client.post(
+        f"/api/v1/timetable/publish/{academic_year.id}",
+        headers=admin_headers, params=params,
+    )
+    assert published.status_code == 200, published.text
+    assert published.json()["published"] is True
+    locked_delete = client.delete(f"/api/v1/timetable/{first_id}", headers=admin_headers)
+    assert locked_delete.status_code == 409, locked_delete.text
+    assert locked_delete.json()["error"]["code"] == "TIMETABLE_PUBLISHED"
+
+    reopened = client.post(
+        f"/api/v1/timetable/reopen/{academic_year.id}",
+        headers=admin_headers, params=params,
+    )
+    assert reopened.status_code == 200, reopened.text
+    assert reopened.json()["published"] is False
+
     denied_delete = client.delete(f"/api/v1/timetable/{first_id}", headers=teacher_headers)
     assert denied_delete.status_code == 403, denied_delete.text
