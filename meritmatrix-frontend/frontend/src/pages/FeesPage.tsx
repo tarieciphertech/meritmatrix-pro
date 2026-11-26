@@ -118,6 +118,18 @@ export default function FeesPage() {
     finally { setSaving(false); }
   }
 
+  async function voidCharge(charge: Charge) {
+    if (!selectedSchool || charge.is_void || charge.amount_paid > 0) return;
+    if (!window.confirm(`Void the unpaid charge "${charge.description}" for ${charge.student_name}?`)) return;
+    setSaving(true); setError(null); setNotice('');
+    try {
+      await api.post(`/api/v1/fees/charges/${charge.id}/void`, {}, { school_id: selectedSchool.id });
+      setNotice('Unpaid fee charge voided. Its audit history has been preserved.');
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not void fee charge.'); }
+    finally { setSaving(false); }
+  }
+
   async function recordPayment() {
     if (!selectedSchool || !chargeId || !(Number(paymentAmount) > 0) || !paymentDate) { setError('Select an outstanding charge and enter a positive payment amount and date.'); return; }
     setSaving(true); setError(null); setNotice('');
@@ -193,7 +205,7 @@ export default function FeesPage() {
       </div>
       <Card className="overflow-hidden">
         <div className="border-b border-slate-200 p-4"><h2 className="font-semibold text-slate-900">Fee charges</h2></div>
-        {charges.length===0?<p className="p-6 text-sm text-slate-500">No fee charges recorded yet.</p>:<div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr>{['Student','Charge','Academic year','Due date','Charged','Paid','Balance'].map(x=><th key={x} className="px-3 py-3 text-left font-semibold text-slate-600">{x}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{charges.map(c=><tr key={c.id}><td className="px-3 py-3"><p className="font-medium">{c.student_name}</p><p className="text-xs text-slate-500">{c.student_number}</p></td><td className="px-3 py-3">{c.description}{c.term_name?' · '+c.term_name:''}</td><td className="px-3 py-3">{c.academic_year_name}</td><td className="px-3 py-3">{c.due_date||'—'}</td><td className="px-3 py-3">{currency}{c.amount}</td><td className="px-3 py-3">{currency}{c.amount_paid}</td><td className="px-3 py-3 font-semibold">{currency}{c.balance}</td></tr>)}</tbody></table></div>}
+        {charges.length===0?<p className="p-6 text-sm text-slate-500">No fee charges recorded yet.</p>:<div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr>{['Student','Charge','Academic year','Due date','Charged','Paid','Balance','Status','Action'].map(x=><th key={x} className="px-3 py-3 text-left font-semibold text-slate-600">{x}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{charges.map(c=><tr key={c.id} className={c.is_void?'bg-slate-50 text-slate-400':''}><td className="px-3 py-3"><p className="font-medium">{c.student_name}</p><p className="text-xs text-slate-500">{c.student_number}</p></td><td className="px-3 py-3">{c.description}{c.term_name?' · '+c.term_name:''}</td><td className="px-3 py-3">{c.academic_year_name}</td><td className="px-3 py-3">{c.due_date||'—'}</td><td className="px-3 py-3">{currency}{c.amount}</td><td className="px-3 py-3">{currency}{c.amount_paid}</td><td className="px-3 py-3 font-semibold">{currency}{c.balance}</td><td className="px-3 py-3">{c.is_void?'Voided':'Active'}</td><td className="px-3 py-3">{!c.is_void&&c.amount_paid===0?<Button variant="secondary" className="!px-2 !py-1 text-xs" disabled={saving} onClick={()=>void voidCharge(c)}>Void charge</Button>:<span className="text-xs text-slate-400">—</span>}</td></tr>)}</tbody></table></div>}
       </Card>
       <Card className="overflow-hidden">
         <div className="border-b border-slate-200 p-4"><h2 className="font-semibold text-slate-900">Recent payments</h2></div>
