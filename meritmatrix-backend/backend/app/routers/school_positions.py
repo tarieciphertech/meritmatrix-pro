@@ -4,7 +4,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.auth.assignment_access import require_staff_school_scope, deny_linked_staff_management
+from app.auth.assignment_access import require_staff_school_scope
 from app.auth.dependencies import SYSTEM_ADMIN_PERMISSION, _permission_names, require_permission
 from app.database import get_db
 from app.models.permission import Permission
@@ -146,7 +146,6 @@ def create_position(
     current_user: User = Depends(require_permission("schools.configure")),
 ):
     _school_access(db, current_user, school_id)
-    deny_linked_staff_management(db, current_user, "create school positions")
     _ensure_templates(db, school_id)
     if db.query(SchoolPosition.id).filter(
         SchoolPosition.school_id == school_id, SchoolPosition.code == payload.code
@@ -179,7 +178,6 @@ def update_position(
     if not position:
         raise NotFoundError("School position not found.", code="SCHOOL_POSITION_NOT_FOUND")
     _school_access(db, current_user, position.school_id)
-    deny_linked_staff_management(db, current_user, "change school position permissions")
     changes = payload.model_dump(exclude_unset=True)
     if "permissions" in changes:
         changes["permissions"] = _validate_permissions(db, changes["permissions"] or [])
@@ -223,7 +221,6 @@ def assign_staff_positions(
     if not staff:
         raise NotFoundError("Staff member not found.", code="STAFF_NOT_FOUND")
     _school_access(db, current_user, staff.school_id)
-    deny_linked_staff_management(db, current_user, "assign school positions")
     _ensure_templates(db, staff.school_id)
     positions = db.query(SchoolPosition).filter(
         SchoolPosition.school_id == staff.school_id,
