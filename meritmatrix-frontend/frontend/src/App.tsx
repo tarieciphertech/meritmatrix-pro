@@ -17,6 +17,7 @@ import StudentsPage from './pages/StudentsPage';
 import GuardiansPage from './pages/GuardiansPage';
 import GuardianPortalPage from './pages/GuardianPortalPage';
 import StaffPage from './pages/StaffPage';
+import SchoolPositionsPage from './pages/SchoolPositionsPage';
 import EnrollmentsPage from './pages/EnrollmentsPage';
 import AcademicSetupPage from './pages/AcademicSetupPage';
 import AssessmentsPage from './pages/AssessmentsPage';
