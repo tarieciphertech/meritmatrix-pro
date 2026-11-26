@@ -194,8 +194,8 @@ def assigned_class_subject_ids(
     staff = db.query(Staff).filter(Staff.user_id == user.id).first()
     if staff is None:
         return set() if _is_teacher(user) else None
-    if not _is_teacher(user):
-        return None  # Non-teaching school positions are not class-assignment scoped.
+    if not _teacher_assignment_scoped(db, user, staff):
+        return None  # Other assigned positions combine with teacher access.
     if not staff.is_active or staff.employment_status != "active" or staff.school_id != school_id:
         return set()
 
