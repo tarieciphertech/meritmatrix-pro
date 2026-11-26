@@ -145,3 +145,52 @@ def test_user_cannot_mark_another_users_notification_as_read(
 
     assert response.status_code == 404, response.text
     assert response.json()["error"]["code"] == "NOTIFICATION_NOT_FOUND"
+
+def test_school_role_notifications_are_limited_to_matching_school_members(
+    make_user, seeded_rbac, db_session
+):
+    from app.models.user_school import UserSchool
+    from app.models.user_notification import UserNotification
+    from app.services.notification_service import notify_school_roles
+
+    school = School(name="Staff Notifications School", code="SNS001", city="Gaborone", country="Botswana")
+    db_session.add(school)
+    db_session.flush()
+    admin = make_user(
+        email="staff-notification-admin@example.com", password="StrongPass123",
+        role_name="SCHOOL_ADMIN",
+    )
+    teacher = make_user(
+        email="staff-notification-teacher@example.com", password="StrongPass123",
+        role_name="TEACHER",
+    )
+    unlinked_admin = make_user(
+        email="staff-notification-unlinked@example.com", password="StrongPass123",
+        role_name="SCHOOL_ADMIN",
+    )
+    db_session.add_all([
+        UserSchool(user_id=admin.id, school_id=school.id),
+        UserSchool(user_id=teacher.id, school_id=school.id),
+    ])
+    db_session.flush()
+
+    count = notify_school_roles(
+        db_session,
+        school_id=school.id,
+        role_names={"SCHOOL_ADMIN"},
+        notification_type="assessment.marks_submitted_for_review",
+        title="Marks ready for review",
+        message="An assessment is ready for review.",
+        data={"assessment_id": "assessment-1"},
+        exclude_user_id=teacher.id,
+    )
+    db_session.commit()
+
+    rows = db_session.query(UserNotification).filter(
+        UserNotification.school_id == school.id
+    ).all()
+    assert count == 1
+    assert len(rows) == 1
+    assert rows[0].recipient_user_id == admin.id
+    assert rows[0].recipient_user_id != unlinked_admin.id
+
