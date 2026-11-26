@@ -56,12 +56,14 @@ def test_calendar_rejects_invalid_date_range_and_teacher_cannot_manage_events(
     school = School(name="Calendar Permission School", code="CAL002", city="Gaborone", country="Botswana")
     db_session.add(school)
     db_session.commit()
+    make_user(email="calendar-admin-invalid@example.com", password="StrongPass123", role_name="SUPER_ADMIN")
     make_user(email="calendar-teacher@example.com", password="StrongPass123", role_name="TEACHER")
-    headers = auth_headers("calendar-teacher@example.com", "StrongPass123")
+    admin_headers = auth_headers("calendar-admin-invalid@example.com", "StrongPass123")
+    teacher_headers = auth_headers("calendar-teacher@example.com", "StrongPass123")
 
     invalid = client.post(
         f"/api/v1/calendar-events?school_id={school.id}",
-        headers=headers,
+        headers=admin_headers,
         json={
             "title": "Invalid range",
             "event_type": "school_event",
@@ -73,7 +75,7 @@ def test_calendar_rejects_invalid_date_range_and_teacher_cannot_manage_events(
 
     denied = client.post(
         f"/api/v1/calendar-events?school_id={school.id}",
-        headers=headers,
+        headers=teacher_headers,
         json={
             "title": "Teacher-created event",
             "event_type": "school_event",
