@@ -4,7 +4,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import require_permission
+from app.auth.dependencies import get_current_active_user, require_permission
 from app.database import get_db
 from app.models.permission import Permission
 from app.models.school import School
@@ -102,6 +102,32 @@ def _ensure_default_positions(db: Session, school_id: uuid.UUID) -> None:
         position.permissions = [permissions[name] for name in allowed if name in permissions]
         db.add(position)
     db.flush()
+
+
+
+@router.get("/me")
+def get_my_school_position_permissions(
+    school_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Return the signed-in staff member's effective school-position permissions for navigation."""
+    _verify_school(db, current_user, school_id)
+    staff = db.query(Staff).filter(
+        Staff.user_id == current_user.id, Staff.school_id == school_id,
+        Staff.is_active.is_(True), Staff.employment_status == "active",
+    ).first()
+    if not staff:
+        from app.auth.dependencies import _permission_names
+        return {"position_codes": [], "permission_names": sorted(_permission_names(current_user))}
+    rows = db.query(StaffPosition).join(SchoolPosition).filter(
+        StaffPosition.staff_id == staff.id, StaffPosition.is_active.is_(True),
+        SchoolPosition.school_id == school_id, SchoolPosition.is_active.is_(True),
+    ).all()
+    return {
+        "position_codes": sorted({row.position.code for row in rows}),
+        "permission_names": sorted({permission.name for row in rows for permission in row.position.permissions}),
+    }
 
 
 @router.get("", response_model=list[SchoolPositionResponse])
