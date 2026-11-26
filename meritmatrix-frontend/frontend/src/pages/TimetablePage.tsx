@@ -15,7 +15,20 @@ const empty: Form = { assignment_id: '', weekday: '0', start_time: '08:00', end_
 export default function TimetablePage() {
   const { user } = useAuth();
   const { selectedSchool } = useSchool();
-  const isTeacher = (user?.roles ?? []).some(r => r.name === 'TEACHER');
+  const hasTeacherRole = (user?.roles ?? []).some(r => r.name === 'TEACHER');
+  const [positionCodes, setPositionCodes] = useState<string[]>([]);
+  const isTeacher = hasTeacherRole && (positionCodes.length === 0 || positionCodes.every(code => code === 'TEACHER'));
+  useEffect(() => {
+    if (!selectedSchool || !(user?.roles ?? []).some(role => role.name === 'SCHOOL_STAFF')) {
+      setPositionCodes([]);
+      return;
+    }
+    let active = true;
+    api.get<{ position_codes: string[]; permission_names: string[] }>('/api/v1/school-positions/me', { school_id: selectedSchool.id })
+      .then(result => { if (active) setPositionCodes(result.position_codes); })
+      .catch(() => { if (active) setPositionCodes([]); });
+    return () => { active = false; };
+  }, [selectedSchool?.id, user?.id]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [academicYear, setAcademicYear] = useState<AcademicYear | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
