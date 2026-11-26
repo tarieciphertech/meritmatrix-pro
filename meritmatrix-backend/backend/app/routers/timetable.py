@@ -139,7 +139,7 @@ def create_timetable_entry(
             db, school_id=school_id, recipient_user_ids=[staff.user_id],
             notification_type="timetable.lesson_scheduled",
             title="Timetable updated",
-            message=f"You have a new {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][payload.weekday]} lesson: {pair.subject.name} · {pair.class_.name} at {payload.start_time.strftime('%H:%M')}.",
+            message=f"You have a new {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][payload.weekday]} lesson: {pair.subject.name} · {pair.clazz.name} at {payload.start_time.strftime('%H:%M')}.",
             data={"timetable_entry_id": str(entry.id), "weekday": payload.weekday},
             exclude_user_id=current_user.id,
         )
