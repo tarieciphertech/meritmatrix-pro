@@ -87,6 +87,77 @@ function TeacherDashboard({ schoolId }: { schoolId: string }) {
   </div>;
 }
 
+
+function AdminSchoolOverview({ schoolId }: { schoolId: string }) {
+  const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
+  const [pendingReviews, setPendingReviews] = useState<Assessment[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [unreadCount, setUnreadCount] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const date = today();
+    setLoading(true);
+    setError(null);
+    void Promise.allSettled([
+      api.get<AttendanceRow[]>('/api/v1/attendance', { school_id: schoolId, attendance_date: date }),
+      api.get<Assessment[]>('/api/v1/assessments', { school_id: schoolId, include_unpublished: true }),
+      api.get<CalendarEvent[]>('/api/v1/calendar-events', { school_id: schoolId, from_date: date, approved_only: true }),
+      api.get<Notification[]>('/api/v1/notifications', { school_id: schoolId, unread_only: true, limit: 100 }),
+    ]).then(results => {
+      if (cancelled) return;
+      const [attendanceResult, assessmentResult, eventResult, notificationResult] = results;
+      setAttendance(attendanceResult.status === 'fulfilled' ? attendanceResult.value : []);
+      setPendingReviews(assessmentResult.status === 'fulfilled'
+        ? assessmentResult.value.filter(item => item.marks_submitted && !item.is_published)
+        : []);
+      setEvents(eventResult.status === 'fulfilled' ? eventResult.value.slice(0, 4) : []);
+      setUnreadCount(notificationResult.status === 'fulfilled' ? notificationResult.value.length : null);
+      const failed = results.filter(result => result.status === 'rejected').length;
+      if (failed === results.length) setError('School overview data could not be loaded. Check your access and retry.');
+      else if (failed > 0) setError('Some overview figures are unavailable. The remaining sections are still shown.');
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [schoolId]);
+
+  const attendanceExceptions = attendance.filter(row => ['absent', 'late', 'sick'].includes(row.status)).length;
+  const fmt = (value: string) => new Date(value + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+  return <section className="mb-5 space-y-4">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div><h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">School operations</h2><p className="mt-1 text-xs text-slate-400">Live activity and items requiring attention</p></div>
+      <span className="text-xs text-slate-400">Today · {fmt(today())}</span>
+    </div>
+    {error && <ErrorBanner message={error} />}
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Link to="/attendance"><Card className="h-full p-4 transition-shadow hover:shadow-md"><p className="text-sm font-medium text-slate-500">Attendance recorded today</p><p className="mt-2 text-3xl font-semibold text-slate-900">{loading ? '—' : attendance.length}</p><p className="mt-1 text-xs text-slate-500">{attendanceExceptions} absent, late or sick record(s)</p></Card></Link>
+      <Link to="/assessments"><Card className="h-full p-4 transition-shadow hover:shadow-md"><p className="text-sm font-medium text-slate-500">Results awaiting review</p><p className="mt-2 text-3xl font-semibold text-slate-900">{loading ? '—' : pendingReviews.length}</p><p className="mt-1 text-xs text-slate-500">Submitted marks not yet published</p></Card></Link>
+      <Link to="/school-calendar"><Card className="h-full p-4 transition-shadow hover:shadow-md"><p className="text-sm font-medium text-slate-500">Upcoming school events</p><p className="mt-2 text-3xl font-semibold text-slate-900">{loading ? '—' : events.length}</p><p className="mt-1 text-xs text-slate-500">Approved events from today onward</p></Card></Link>
+      <Card className="p-4"><p className="text-sm font-medium text-slate-500">Unread notifications</p><p className="mt-2 text-3xl font-semibold text-slate-900">{loading || unreadCount === null ? '—' : unreadCount === 100 ? '100+' : unreadCount}</p><p className="mt-1 text-xs text-slate-500">Open the bell in the top bar to review</p></Card>
+    </div>
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card className="p-4">
+        <div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Assessment review queue</h3><Link to="/assessments" className="text-sm font-medium text-indigo-700 hover:underline">Review assessments →</Link></div>
+        {loading ? <p className="mt-3 text-sm text-slate-500">Loading review queue…</p> : pendingReviews.length ? <ul className="mt-3 divide-y divide-slate-100">{pendingReviews.slice(0, 4).map(item => <li key={item.id} className="py-2"><p className="text-sm font-medium text-slate-800">{item.title}</p><p className="text-xs text-slate-500">{item.class_name} · {item.subject_name}</p></li>)}</ul> : <p className="mt-3 text-sm text-slate-500">No submitted assessments are waiting for review.</p>}
+      </Card>
+      <Card className="p-4">
+        <div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Upcoming school calendar</h3><Link to="/school-calendar" className="text-sm font-medium text-indigo-700 hover:underline">Open calendar →</Link></div>
+        {loading ? <p className="mt-3 text-sm text-slate-500">Loading calendar…</p> : events.length ? <ul className="mt-3 divide-y divide-slate-100">{events.map(event => <li key={event.id} className="flex items-center justify-between gap-3 py-2"><div><p className="text-sm font-medium text-slate-800">{event.title}</p><p className="text-xs text-slate-500">{event.event_type.replaceAll('_', ' ')}</p></div><span className="shrink-0 text-xs text-slate-500">{fmt(event.start_date)}{event.end_date !== event.start_date ? `–${fmt(event.end_date)}` : ''}</span></li>)}</ul> : <p className="mt-3 text-sm text-slate-500">No approved upcoming events are scheduled.</p>}
+      </Card>
+    </div>
+    <div className="flex flex-wrap gap-2">
+      <Link to="/students" className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">Manage students</Link>
+      <Link to="/staff" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Manage staff</Link>
+      <Link to="/fees" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Fees & payments</Link>
+      <Link to="/report-cards" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Report cards</Link>
+    </div>
+  </section>;
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const isTeacher = (user?.roles ?? []).some((role) => role.name === 'TEACHER');
@@ -118,6 +189,6 @@ export default function DashboardPage() {
   return <div>
     <PageHeader title={`Welcome, ${user?.first_name??''}`} subtitle={selectedSchool? `Viewing data for ${selectedSchool.name}`:canChooseSchool?'Choose a school below to open its dashboard and records.':'Your assigned school is being loaded.'} actions={selectedSchool&&canChooseSchool?<Button variant="secondary" onClick={()=>selectSchool('')}>← Back to school selection</Button>:undefined}/>
     {schoolError&&<ErrorBanner message={schoolError}/>}
-    {!selectedSchool?<section className="mt-2"><h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Select a school</h2><p className="mb-4 text-sm text-slate-500">Choose a school card to open its dashboard.</p>{schoolsLoading?<Spinner label="Loading your schools…"/>:schools.length===1&&!isSuperAdmin?<Spinner label="Opening your assigned school…"/>:schools.length===0?<Card className="p-6">No schools are available to your account yet. Ask a platform administrator to assign you to a school.</Card>:<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{schools.map(s=><button key={s.id} type="button" disabled={!s.is_active} onClick={()=>selectSchool(s.id)} className="rounded-lg text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 disabled:opacity-60"><Card className="h-full p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"><p className="font-semibold text-slate-900">{s.name}</p><p className="mt-1 text-sm text-slate-500">School code: {s.code}</p><p className="mt-2 text-xs font-semibold text-indigo-700">{s.is_active?'Open school →':'Inactive'}</p></Card></button>)}</div>}</section>:isTeacher?<TeacherDashboard schoolId={selectedSchool.id}/>:loading?<Spinner/>:<><div className="mb-3 flex justify-end"><Button variant="secondary" onClick={()=>void loadCounts()}>Refresh counts</Button></div>{error&&<ErrorBanner message={error}/>}<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{countCards.map(c=><Link key={c.label} to={c.to}><Card className="p-5 transition-shadow hover:shadow-md"><p className="text-sm font-medium text-slate-500">{c.label}</p><p className="mt-2 text-3xl font-semibold text-slate-900">{c.value===null?'—':c.value}</p><p className="mt-1 text-xs text-slate-400">{c.value===MAX_COUNT_FETCH?`${MAX_COUNT_FETCH}+ records (page cap reached)`:'from live school data'}</p></Card></Link>)}</div></>}
+    {!selectedSchool?<section className="mt-2"><h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Select a school</h2><p className="mb-4 text-sm text-slate-500">Choose a school card to open its dashboard.</p>{schoolsLoading?<Spinner label="Loading your schools…"/>:schools.length===1&&!isSuperAdmin?<Spinner label="Opening your assigned school…"/>:schools.length===0?<Card className="p-6">No schools are available to your account yet. Ask a platform administrator to assign you to a school.</Card>:<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{schools.map(s=><button key={s.id} type="button" disabled={!s.is_active} onClick={()=>selectSchool(s.id)} className="rounded-lg text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 disabled:opacity-60"><Card className="h-full p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"><p className="font-semibold text-slate-900">{s.name}</p><p className="mt-1 text-sm text-slate-500">School code: {s.code}</p><p className="mt-2 text-xs font-semibold text-indigo-700">{s.is_active?'Open school →':'Inactive'}</p></Card></button>)}</div>}</section>:isTeacher?<TeacherDashboard schoolId={selectedSchool.id}/>:loading?<Spinner/>:<><div className="mb-3 flex justify-end"><Button variant="secondary" onClick={()=>void loadCounts()}>Refresh counts</Button></div>{error&&<ErrorBanner message={error}/>}<AdminSchoolOverview schoolId={selectedSchool.id}/><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{countCards.map(c=><Link key={c.label} to={c.to}><Card className="p-5 transition-shadow hover:shadow-md"><p className="text-sm font-medium text-slate-500">{c.label}</p><p className="mt-2 text-3xl font-semibold text-slate-900">{c.value===null?'—':c.value}</p><p className="mt-1 text-xs text-slate-400">{c.value===MAX_COUNT_FETCH?`${MAX_COUNT_FETCH}+ records (page cap reached)`:'from live school data'}</p></Card></Link>)}</div></>}
   </div>;
 }
