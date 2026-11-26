@@ -67,6 +67,7 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
     "subjects.update": "Update subjects",
     "class_subjects.read": "View class-subject assignments",
     "class_subjects.create": "Create class-subject assignments",
+    "class_subjects.update": "Update class-subject and teaching assignment records",
     "class_subjects.delete": "Remove class-subject assignments",
     # Milestone 4: People & Enrollment
     "students.read": "View students",
@@ -93,7 +94,9 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
     "assessments.create": "Create assessments and record marks",
     "assessments.update": "Update assessments and publish results",
     "fees.read": "View fee charges, payments and balances",
-    "fees.create": "Create fee charges and record payments",
+    "fees.create": "Legacy fee creation permission",
+    "fees.charges.create": "Create fee charges",
+    "fees.payments.create": "Record fee payments",
     "audit_logs.read": "View school-scoped audit history",
     # System
     "system.admin": "Full platform administrative access (implies all other permissions)",
@@ -123,7 +126,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "terms.read", "terms.create", "terms.update",
         "classes.read", "classes.create", "classes.update",
         "subjects.read", "subjects.create", "subjects.update",
-        "class_subjects.read", "class_subjects.create", "class_subjects.delete",
+        "class_subjects.read", "class_subjects.create", "class_subjects.update", "class_subjects.delete",
         "students.read", "students.create", "students.update", "students.delete",
         "guardians.read", "guardians.create", "guardians.update", "guardians.delete",
         "student_guardians.read", "student_guardians.create", "student_guardians.delete",
@@ -131,7 +134,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "enrollments.read", "enrollments.create", "enrollments.update",
         "attendance.read", "attendance.create",
         "assessments.read", "assessments.create", "assessments.update",
-        "fees.read", "fees.create", "audit_logs.read",
+        "fees.read", "fees.create", "fees.charges.create", "fees.payments.create", "audit_logs.read",
     ],
     "TEACHER": [
         "schools.read", "academic_years.read", "terms.read", "classes.read",
