@@ -110,6 +110,40 @@ def create_charge(
     return _charge_response(charge)
 
 
+@router.post("/charges/{charge_id}/void", response_model=FeeChargeResponse)
+def void_charge(
+    charge_id: uuid.UUID,
+    school_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("fees.update")),
+):
+    """Void an unpaid charge while preserving its audit history."""
+    _school_access(db, current_user, school_id)
+    charge = db.query(FeeCharge).filter(
+        FeeCharge.id == charge_id,
+        FeeCharge.school_id == school_id,
+    ).first()
+    if not charge:
+        raise NotFoundError("Fee charge not found in this school.", code="FEE_CHARGE_NOT_FOUND")
+    if charge.is_void:
+        return _charge_response(charge)
+    if db.query(FeePayment.id).filter(FeePayment.charge_id == charge.id).first():
+        raise ConflictError(
+            "A charge with recorded payments cannot be voided. Resolve the payment through the school's approved financial adjustment process.",
+            code="FEE_CHARGE_HAS_PAYMENTS",
+        )
+    charge.is_void = True
+    record_audit_event(
+        db, school_id=school_id, actor_user_id=current_user.id,
+        action="fees.charge_voided", entity_type="fee_charge",
+        entity_id=charge.id,
+        details={"student_id": str(charge.student_id), "description": charge.description},
+    )
+    db.commit()
+    db.refresh(charge)
+    return _charge_response(charge)
+
+
 @router.get("/payments", response_model=list[FeePaymentResponse])
 def list_payments(
     school_id: uuid.UUID = Query(...),
